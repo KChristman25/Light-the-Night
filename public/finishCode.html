@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Maze Admin — Live View & Quick Finish</title>
+
+  <!-- ZXing (barcode scanner) -->
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Roboto, Arial; margin:0; background:#071126; color:#e6f2ff; }
+    header { display:flex; align-items:center; gap:1rem; padding:12px 16px; background:#0b2340; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+    h1 { margin:0; font-size:1.1rem; }
+    .controls { margin-left:auto; display:flex; gap:8px; align-items:center; }
+    button { background:#0f6; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button.warn { background:#f59e0b; }
+    main { display:flex; gap:16px; padding:12px; height:calc(100vh - 64px); box-sizing:border-box; }
+    .left, .right { background:rgba(255,255,255,0.03); border-radius:10px; padding:12px; }
+    .left { flex:1; overflow:auto; }
+    .right { width:420px; display:flex; flex-direction:column; gap:12px; }
+    .participant { padding:10px; border-radius:8px; margin-bottom:8px; background:rgba(255,255,255,0.01); display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .name { font-weight:700; }
+    .meta { color:#9fb7d5; font-size:0.85rem; }
+    .duration { font-size:0.95rem; font-variant-numeric:tabular-nums; }
+    #video { width:100%; border-radius:8px; background:#000; height:280px; object-fit:cover; }
+    .small { font-size:0.85rem; color:#9fb7d5; }
+    .scan-indicator { width:12px; height:12px; border-radius:50%; background:#ef4444; display:inline-block; margin-right:8px; box-shadow:0 0 8px rgba(239,68,68,.6); }
+    .ok { background:#10b981; box-shadow:0 0 8px rgba(16,185,129,.6); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Maze — Live (longest-in-maze at top)</h1>
+    <div class="controls">
+      <div id="status" class="small"><span class="scan-indicator" id="scanDot"></span><span id="statusText">scanner idle</span></div>
+      <button id="toggleScan">Start Scanner</button>
+      <button id="refreshBtn" class="warn">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="left">
+      <div style="margin-bottom:8px; color:#cfe9ff">Showing participants with a <code>startCheckIn</code> and not completed (sorted by time spent).</div>
+      <div id="list"></div>
+    </div>
+
+    <div class="right">
+      <div>
+        <video id="video" muted playsinline></video>
+      </div>
+
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div><strong>Last scan:</strong> <span id="lastScan">none</span></div>
+          <div><button id="manualFinish" style="background:#0aa; padding:6px 8px; border-radius:6px">Finish by barcode</button></div>
+        </div>
+        <div style="margin-top:8px;">
+          <input id="manualInput" placeholder="Paste barcode string here" style="width:100%; padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:rgba(0,0,0,0.25); color:#e6f2ff"/>
+        </div>
+      </div>
+
+      <div class="small">Tip: Point camera at wristband QR. Scanning a barcode will immediately mark participant complete.</div>
+    </div>
+  </main>
+
+<script>
+  // --------- Firebase config (your project) ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+    authDomain: "light-the-night-2025.firebaseapp.com",
+    projectId: "light-the-night-2025",
+    storageBucket: "light-the-night-2025.firebasestorage.app",
+    messagingSenderId: "563168577950",
+    appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f",
+    measurementId: "G-F4XJR2YT9K"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // --------- UI elements ----------
+  const listEl = document.getElementById('list');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const toggleScanBtn = document.getElementById('toggleScan');
+  const lastScanEl = document.getElementById('lastScan');
+  const manualInput = document.getElementById('manualInput');
+  const manualFinish = document.getElementById('manualFinish');
+  const statusText = document.getElementById('statusText');
+  const scanDot = document.getElementById('scanDot');
+
+  // --------- live fetch & render ----------
+  let unsubscribe = null;
+
+  async function fetchAndRender() {
+    // fetch all docs from 'kids' collection (adjust collection name if you prefer 'participants')
+    const snapshot = await db.collection('kids').get();
+    const items = [];
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      d._id = doc.id;
+      items.push(d);
+    });
+
+    // filter: those who have started but not completed
+    const inMaze = items.filter(p => {
+      const hasStart = p.scans && (p.scans.startCheckIn || p.startCheckIn || p.startMaze || p.startCheckin);
+      const isCompleted = p.completed === true;
+      return hasStart && !isCompleted;
+    }).map(p => {
+      // try to normalize start time
+      let s = null;
+      if (p.scans && p.scans.startCheckIn) s = p.scans.startCheckIn;
+      else if (p.startCheckIn) s = p.startCheckIn;
+      else if (p.startMaze) s = p.startMaze;
+      else if (p.startCheckin) s = p.startCheckin;
+
+      // convert to JS Date
+      let startDate = null;
+      if (!s) startDate = null;
+      else if (typeof s === 'string') startDate = new Date(s);
+      else if (s && s.toDate) startDate = s.toDate(); // firebase Timestamp
+      else startDate = new Date(s);
+
+      const now = new Date();
+      const durationMs = startDate ? (now - startDate) : 0;
+      return { raw: p, startDate, durationMs };
+    });
+
+    // sort descending (longest time first)
+    inMaze.sort((a,b) => b.durationMs - a.durationMs);
+
+    // render
+    listEl.innerHTML = '';
+    if (inMaze.length === 0) {
+      listEl.innerHTML = '<div class="small">No participants currently in maze.</div>';
+      return;
+    }
+    inMaze.forEach(p => {
+      const doc = p.raw;
+      const name = doc.name || doc.displayName || 'Unnamed';
+      const barcode = doc.barcode || doc.code || doc.id || doc._id;
+      const container = document.createElement('div');
+      container.className = 'participant';
+      const left = document.createElement('div');
+      left.innerHTML = `<div class="name">${escapeHtml(name)}</div><div class="meta">${escapeHtml(barcode)}</div>`;
+      const right = document.createElement('div');
+      right.style.textAlign = 'right';
+      right.innerHTML = `<div class="duration">${formatDuration(p.durationMs)}</div><div class="small">${p.startDate ? p.startDate.toLocaleString() : ''}</div>`;
+      const finishBtn = document.createElement('button');
+      finishBtn.textContent = 'Finish';
+      finishBtn.style.marginLeft = '12px';
+      finishBtn.onclick = () => finishById(doc._id || doc.id || barcode);
+      right.appendChild(finishBtn);
+      container.appendChild(left);
+      container.appendChild(right);
+      listEl.appendChild(container);
+    });
+  }
+
+  refreshBtn.addEventListener('click', fetchAndRender);
+
+  // ---------- helper utilities ----------
+  function formatDuration(ms) {
+    if (!ms || ms < 0) return '0s';
+    const s = Math.floor(ms/1000);
+    const hh = Math.floor(s/3600); const mm = Math.floor((s%3600)/60); const ss = s%60;
+    if (hh>0) return `${hh}h ${mm}m ${ss}s`;
+    if (mm>0) return `${mm}m ${ss}s`;
+    return `${ss}s`;
+  }
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
+
+  // ---------- finish logic ----------
+  async function finishById(docIdOrBarcode) {
+    // try to find document by ID first, then by barcode/code
+    let docRef = null;
+
+    // if looks like Firestore doc id (we'll attempt direct get)
+    try {
+      const tryDoc = await db.collection('kids').doc(docIdOrBarcode).get();
+      if (tryDoc.exists) docRef = db.collection('kids').doc(docIdOrBarcode);
+    } catch(e){ /* ignore */ }
+
+    if (!docRef) {
+      // query by barcode or code field
+      const q = await db.collection('kids').where('barcode','==',docIdOrBarcode).limit(1).get();
+      if (q.empty) {
+        const q2 = await db.collection('kids').where('code','==',docIdOrBarcode).limit(1).get();
+        if (!q2.empty) docRef = db.collection('kids').doc(q2.docs[0].id);
+      } else {
+        docRef = db.collection('kids').doc(q.docs[0].id);
+      }
+    }
+
+    if (!docRef) {
+      alert('Participant not found: ' + docIdOrBarcode);
+      return;
+    }
+
+    const snap = await docRef.get();
+    const data = snap.data();
+
+    // determine start time
+    let startVal = null;
+    if (data.scans && data.scans.startCheckIn) startVal = data.scans.startCheckIn;
+    else if (data.startCheckIn) startVal = data.startCheckIn;
+    else if (data.startMaze) startVal = data.startMaze;
+    else if (data.startCheckin) startVal = data.startCheckin;
+
+    let startDate = null;
+    if (startVal) {
+      if (typeof startVal === 'string') startDate = new Date(startVal);
+      else if (startVal.toDate) startDate = startVal.toDate();
+      else startDate = new Date(startVal);
+    }
+
+    const now = new Date();
+    const durationMs = startDate ? (now - startDate) : 0;
+
+    // set completed fields
+    await docRef.update({
+      completed: true,
+      completionTime: firebase.firestore.Timestamp.fromDate(now),
+      durationMs: durationMs
+    });
+
+    // UI feedback
+    lastScanEl.textContent = (data.name || data.barcode || docRef.id) + ' finished';
+    flashStatus('Finished ' + (data.name||data.barcode||docRef.id));
+
+    // refresh view
+    await fetchAndRender();
+  }
+
+  // ---------- manual entry ----------
+  manualFinish.addEventListener('click', () => {
+    const val = manualInput.value.trim();
+    if (!val) return alert('Paste barcode first');
+    finishById(val);
+    manualInput.value = '';
+  });
+
+  // ---------- ZXing scanner setup ----------
+  const codeReader = new ZXing.BrowserMultiFormatReader();
+  let scanning = false;
+
+  async function startScanner() {
+    try {
+      const devices = await codeReader.listVideoInputDevices();
+      // choose rear camera if possible
+      let chosen = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
+      if (!chosen && devices.length) chosen = devices[0];
+      if (!chosen) throw new Error('No camera found');
+
+      await codeReader.decodeFromVideoDevice(chosen.deviceId, 'video', (result, err) => {
+        if (result) {
+          // barcode text
+          handleBarcode(result.getText());
+        } else if (err && !(err instanceof ZXing.NotFoundException)) {
+          console.error(err);
+        }
+      });
+      scanning = true;
+      toggleScanBtn.textContent = 'Stop Scanner';
+      setStatus('scanner running', true);
+    } catch (e) {
+      console.error('startScanner error', e);
+      alert('Could not start scanner: ' + (e.message || e));
+    }
+  }
+
+  function stopScanner() {
+    try {
+      codeReader.reset();
+    } catch(e){}
+    scanning = false;
+    toggleScanBtn.textContent = 'Start Scanner';
+    setStatus('scanner idle', false);
+  }
+
+  toggleScanBtn.addEventListener('click', () => {
+    if (!scanning) startScanner(); else stopScanner();
+  });
+
+  let lastHandled = 0;
+  async function handleBarcode(text) {
+    const now = Date.now();
+    // simple debounce to avoid double triggers
+    if (now - lastHandled < 1500) return;
+    lastHandled = now;
+
+    setStatus('scanned: ' + text, true);
+    lastScanEl.textContent = text;
+    // immediately finish by barcode (attempt)
+    try {
+      await finishById(text);
+    } catch (e) {
+      console.error(e);
+      alert('Error finishing: ' + (e.message || e));
+    }
+    // tiny visual flash
+    setTimeout(()=>setStatus('scanner running', true), 700);
+  }
+
+  function setStatus(msg, ok) {
+    statusText.textContent = msg;
+    if (ok) { scanDot.classList.add('ok'); } else { scanDot.classList.remove('ok'); }
+  }
+
+  function flashStatus(msg) {
+    const previous = statusText.textContent;
+    setStatus(msg, true);
+    setTimeout(()=>setStatus(previous, true), 1500);
+  }
+
+  // ---------- initial load ----------
+  fetchAndRender();
+  // also refresh every 7s to keep list current
+  setInterval(fetchAndRender, 7000);
+
+  // ---------- cleanup on unload ----------
+  window.addEventListener('beforeunload', ()=>{ try{ codeReader.reset(); }catch(e){} });
+
+</script>
+</body>
+</html>

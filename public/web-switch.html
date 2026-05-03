@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Web Power Switch — Control Panel + Simple Blocks</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@700&display=swap" rel="stylesheet"/>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Blockly -->
+  <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+  <script src="https://unpkg.com/blockly/javascript.min.js"></script>
+
+  <style>
+    :root{--bg:#050712;--panel:#0d1224;--ink:#e7f4ff;--muted:#9fb0c2;}
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);
+      font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+
+    header{
+      padding:18px 16px;border-bottom:1px solid #1b2342;
+      background:linear-gradient(180deg,#0b132a,#0a1022);
+      display:flex;align-items:center;gap:14px;flex-wrap:wrap
+    }
+    .title{font-family:Orbitron,Inter,sans-serif;font-size:22px;letter-spacing:.5px}
+    .pill{font-size:12px;padding:6px 10px;border-radius:999px;
+      background:#0c1328;border:1px solid #223064;color:var(--muted)}
+    .pill.badge-online{color:#d7ffe0;background:#0f2a23;border-color:#1e4c3f}
+    .pill.badge-offline{color:#ffd7d7;background:#2a1111;border-color:#5a2525}
+
+    .wrap{max-width:1200px;margin:20px auto;padding:0 14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+    .card{background:var(--panel);border:1px solid #1c2748;border-radius:16px;
+      padding:14px;box-shadow:0 6px 26px rgba(0,0,0,.25)}
+    .card h3{margin:0 0 8px;font-size:16px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+    button{
+      appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:600;
+      background:#141a34;color:var(--ink);cursor:pointer;
+      transition:transform .02s ease,opacity .15s ease;border:1px solid #252f5a
+    }
+    button:hover{opacity:.95}
+    button:active{transform:translateY(1px)}
+    .on{background:#0f2a23;border-color:#1e4c3f}
+    .off{background:#2a1111;border-color:#5a2525}
+    .toggle{background:#121f35;border-color:#23345e}
+    .status{margin-top:6px;color:var(--muted);font-size:12px;min-height:16px}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    .err{color:#ffb4b4}
+
+    /* LEDs beside each outlet */
+    .led{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+    .led-dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,.2)}
+    .led-on{background:#34d399;border-color:#1e8e66}
+    .led-off{background:#f87171;border-color:#9c2b2b}
+    .led-unknown{background:#5b6785;border-color:#3b4661}
+    .led-text{font-size:12px;color:#9fb0c2}
+    .row.with-led{justify-content:space-between;width:100%}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">Web Power Switch — Control Panel</div>
+    <div class="pill">Switch IP: <span id="switchIp">loading…</span></div>
+    <div class="pill">Auth: <span id="authStatus">signing in…</span></div>
+    <div class="pill">Night: <span id="nightBadge">OFF</span></div>
+    <div id="netStatus" class="pill">Link: <span id="netStatusText">checking…</span></div>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <button id="openBlocks" class="toggle" disabled>Open Blocks</button>
+      <button id="resetBlocks" class="off" disabled title="Clear workspace">Reset</button>
+      <button id="btnSaveCloud" class="toggle" disabled title="Save workspace">Save</button>
+      <button id="btnSavePhones" class="toggle" disabled title="Save for Phones">Save for Phones</button>
+      <button id="btnLoadCloud" class="toggle" disabled>Load</button>
+      <span id="globalStatus" class="status"></span>
+    </div>
+
+    <div class="toolbar">
+      <button id="btnRunNight" class="on" disabled>Run Night</button>
+      <button id="btnStopNight" class="off" disabled>Stop Night</button>
+      <span id="runStatus" class="status"></span>
+    </div>
+
+    <div id="cards" class="grid"></div>
+    <div id="err" class="status err"></div>
+  </div>
+  <!-- ===== BLOCKS OVERLAY ===== -->
+  <div id="overlay" class="overlay" aria-hidden="true">
+    <div class="panel" role="dialog" aria-label="Blocks Editor">
+      <header style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px">
+        <div class="title" style="font-size:18px">Blocks</div>
+        <div class="btnRow">
+          <button id="btnClose" class="off">Close</button>
+        </div>
+      </header>
+      <div class="body">
+        <div id="blocklyDiv" aria-live="polite"></div>
+        <div class="side">
+          <h4>Execution Log</h4>
+          <div id="log" class="log" aria-live="polite"></div>
+          <div style="font-size:12px;color:#cfe8ff">
+            Events: <em>when ▶ start</em>, <em>when station (number) is scanned</em>, <em>when station (number) is scanned — then/else</em><br/>
+            Control: <em>wait</em>, <em>repeat</em>, <em>forever</em><br/>
+            Custom: <em>Define action</em> + <em>Do action</em>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HEALTH BUTTON + OVERLAY ===== -->
+  <button id="btnHealth" class="toggle" title="View Health">Health</button>
+
+  <div id="healthOverlay" class="overlay" aria-hidden="true">
+    <div class="panel" role="dialog" aria-label="Health">
+      <header style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px">
+        <div class="title" style="font-size:18px">Switch Health</div>
+        <div class="btnRow"><button id="btnHealthClose" class="off">Close</button></div>
+      </header>
+      <div class="body">
+        <div class="healthWrap">
+          <div class="healthControls">
+            <span class="pill" id="currentStatusPill">Status: <strong id="currentStatusText">—</strong></span>
+            <label class="pill" style="display:flex;gap:8px;align-items:center">
+              Window:
+              <select id="healthWindow" style="background:transparent;border:none;color:var(--ink);font-weight:600">
+                <option value="24">Last 24 hours</option>
+                <option value="72">Last 72 hours</option>
+                <option value="168">Last 7 days</option>
+              </select>
+            </label>
+            <button id="btnExportHealth" class="toggle" title="Export events CSV">Export CSV</button>
+          </div>
+
+          <div class="healthRow">
+            <div>
+              <div><span class="legendDot dotOnline"></span>Online</div>
+              <div><span class="legendDot dotOffline"></span>Offline</div>
+            </div>
+            <canvas id="healthCanvas" width="1200" height="160" aria-label="Uptime timeline"></canvas>
+          </div>
+
+          <div class="healthStats" id="healthStats"></div>
+          <div class="status" id="healthMsg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay-specific styles -->
+  <style>
+    .overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(6px);
+      display:none;align-items:center;justify-content:center;padding:20px;z-index:99990;
+    }
+    .panel{
+      width:min(1200px,95vw);height:min(90vh,980px);background:#0b1130;border:1px solid #1d2b5c;border-radius:16px;
+      display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 80px rgba(0,0,0,.6)
+    }
+    .panel header{background:linear-gradient(180deg,#0b1330,#0a0f26);border-bottom:1px solid #1d2b5c}
+    .panel .body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0;}
+    #blocklyDiv{width:100%;height:100%;min-width:0;min-height:0}
+    .side{
+      width:320px;border-left:1px solid #1d2b5c;background:#0b1435;padding:12px;display:flex;flex-direction:column;gap:8px
+    }
+    .side h4{margin:4px 0 2px;font-size:13px;color:#9fb6d4}
+    .side .log{
+      flex:1;background:#0a1230;border:1px solid #203064;border-radius:12px;padding:8px;font-family:ui-monospace,monospace;
+      white-space:pre-wrap;overflow:auto;font-size:12px;color:#cfe8ff
+    }
+    .btnRow{display:flex;gap:8px;flex-wrap:wrap}
+    .blocklyWidgetDiv, .blocklyDropDownDiv { z-index: 100002 !important; }
+
+    /* Health layout adjustments */
+    #btnHealth{
+      position:fixed;right:16px;bottom:16px;z-index:100003;
+      padding:12px 14px;border-radius:999px;font-weight:700;
+      box-shadow:0 10px 30px rgba(0,0,0,.35)
+    }
+    #healthOverlay .panel .body{ grid-template-columns:1fr; }
+    .healthWrap{padding:16px;display:flex;flex-direction:column;gap:12px}
+    .healthControls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .healthRow{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center}
+    .legendDot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+    .dotOnline{background:#34d399}
+    .dotOffline{background:#f87171}
+    #healthCanvas{width:100%;height:160px;background:#0a1230;border:1px solid #203064;border-radius:12px}
+    .healthStats{display:flex;gap:16px;flex-wrap:wrap;color:#cfe8ff;font-size:13px}
+  </style>
+<script>
+/* ==== Firebase init ==== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain: "light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025",
+  storageBucket: "light-the-night-2025.firebasestorage.app",
+  messagingSenderId: "563168577950",
+  appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f",
+  measurementId: "G-F4XJR2YT9K"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+/* ==== Firestore refs ==== */
+const CONFIG_DOC       = db.collection("webswitch").doc("config");
+const CONTROL_DOC      = db.collection("webswitch").doc("control");
+const QUEUE_COL        = db.collection("webswitch").doc("queueRoot").collection("queue");
+const PHONE_RULES_DOC  = db.collection("webswitch").doc("phoneRules");
+const BLOCKS_DOC       = db.collection("webswitch").doc("blocks");
+const UPTIME_COL       = db.collection("webswitch").doc("health").collection("uptimeEvents");
+const HEARTBEAT_DOC    = db.collection("webswitch").doc("agentHeartbeat");
+const UI_HEARTBEAT_DOC = db.collection("webswitch").doc("uiHeartbeat");
+const STATE_DOC        = db.collection("webswitch").doc("state"); // { states: { "1":"on"|"off"|bool }, ts }
+
+/* ==== DOM helpers ==== */
+const $ = s => document.querySelector(s);
+const cardsEl = $("#cards");
+const ipSpan = $("#switchIp");
+const authSpan = $("#authStatus");
+const globalStatus = $("#globalStatus");
+const nightBadge = $("#nightBadge");
+const runStatus = $("#runStatus");
+const errEl = $("#err");
+const netStatus = $("#netStatus");
+const netStatusText = $("#netStatusText");
+
+/* ==== errors ==== */
+window.addEventListener('error', (e)=>{ try{ errEl.textContent = 'Error: ' + (e.error?.message || e.message || String(e)); }catch{} });
+window.addEventListener('unhandledrejection', (e)=>{ try{ errEl.textContent = 'Error: ' + (e.reason?.message || String(e.reason)); }catch{} });
+const mkNonce = () => Math.random().toString(36).slice(2) + "-" + Date.now();
+function setError(e){ const msg = (e && e.message) ? e.message : String(e); errEl.textContent = `Error: ${msg}`; console.error(e); }
+function log(msg){ const el = document.getElementById('log'); if(!el) return; el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; }
+
+/* ==== Night badge + ACKs ==== */
+CONTROL_DOC.onSnapshot(snap=>{
+  const d = snap.data()||{};
+  if (typeof d.nightMode === 'boolean') nightBadge.textContent = d.nightMode ? "ON" : "OFF";
+  if (d.ack && d.ack.tsAck) globalStatus.textContent = d.ack.ok ? '✅ Switch OK' : `❌ ${d.ack.detail || 'Failed'}`;
+});
+async function setNight(on){
+  await CONTROL_DOC.set({ nightMode: !!on, ts: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
+}
+
+/* ==== Auth + config ==== */
+let BASE_URL = "";
+auth.onAuthStateChanged(async user => {
+  try {
+    if (!user) {
+      authSpan.textContent = "signing in…";
+      await auth.signInAnonymously();
+      return;
+    }
+    authSpan.textContent = `uid: ${user.uid.slice(0,6)}…`;
+    ["openBlocks","resetBlocks","btnSaveCloud","btnSavePhones","btnLoadCloud","btnRunNight","btnStopNight"]
+      .forEach(id=>{ const b = document.getElementById(id); if(b) b.disabled=false; });
+    await loadConfig();
+    // later sections start monitors + overlays
+    subscribeState(); // per-outlet LEDs
+  } catch (e) {
+    setError(e); authSpan.textContent = "auth failed";
+  }
+});
+
+async function loadConfig(){
+  try {
+    const snap = await CONFIG_DOC.get();
+    const data = snap.exists ? (snap.data()||{}) : {};
+    const namesRaw = data.names || {"1":"Outlet 1","2":"Outlet 2","3":"Outlet 3","4":"Outlet 4","5":"Outlet 5","6":"Outlet 6","7":"Outlet 7","8":"Outlet 8"};
+    window.OUTLET_NAMES = {};
+    Object.keys(namesRaw).forEach(k => { OUTLET_NAMES[String(k)] = namesRaw[k]; });
+
+    const baseUrl = (data.baseUrl || data["base url"] || "").trim();
+    BASE_URL = baseUrl || "";
+    ipSpan.textContent = baseUrl ? baseUrl.replace(/^https?:\/\//,'').replace(/\/+$/,'') : "unknown";
+
+    renderCards(OUTLET_NAMES);
+  } catch(e) { setError(e); }
+}
+
+/* ==== Cards + per-outlet LED dots ==== */
+function renderCards(names){
+  const entries = Object.entries(names).sort((a,b)=>Number(a[0])-Number(b[0]));
+  cardsEl.innerHTML = entries.map(([n,label])=>`
+    <div class="card" data-n="${n}">
+      <h3>#${n} — ${escapeHtml(label||("Outlet "+n))}</h3>
+      <div class="row with-led">
+        <div class="row" role="group" aria-label="Outlet ${n} controls">
+          <button class="on" data-cmd="on">ON</button>
+          <button class="off" data-cmd="off">OFF</button>
+          <button class="toggle" data-cmd="toggle">Toggle</button>
+        </div>
+        <div class="led" aria-live="polite" title="Outlet state">
+          <span id="led-dot-${n}" class="led-dot led-unknown"></span>
+          <span id="led-text-${n}" class="led-text">unknown</span>
+        </div>
+      </div>
+      <div class="status" id="status-${n}"></div>
+    </div>
+  `).join("");
+
+  cardsEl.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const card = btn.closest(".card");
+      const n = Number(card.getAttribute("data-n"));
+      const cmd = btn.getAttribute("data-cmd");
+      // optimistic LED: on → green, off → red, toggle → gray (until agent confirms)
+      if (cmd === 'on') setLed(n,'on');
+      else if (cmd === 'off') setLed(n,'off');
+      else setLed(n,'unknown');
+      await sendCommand(n, cmd, $("#status-"+n));
+      recordUptimeEvent({type:"outlet", outlet:n, state:cmd}); // health log
+    });
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function setLed(n, state){
+  const dot = document.getElementById(`led-dot-${n}`);
+  const txt = document.getElementById(`led-text-${n}`);
+  if (!dot || !txt) return;
+  dot.classList.remove('led-on','led-off','led-unknown');
+  if (state === true || state === 'on') { dot.classList.add('led-on'); txt.textContent = 'on'; }
+  else if (state === false || state === 'off'){ dot.classList.add('led-off'); txt.textContent = 'off'; }
+  else { dot.classList.add('led-unknown'); txt.textContent = 'unknown'; }
+}
+
+/* Agent-provided state → LEDs */
+function subscribeState(){
+  STATE_DOC.onSnapshot(snap=>{
+    const d = snap.data()||{};
+    const states = d.states || d || {};
+    for (const k of Object.keys(OUTLET_NAMES||{})){
+      const vRaw = states[k];
+      const v = (vRaw === true || vRaw === 'on') ? 'on' :
+                (vRaw === false || vRaw === 'off') ? 'off' : 'unknown';
+      setLed(k, v);
+    }
+  }, ()=>{ /* ignore */ });
+}
+
+/* ==== Command send ==== */
+/* IMPORTANT: your agent listens to queue, so keep this TRUE */
+const USE_QUEUE = true;
+
+async function sendCommand(outlet, state, statusEl){
+  const user = auth.currentUser;
+  if (!user) return setError("Not signed in");
+  const payload = { outlet, state, nonce: mkNonce(), ts: firebase.firestore.FieldValue.serverTimestamp(), uid: user.uid };
+  if (statusEl) statusEl.textContent = "Sending…";
+  globalStatus.textContent = "Sending command…";
+  try{
+    if (USE_QUEUE) {
+      await QUEUE_COL.add({ ...payload, processed:false });
+    } else {
+      await CONTROL_DOC.set(payload, { merge: true });
+    }
+    if (statusEl) statusEl.textContent = `Sent: outlet ${outlet} → ${state} (${new Date().toLocaleTimeString()})`;
+    globalStatus.textContent = "Sent ✓";
+    log(`➡️ ${state} outlet ${outlet}`);
+  }catch(e){
+    setError(e);
+    if (statusEl) statusEl.textContent = "Failed to send";
+    globalStatus.textContent = "Send failed";
+  }
+}
+
+/* Health logger (used above) */
+async function recordUptimeEvent(ev){
+  try{
+    const base = { ts: firebase.firestore.FieldValue.serverTimestamp() };
+    await UPTIME_COL.add({ ...base, ...ev });
+  }catch(e){ /* non-fatal */ }
+}
+</script>
+<script>
+/* ===== ONLINE/OFFLINE detection (agent-first, ping-second) ===== */
+const currentStatusPill = document.getElementById("currentStatusPill");
+const currentStatusText = document.getElementById("currentStatusText");
+const btnHealth = document.getElementById("btnHealth");
+const healthOverlay = document.getElementById("healthOverlay");
+const btnHealthClose = document.getElementById("btnHealthClose");
+const healthCanvas = document.getElementById("healthCanvas");
+const healthWindowSel = document.getElementById("healthWindow");
+const healthStats = document.getElementById("healthStats");
+const healthMsg = document.getElementById("healthMsg");
+
+let lastAgentSeen = 0;
+let lastAgentOnlineFlag = false;
+let onlineState = null;
+let onlineCheckTimer = null;
+
+HEARTBEAT_DOC.onSnapshot(s=>{
+  const d = s.data()||{};
+  const ts = d.ts && d.ts.toDate ? d.ts.toDate().getTime() : 0;
+  if (ts) lastAgentSeen = ts;
+  lastAgentOnlineFlag = !!d.online;
+});
+
+/* UI heartbeat (optional diagnostics) */
+let uiHeartbeatTimer = null;
+function startUiHeartbeatLoop(){
+  if (uiHeartbeatTimer) return;
+  const tick = async ()=>{ try{ await UI_HEARTBEAT_DOC.set({ ts: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true }); } catch {} };
+  tick();
+  uiHeartbeatTimer = setInterval(tick, 60_000);
+}
+
+/* Mixed-content guard: skip ping if https app → http device */
+function isMixedContentBlocked(){
+  try{
+    if (!BASE_URL) return false;
+    const appIsHTTPS = window.location.protocol === 'https:';
+    const targetIsHTTP = /^http:\/\//i.test(BASE_URL);
+    return appIsHTTPS && targetIsHTTP;
+  }catch{ return false; }
+}
+
+/* Best-effort ping: returns true/false/null (null = cannot test) */
+async function pingSwitch(timeoutMs=2500){
+  if (!BASE_URL || isMixedContentBlocked()) return null;
+  try{
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), timeoutMs);
+    await fetch(BASE_URL.replace(/\/+$/,'') + '/', { mode:'no-cors', cache:'no-store', signal:ctrl.signal });
+    clearTimeout(t);
+    return true;
+  }catch{ return false; }
+}
+
+function setNetStatus(isOnline){
+  if (onlineState === isOnline) return;
+  onlineState = isOnline;
+  netStatus.classList.remove('badge-online','badge-offline');
+  if (isOnline){
+    netStatus.classList.add('badge-online');
+    netStatusText.textContent = 'ONLINE';
+    currentStatusPill.classList.remove('badge-offline'); currentStatusPill.classList.add('badge-online');
+    currentStatusText.textContent = 'ONLINE';
+    recordUptimeEvent({type:'online'});
+  }else{
+    netStatus.classList.add('badge-offline');
+    netStatusText.textContent = 'OFFLINE';
+    currentStatusPill.classList.remove('badge-online'); currentStatusPill.classList.add('badge-offline');
+    currentStatusText.textContent = 'OFFLINE';
+    recordUptimeEvent({type:'offline'});
+  }
+}
+
+const AGENT_STALE_MS = 90_000;  // heartbeat fresh window
+const AGENT_GRACE_MS = 300_000; // if agent flagged online, allow short grace
+
+function startOnlineMonitor(){
+  if (onlineCheckTimer) return;
+  netStatusText.textContent = 'checking…';
+  const loop = async ()=>{
+    const now = Date.now();
+    let agentOk = false;
+    if (lastAgentSeen){
+      const fresh = (now - lastAgentSeen) < AGENT_STALE_MS;
+      const grace = lastAgentOnlineFlag && (now - lastAgentSeen) < AGENT_GRACE_MS;
+      agentOk = fresh || grace;
+    }
+    let pingOk = false;
+    const pingResult = await pingSwitch(2500); // true/false/null
+    if (pingResult === true) pingOk = true;
+
+    const isOnline = agentOk || pingOk; // agent dominates; ping can confirm
+    setNetStatus(isOnline);
+
+    const reason = agentOk ? 'agent' :
+                   (pingResult === null ? 'no-ping (mixed-content)' :
+                   (pingOk ? 'ping' : 'none'));
+    netStatus.title = `Online source: ${reason}`;
+  };
+  loop();
+  onlineCheckTimer = setInterval(loop, 10_000);
+}
+
+/* ===== HEALTH overlay wiring ===== */
+btnHealth.onclick = ()=>{ healthOverlay.style.display="flex"; healthOverlay.setAttribute("aria-hidden","false"); drawHealth(); };
+btnHealthClose.onclick = ()=>{ healthOverlay.style.display="none"; healthOverlay.setAttribute("aria-hidden","true"); };
+healthWindowSel.onchange = ()=> drawHealth();
+document.getElementById("btnExportHealth").onclick = async ()=> exportHealthCsv();
+
+/* Build online/offline timeline from events within window */
+async function drawHealth(){
+  const hours = Number(healthWindowSel.value||24);
+  const endMs = Date.now();
+  const startMs = endMs - hours*3600*1000;
+
+  healthMsg.textContent = "Loading health…";
+  const q = await UPTIME_COL.where('ts','>=', new Date(startMs)).orderBy('ts','asc').get();
+
+  const events = [];
+  q.forEach(doc=>{
+    const d = doc.data();
+    const ts = d.ts && d.ts.toDate ? d.ts.toDate().getTime() : 0;
+    if (!ts) return;
+    events.push({ ts, type:d.type, outlet:d.outlet, state:d.state });
+  });
+
+  const ctx = healthCanvas.getContext('2d');
+  const W = healthCanvas.width, H = healthCanvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  let segs = [];
+  let cur = onlineState===true ? 'online' : 'offline';
+  let curStart = startMs;
+
+  for (const ev of events){
+    if (ev.type !== 'online' && ev.type !== 'offline') continue;
+    const t = Math.max(startMs, Math.min(endMs, ev.ts));
+    if (t <= curStart) { cur = ev.type; curStart = t; continue; }
+    segs.push({ start:curStart, end:t, type:cur });
+    cur = ev.type; curStart = t;
+  }
+  segs.push({ start:curStart, end:endMs, type:cur });
+
+  // background + hour ticks
+  ctx.fillStyle = '#0a1128';
+  ctx.fillRect(0,0,W,H);
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillStyle = '#9fb6d4';
+  ctx.textAlign = 'center';
+  const tickEvery = Math.max(1, Math.floor(hours/12));
+  for (let h=0; h<=hours; h+=tickEvery){
+    const t = startMs + h*3600*1000;
+    const x = ((t - startMs)/(endMs - startMs))*W;
+    ctx.fillRect(x, H-18, 1, 10);
+    const d = new Date(t);
+    ctx.fillText(d.getHours().toString().padStart(2,'0')+":00", x, H-2);
+  }
+
+  // segments: green=online, red=offline
+  for (const s of segs){
+    const x1 = ((s.start - startMs)/(endMs - startMs))*W;
+    const x2 = ((s.end   - startMs)/(endMs - startMs))*W;
+    const y  = 16, h  = H-36;
+    ctx.fillStyle = (s.type==='online') ? '#34d399' : '#f87171';
+    ctx.fillRect(x1, y, Math.max(1,x2-x1), h);
+  }
+
+  const totals = segs.reduce((acc,s)=>{ const dur = Math.max(0, s.end - s.start); acc[s.type] = (acc[s.type]||0)+dur; return acc; }, {});
+  const upPct = ((totals.online||0)/(hours*3600*1000))*100;
+  const downPct = 100 - upPct;
+  healthStats.innerHTML = `
+    <span>Window: <strong>${hours}h</strong></span>
+    <span>Online: <strong>${(upPct).toFixed(1)}%</strong></span>
+    <span>Offline: <strong>${(downPct).toFixed(1)}%</strong></span>
+    <span>Last agent heartbeat: <strong>${lastAgentSeen?new Date(lastAgentSeen).toLocaleString(): '—'}</strong></span>
+  `;
+  healthMsg.textContent = segs.length ? "" : "No health events yet. Status bar reflects current link only.";
+}
+
+/* CSV export of raw health events in window */
+async function exportHealthCsv(){
+  const endMs = Date.now();
+  const startMs = endMs - Number(healthWindowSel.value||24)*3600*1000;
+  const q = await UPTIME_COL.where('ts','>=', new Date(startMs)).orderBy('ts','asc').get();
+
+  const rows = [["timestamp_iso","type","outlet","state"]];
+  q.forEach(doc=>{
+    const d = doc.data();
+    const ts = d.ts && d.ts.toDate ? d.ts.toDate().toISOString() : "";
+    rows.push([ts, d.type||"", d.outlet||"", d.state||""]);
+  });
+
+  const csv = rows.map(r=>r.map(x=>String(x).replace(/"/g,'""')).map(x=>`"${x}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `webswitch-health-${new Date().toISOString().slice(0,19)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* expose starters for Section 3 to call after auth: */
+window.startOnlineMonitor = startOnlineMonitor;
+window.startUiHeartbeatLoop = startUiHeartbeatLoop;
+</script>
+<script>
+/* Blocks + generators */
+let workspace = null;
+const jsGen = Blockly.JavaScript;
+const hasBlock = t => !!(Blockly.Blocks && Blockly.Blocks[t]);
+const hasGen   = t => !!(jsGen && jsGen.forBlock && jsGen.forBlock[t]);
+
+function defineBlocksOnce(){
+  const defs = [];
+  if (!hasBlock('when_start')) defs.push({type:"when_start",message0:"when ▶ start",nextStatement:null,colour:210,hat:"cap"});
+  if (!hasBlock('when_station_scanned')) defs.push({
+    type:"when_station_scanned",message0:"when station %1 is scanned",
+    args0:[{type:"field_number",name:"STATION",value:1,min:1,precision:1}],
+    message1:"then %1",args1:[{type:"input_statement",name:"DO"}],
+    inputsInline:false,colour:160,hat:"cap",nextStatement:null
+  });
+  if (!hasBlock('when_station_scanned_else')) defs.push({
+    type:"when_station_scanned_else",message0:"when station %1 is scanned",
+    args0:[{type:"field_number",name:"STATION",value:1,min:1,precision:1}],
+    message1:"then %1",args1:[{type:"input_statement",name:"THEN"}],
+    message2:"else %1",args2:[{type:"input_statement",name:"ELSE"}],
+    inputsInline:false,colour:165,hat:"cap",nextStatement:null
+  });
+  if (!hasBlock('power_set')) defs.push({
+    type:"power_set",message0:"outlet %1 set %2",
+    args0:[
+      {type:"field_number",name:"OUTLET",value:1,min:1,max:32,precision:1},
+      {type:"field_dropdown",name:"STATE",options:[["on","on"],["off","off"],["toggle","toggle"]]}
+    ],
+    previousStatement:null,nextStatement:null,colour:200
+  });
+  if (!hasBlock('wait_seconds')) defs.push({
+    type:"wait_seconds",message0:"wait %1 seconds",
+    args0:[{type:"field_number",name:"SECS",value:1,min:0}],
+    previousStatement:null,nextStatement:null,colour:120
+  });
+  if (!hasBlock('repeat_n')) defs.push({
+    type:"repeat_n",message0:"repeat %1 times %2 %3",
+    args0:[
+      {type:"field_number",name:"N",value:3,min:0,precision:1},
+      {type:"input_dummy"},
+      {type:"input_statement",name:"DO"}
+    ],
+    previousStatement:null,nextStatement:null,colour:60
+  });
+  if (!hasBlock('forever')) defs.push({
+    type:"forever",message0:"forever %1 %2",
+    args0:[{type:"input_dummy"},{type:"input_statement",name:"DO"}],
+    previousStatement:null,nextStatement:null,colour:30
+  });
+  if (!hasBlock('define_action')) defs.push({
+    type:"define_action",message0:"Define action %1 %2 do %3",
+    args0:[
+      {type:"field_input",name:"NAME",text:"ScanBlink"},
+      {type:"input_dummy"},
+      {type:"input_statement",name:"DO"}
+    ],
+    colour:290
+  });
+  if (!hasBlock('do_action')) defs.push({
+    type:"do_action",message0:"Do %1",
+    args0:[{type:"field_dropdown",name:"ACTION",options:[["(no defines yet)","__none__"]]}],
+    previousStatement:null,nextStatement:null,colour:300
+  });
+  if (defs.length) Blockly.defineBlocksWithJsonArray(defs);
+
+  if (!hasGen('when_start')) jsGen.forBlock.when_start = ()=>'';
+  if (!hasGen('when_station_scanned')) jsGen.forBlock.when_station_scanned = ()=>'';
+  if (!hasGen('when_station_scanned_else')) jsGen.forBlock.when_station_scanned_else = ()=>'';
+
+  if (!hasGen('power_set')) jsGen.forBlock.power_set = (b,g)=>{
+    const outlet=b.getFieldValue('OUTLET'); const state=b.getFieldValue('STATE');
+    const code=`await __cmd(${outlet},"${state}");\n`;
+    const next=b.getNextBlock(); if(!next) return code;
+    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
+  };
+  if (!hasGen('wait_seconds')) jsGen.forBlock.wait_seconds = (b,g)=>{
+    const secs=Number(b.getFieldValue('SECS'))||0;
+    const code=`await __wait(${secs});\n`;
+    const next=b.getNextBlock(); if(!next) return code;
+    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
+  };
+  if (!hasGen('repeat_n')) jsGen.forBlock.repeat_n = (b,g)=>{
+    const n=Math.max(0,Number(b.getFieldValue('N'))||0);
+    const body=g.statementToCode(b,'DO');
+    let code=`for(let __i=0;__i<${n};__i++){ ${body} }\n`;
+    const next=b.getNextBlock(); if(!next) return code;
+    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
+  };
+  if (!hasGen('forever')) jsGen.forBlock.forever = (b,g)=>{
+    const body=g.statementToCode(b,'DO');
+    let code=`while(true){ ${body} }\n`;
+    const next=b.getNextBlock(); if(!next) return code;
+    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
+  };
+  if (!hasGen('do_action')) jsGen.forBlock.do_action = (b,g)=>{
+    const name=(b.getFieldValue('ACTION')||'').trim();
+    const call=(name==='__none__')?`/* no action selected */\n`:`await __call(${JSON.stringify(name)});\n`;
+    const next=b.getNextBlock(); if(!next) return call;
+    const out=g.blockToCode(next); return call+(Array.isArray(out)?(out[0]||''):(out||''));
+  };
+}
+
+/* Toolbox XML */
+function toolboxXml(){ return `
+<xml id="toolbox" style="display:none">
+  <category name="Events" colour="210">
+    <block type="when_start"></block>
+    <block type="when_station_scanned"><field name="STATION">1</field></block>
+    <block type="when_station_scanned_else"><field name="STATION">1</field></block>
+  </category>
+  <category name="Control" colour="20">
+    <block type="wait_seconds"></block>
+    <block type="repeat_n"></block>
+    <block type="forever"></block>
+  </category>
+  <category name="Power" colour="200">
+    <block type="power_set"></block>
+  </category>
+  <category name="My Actions" colour="290">
+    <block type="define_action"></block>
+    <block type="do_action"></block>
+  </category>
+</xml>`; }
+
+/* Exec helpers for generated code */
+async function __wait(secs){ return new Promise(r=>setTimeout(r, Math.max(0,secs*1000))); }
+async function __cmd(outlet,state){ log(`cmd: ${state} ${outlet}`); await sendCommand(outlet,state,null); }
+async function __call(name){ const fn=__A_DEFS[name]; if(fn) await fn(); }
+const __A_DEFS = {};
+
+/* Migration: move NEXT into inner sockets */
+function migrateOldEventBlocks(workspace){
+  const tops = workspace.getTopBlocks(false) || [];
+  for (const b of tops){
+    if (b.type === 'when_station_scanned'){
+      const nxt=b.getNextBlock?.(); const hasBody=!!b.getInputTargetBlock?.('DO');
+      if (nxt && !hasBody && nxt.previousConnection){
+        nxt.previousConnection.disconnect();
+        const input=b.getInput('DO'); if(input && input.connection) input.connection.connect(nxt.previousConnection);
+      }
+    }
+    if (b.type === 'when_station_scanned_else'){
+      const nxt=b.getNextBlock?.(); const hasThen=!!b.getInputTargetBlock?.('THEN');
+      if (nxt && !hasThen && nxt.previousConnection){
+        nxt.previousConnection.disconnect();
+        const input=b.getInput('THEN'); if(input && input.connection) input.connection.connect(nxt.previousConnection);
+      }
+    }
+  }
+}
+
+/* Workspace lifecycle + buttons */
+const overlay = document.getElementById('overlay');
+const blocklyDiv = document.getElementById('blocklyDiv');
+const btnClose = document.getElementById('btnClose');
+const openBlocksBtn = document.getElementById('openBlocks');
+const resetBlocksBtn = document.getElementById('resetBlocks');
+const btnSaveCloud = document.getElementById('btnSaveCloud');
+const btnSavePhones = document.getElementById('btnSavePhones');
+const btnLoadCloud = document.getElementById('btnLoadCloud');
+const btnRunNight = document.getElementById('btnRunNight');
+const btnStopNight = document.getElementById('btnStopNight');
+
+function resizeBlockly(){ if (workspace) Blockly.svgResize(workspace); }
+function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
+
+openBlocksBtn.onclick = async ()=>{
+  overlay.style.display="flex"; overlay.setAttribute("aria-hidden","false");
+  await ensureWorkspace();
+  const tb = workspace.getToolbox?.();
+  if (tb && tb.getToolboxItems){ const items=tb.getToolboxItems(); if (items && items[0]?.setSelected) items[0].setSelected(true); }
+  requestAnimationFrame(resizeBlockly);
+  requestAnimationFrame(()=>workspace.scrollCenter());
+};
+btnClose.onclick = ()=>{ overlay.style.display="none"; overlay.setAttribute("aria-hidden","true"); };
+window.addEventListener('resize', ()=>{ if (overlay.style.display==='flex') resizeBlockly(); });
+resetBlocksBtn.onclick = ()=>{ if (workspace) workspace.clear(); log("🧹 Cleared workspace."); };
+
+btnSaveCloud.onclick = async ()=>{
+  try{
+    await ensureWorkspace();
+    const state = Blockly.serialization.workspaces.save(workspace);
+    await BLOCKS_DOC.set({ state, ts: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
+    log("💾 Saved workspace to Firestore.");
+  }catch(e){ log("❌ Save failed: " + (e?.message||e)); }
+};
+btnLoadCloud.onclick = async ()=>{
+  try{
+    await ensureWorkspace();
+    const snap = await BLOCKS_DOC.get(); const data = snap.data();
+    if (workspace && data && data.state){
+      workspace.clear();
+      Blockly.serialization.workspaces.load(data.state, workspace);
+      migrateOldEventBlocks(workspace);
+      refreshAllActionDropdowns();
+      log("📥 Loaded workspace.");
+      resizeBlockly(); workspace.scrollCenter();
+    }else{ log("ℹ️ No saved workspace found."); }
+  }catch(e){ log("❌ Load failed: " + (e?.message||e)); }
+};
+btnSavePhones.onclick = async ()=>{
+  try{
+    await ensureWorkspace();
+    const rules = compilePhoneRules();
+    await PHONE_RULES_DOC.set({ version:3, updatedTs: firebase.firestore.FieldValue.serverTimestamp(), rules }, { merge:true });
+    log(`📲 Saved ${rules.length} station rule(s) for phones.`);
+  }catch(e){ log("❌ Save for Phones failed: " + (e?.message||e)); }
+};
+btnRunNight.onclick = async ()=>{
+  try{
+    await ensureWorkspace();
+    runStatus.textContent = "Running night defaults…";
+    await setNight(true);
+    const defaults = collectNightDefaults();
+    for (const fn of defaults){ await fn(); }
+    runStatus.textContent = "Night defaults applied.";
+    log("🌙 Night defaults executed.");
+  }catch(e){ setError(e); runStatus.textContent = "Night start failed."; }
+};
+btnStopNight.onclick = async ()=>{
+  try{ await setNight(false); runStatus.textContent = "Night stopped."; log("🛑 Night stopped."); }
+  catch(e){ setError(e); runStatus.textContent = "Failed to stop night."; }
+};
+
+/* Ensure workspace + seed demo */
+async function ensureWorkspace(){
+  if (workspace) return;
+  if (!window.Blockly || !Blockly.serialization) throw new Error('Blockly failed to load');
+  defineBlocksOnce();
+  if (!document.getElementById('toolbox')){
+    const wrap=document.createElement('div'); wrap.innerHTML=toolboxXml(); document.body.appendChild(wrap);
+  }
+  await nextFrame(); await nextFrame();
+  workspace = Blockly.inject('blocklyDiv', {
+    toolbox: document.getElementById('toolbox'),
+    renderer:'geras', theme: Blockly.Themes.Classic, trashcan:true,
+    move:{wheel:true,drag:true}, zoom:{controls:true,wheel:true,startScale:1,maxScale:3,minScale:0.25},
+    toolboxPosition:'start', sounds:false, scrollbars:true
+  });
+  workspace.addChangeListener(()=>{ enforceUniqueDefineNames(); refreshAllActionDropdowns(); });
+
+  if (workspace.getTopBlocks(false).length === 0){
+    const def = workspace.newBlock('define_action'); def.setFieldValue('ScanBlink','NAME');
+    const rpt = workspace.newBlock('repeat_n'); rpt.setFieldValue(3,'N');
+    const on  = workspace.newBlock('power_set'); on.setFieldValue('1','OUTLET'); on.setFieldValue('on','STATE');
+    const wait= workspace.newBlock('wait_seconds'); wait.setFieldValue('0.1','SECS');
+    const off = workspace.newBlock('power_set'); off.setFieldValue('1','OUTLET'); off.setFieldValue('off','STATE');
+    rpt.getInput('DO').connection.connect(on.previousConnection);
+    on.nextConnection.connect(wait.previousConnection);
+    wait.nextConnection.connect(off.previousConnection);
+    def.getInput('DO').connection.connect(rpt.previousConnection);
+    [def,rpt,on,wait,off].forEach(b=>{ b.initSvg(); b.render(); });
+
+    const evtElse = workspace.newBlock('when_station_scanned_else'); evtElse.setFieldValue('1','STATION');
+    const doActThen = workspace.newBlock('do_action'); doActThen.setFieldValue('ScanBlink','ACTION');
+    const doActElse = workspace.newBlock('do_action'); doActElse.setFieldValue('ScanBlink','ACTION');
+    evtElse.getInput('THEN').connection.connect(doActThen.previousConnection);
+    evtElse.getInput('ELSE').connection.connect(doActElse.previousConnection);
+    evtElse.initSvg(); evtElse.render();
+  }
+  migrateOldEventBlocks(workspace);
+  resizeBlockly(); workspace.scrollCenter();
+}
+
+/* Night defaults executor sourced from ELSE branch bodies */
+function collectNightDefaults(){
+  const fns = [];
+  const tops = workspace.getTopBlocks(true) || [];
+  for (const b of tops){
+    if (b.type === 'when_station_scanned_else'){
+      const elseFirst = b.getInputTargetBlock('ELSE');
+      if (elseFirst){
+        const defsMap = collectDefinitions();
+        const codeA = buildDefinitionFunctions(defsMap);
+        const code = codeFromChain(elseFirst);
+        fns.push(async ()=>{
+          const __A_DEFS = {};
+          await (new Function("__cmd","__wait","__A_DEFS",`${codeA} return (async()=>{ ${code} })();`))(__cmd,__wait,__A_DEFS);
+        });
+      }
+    }
+  }
+  return fns;
+}
+
+/* Compile rules for phones from event blocks */
+function compilePhoneRules(){
+  if (!workspace) throw new Error("Workspace not initialized");
+  const top = workspace.getTopBlocks(true);
+  const defs = collectDefinitions();
+  const rules = [];
+
+  function visit(block, steps, tRef, guard){
+    if (!block) return;
+    const type = block.type;
+    if (type === "power_set"){
+      const outlet = Number(block.getFieldValue('OUTLET'));
+      const state  = block.getFieldValue('STATE');
+      steps.push({ tMs:tRef.t, type:"power", outlet, state });
+      return visit(block.getNextBlock(), steps, tRef, guard);
+    }
+    if (type === "wait_seconds"){
+      const secs = Number(block.getFieldValue('SECS'))||0;
+      tRef.t += Math.max(0, secs*1000);
+      return visit(block.getNextBlock(), steps, tRef, guard);
+    }
+    if (type === "repeat_n"){
+      const n = Math.max(0, Number(block.getFieldValue('N'))||0);
+      const stm = block.getInputTargetBlock('DO');
+      for (let i=0;i<n;i++){ visit(stm, steps, tRef, guard); }
+      return visit(block.getNextBlock(), steps, tRef, guard);
+    }
+    if (type === "forever"){
+      return visit(block.getNextBlock(), steps, tRef, guard); // phones ignore infinite loops
+    }
+    if (type === "do_action"){
+      const name = (block.getFieldValue('ACTION')||'').trim();
+      if (!name || name === '__none__') return visit(block.getNextBlock(), steps, tRef, guard);
+      if (guard.has(name)) { return visit(block.getNextBlock(), steps, tRef, guard); }
+      const bodyFirst = defs[name];
+      if (bodyFirst){ guard.add(name); visit(bodyFirst, steps, tRef, guard); guard.delete(name); }
+      return visit(block.getNextBlock(), steps, tRef, guard);
+    }
+    return visit(block.getNextBlock(), steps, tRef, guard);
+  }
+
+  for (const b of top){
+    if (b.type === 'when_station_scanned'){
+      const station = Number(b.getFieldValue('STATION') || 1);
+      const steps = []; const tRef = { t:0 };
+      visit(b.getInputTargetBlock('DO'), steps, tRef, new Set());
+      rules.push({ station, steps });
+      continue;
+    }
+    if (b.type === 'when_station_scanned_else'){
+      const station = Number(b.getFieldValue('STATION') || 1);
+      const firstSteps = []; const elseSteps = [];
+      const t1 = { t:0 }, t2 = { t:0 };
+      visit(b.getInputTargetBlock('THEN'), firstSteps, t1, new Set());
+      visit(b.getInputTargetBlock('ELSE'), elseSteps,  t2, new Set());
+      rules.push({ station, firstSteps, elseSteps });
+      continue;
+    }
+  }
+  return rules;
+}
+
+/* Definitions and helpers */
+function collectDefinitions(){
+  const map = {};
+  (workspace.getTopBlocks(false) || []).forEach(b=>{
+    if (b.type !== 'define_action') return;
+    const name=(b.getFieldValue('NAME')||'').trim();
+    if (!name) return;
+    const bodyFirst=b.getInputTargetBlock('DO');
+    if (bodyFirst) map[name]=bodyFirst;
+  });
+  return map;
+}
+function codeFromChain(first){
+  const out = Blockly.JavaScript.blockToCode(first);
+  return (Array.isArray(out) ? (out[0] || '') : (out || '')) || '';
+}
+function jsIdent(s){ return s.replace(/[^a-zA-Z0-9_$]/g,'_'); }
+function buildDefinitionFunctions(defsMap){
+  let js = '';
+  Object.entries(defsMap).forEach(([name, first])=>{
+    const fn='__A_'+jsIdent(name);
+    const body=codeFromChain(first);
+    js += `__A_DEFS[${JSON.stringify(name)}]=async function ${fn}(){\n${body}}\n`;
+  });
+  return js;
+}
+function enforceUniqueDefineNames(){
+  const seen=new Set();
+  (workspace.getTopBlocks(false) || []).forEach(b=>{
+    if (b.type !== 'define_action') return;
+    let n=(b.getFieldValue('NAME')||'').trim();
+    if (!n) { b.setFieldValue('myAction','NAME'); n='myAction'; }
+    let base=n, idx=2;
+    while(seen.has(n)){ n=`${base} (${idx++})`; }
+    if (n!==b.getFieldValue('NAME')) b.setFieldValue(n,'NAME');
+    seen.add(n);
+  });
+}
+function refreshAllActionDropdowns(){
+  const names=new Set();
+  (workspace.getTopBlocks(false) || []).forEach(b=>{
+    if (b.type==='define_action'){ const n=(b.getFieldValue('NAME')||'').trim(); if(n) names.add(n); }
+  });
+  const opts = names.size ? Array.from(names).sort((a,b)=>a.localeCompare(b)).map(n=>[n,n]) : [["(no defines yet)","__none__"]];
+  (workspace.getAllBlocks(false) || []).forEach(b=>{
+    if (b.type!=='do_action') return;
+    const fld=b.getField('ACTION'); const cur=fld.getValue();
+    fld.menuGenerator_ = opts;
+    const valid=new Set(opts.map(x=>x[1]));
+    if (!valid.has(cur)) fld.setValue(opts[0][1]);
+  });
+}
+</script>
+<!-- Final wire-up: start online monitor + UI heartbeat after auth is ready -->
+<script>
+(function wireUpMonitors(){
+  let started = false;
+  const tryStart = ()=>{
+    if (started) return;
+    if (!window.startOnlineMonitor || !window.startUiHeartbeatLoop) return; // Section 4 not loaded yet
+    if (!firebase || !firebase.auth) return;
+
+    const kick = ()=>{
+      try {
+        window.startOnlineMonitor();
+        window.startUiHeartbeatLoop();
+        started = true;
+      } catch(e){ /* ignore; will retry */ }
+    };
+
+    // If already signed in, start immediately; otherwise on auth change.
+    const user = firebase.auth().currentUser;
+    if (user) kick();
+    firebase.auth().onAuthStateChanged(u => { if (u && !started) kick(); });
+  };
+
+  // a few quick attempts in case sections load out of order
+  tryStart();
+  const t = setInterval(()=>{
+    if (started) return clearInterval(t);
+    tryStart();
+  }, 500);
+})();
+</script>
+
+<!-- Optional tiny utility styles (used by some subtle UI bits) -->
+<style>
+/* soft pulse for attention (can be applied if you want): .pulse { animation: pulse 2s infinite; } */
+@keyframes pulse { 0%{opacity:.8} 50%{opacity:1} 100%{opacity:.8} }
+</style>
+
+</body>
+</html>

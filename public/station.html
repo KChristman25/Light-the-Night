@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>📱 Stations</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <link rel="icon" href="data:,">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <!-- NoSleep (KIOSK) -->
+  <script src="https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#000014; --panel:#0c1226; --ink:#e8f7ff; --muted:#9fb6c9; --accent:#22d3ee;
+      --line:#1b2a56;
+      --radius:16px;
+      --pad: clamp(14px, 2.2vw, 22px);
+      --font-base: clamp(16px, 1.8vw, 20px);
+      --font-lg: clamp(18px, 2.2vw, 24px);
+      --font-xl: clamp(20px, 2.8vw, 32px);
+      --touch: clamp(48px, 7.2vw, 64px);
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{
+      margin:0;padding:0;background:var(--bg);color:var(--ink);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      font-size:var(--font-base);
+      overflow-x:hidden;
+    }
+
+    /* ⭐ Starfield canvas behind everything */
+    #bgStars{
+      position:fixed; inset:0; z-index:0; pointer-events:none; display:block;
+    }
+
+    .wrap{max-width:min(900px,92vw); margin:0 auto; padding: env(safe-area-inset-top) var(--pad) calc(env(safe-area-inset-bottom) + var(--pad)); position:relative; z-index:1;}
+    header{position:sticky; top:0; z-index:2; background:linear-gradient(180deg,#050a1a 0%, rgba(5,10,26,0.6) 100%); backdrop-filter: blur(6px); border-bottom:1px solid #0e1a3a; box-shadow:0 6px 18px rgba(0,0,0,.35);}
+    header .h{display:flex; align-items:center; justify-content:center; gap:12px; padding: clamp(14px,2.4vw,22px) var(--pad); font-weight:800; font-size: var(--font-xl);}
+
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);margin-top:var(--pad)}
+    .center{text-align:center}
+
+    .inp{width:100%; padding: calc(var(--pad)*.8) var(--pad); border-radius:12px;border:1px solid var(--line);background:#0a1430;color:var(--ink); font-size:var(--font-lg);}
+    .btn{width:100%; margin-top:12px; padding: calc(var(--pad)*.8) var(--pad); border-radius:12px;border:1px solid #16445a;background:#0b2238;color:#bfefff; font-weight:800; font-size:var(--font-lg); cursor:pointer; min-height: var(--touch);}
+    .btn:active{transform: translateY(1px)}
+    .err{color:#ff8b8b;font-weight:800;margin-top:8px;text-align:center;min-height:20px}
+    .hide{display:none}
+
+    .list{margin-top:var(--pad)}
+    .bar{display:flex; align-items:center; justify-content:space-between; gap:12px; background:rgba(12,18,38,.45);border:1px solid var(--line);border-radius:var(--radius); padding: clamp(14px,2.2vw,18px) var(--pad); margin:12px 0; cursor:pointer; min-height: var(--touch);}
+    .bar:active{background:rgba(12,18,38,.75)}
+    .id{font-weight:900;font-size:var(--font-lg);color:var(--accent);min-width:64px}
+    .name{font-size:var(--font-lg);font-weight:700;flex:1}
+    .go{font-weight:800;opacity:.9}
+    .muted{color:var(--muted);font-size: clamp(14px,1.6vw,16px); text-align:center;margin-top:10px}
+
+    /* Control view */
+    .bigRedWrap{
+      display:flex;
+      justify-content:center;
+      margin-top:0.2rem;
+    }
+    .bigRedBtn{
+      width:min(360px,78vw);
+      aspect-ratio:1/1;
+      border-radius:999px;
+      background:radial-gradient(circle at 30% 30%, #ffb1b1, #ff0000 65%, #7a0000 100%);
+      border:6px solid rgba(255,230,230,.35);
+      box-shadow:0 0 25px rgba(255,0,0,.45), 0 0 60px rgba(255,0,0,.25) inset;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:.3rem;
+      font-size:clamp(1.35rem,4.2vw,2.3rem);
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      color:#ffe8e8;
+      cursor:pointer;
+      user-select:none;
+      touch-action:manipulation;
+    }
+    .bigRedBtn:active{
+      filter:brightness(1.08);
+      transform:translateY(1px) scale(.996);
+      box-shadow:0 0 18px rgba(255,0,0,.55);
+    }
+
+    .lcd-row{display:flex;justify-content:center;gap: clamp(8px,1.8vw,14px); margin: clamp(14px,2vw,16px) 0 0.5rem;}
+    .lcd{background:#022f02;color:#b9ffb9; font-family: ui-monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-weight:900;font-size: clamp(18px, 3.2vw, 28px); padding: .55rem 1rem;border-radius:10px;border:1px solid #0a5f0a; text-shadow:0 0 1px #b9ffb9;min-width:88px;text-align:center}
+
+    /* little sci-fi buttons */
+    .button-grid{display:grid; grid-template-columns: repeat(4, minmax(72px, 1fr)); gap: clamp(12px, 2.2vw, 20px); padding: 1rem .2rem 0;}
+    .btnSquare{width: clamp(72px, 14vw, 100px); height: clamp(72px, 14vw, 100px); border-radius:14px; box-shadow:0 0 10px currentColor; opacity:.6; cursor:pointer}
+    @keyframes flashOdd{0%,100%{opacity:.55}50%{opacity:1}}
+    @keyframes flashEven{0%,100%{opacity:1}50%{opacity:.55}}
+    .btnSquare:nth-child(odd){animation:flashOdd 1.8s infinite ease-in-out}
+    .btnSquare:nth-child(even){animation:flashEven 1.8s infinite ease-in-out}
+    .red{background:#e74c3c;color:#e74c3c}
+    .blue{background:#3498db;color:#3498db}
+    .green{background:#2ecc71;color:#2ecc71}
+    .yellow{background:#f1c40f;color:#f1c40f}
+    .purple{background:#9b59b6;color:#9b59b6}
+    .orange{background:#e67e22;color:#e67e22}
+    .teal{background:#1abc9c;color:#1abc9c}
+    .pink{background:#fd79a8;color:#fd79a8}
+
+    /* status: hidden by default, only shown when we set text */
+    #statusMsg{
+      margin-top:10px;
+      text-align:center;
+      font-weight:800;
+      font-size: clamp(14px,1.8vw,18px);
+      color:#e8f7ff;
+      padding:10px 14px;
+      border:1px solid rgba(32,48,79,.8);
+      background:rgba(10,22,40,.75);
+      border-radius:12px;
+      display:none;
+    }
+
+    /* Secret hot corners */
+    .hot{position:absolute;width:25vw;height:25vh;z-index:4}
+    .hot.tl{left:0;top:0}.hot.tr{right:0;top:0}.hot.br{right:0;bottom:0}.hot.bl{left:0;bottom:0}
+
+    /* Rotate overlay (KIOSK) */
+    #rotateOverlay{position:fixed; inset:0; background:rgba(0,0,0,.92); color:#e8f7ff; display:none; align-items:center; justify-content:center; text-align:center; z-index:9999; padding:2rem; font-weight:800; letter-spacing:.3px;}
+    #rotateOverlay .box{border:2px dashed #22d3ee; border-radius:14px; padding:1.2rem 1.4rem; max-width:480px;}
+    #rotateOverlay .hint{ color:#9fb6c9; font-weight:700; margin-top:.6rem; font-size:.95rem; }
+  </style>
+</head>
+<body>
+  <!-- ⭐ Starfield background -->
+  <canvas id="bgStars"></canvas>
+
+  <header><div class="h" id="title">📱 Stations</div></header>
+
+  <!-- Rotate overlay (KIOSK) -->
+  <div id="rotateOverlay" role="alert" aria-live="assertive">
+    <div class="box">
+      <div style="font-size:1.25rem">Please rotate your device</div>
+      <div class="hint">This screen works best in portrait.</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- VIEW: Password -->
+    <section id="view-auth" class="card">
+      <div class="center">Enter password to view stations</div>
+      <form id="unlock-form" action="#" onsubmit="return false;">
+        <input id="pw" type="password" class="inp" placeholder="Password"
+               autocomplete="current-password" inputmode="text" autocapitalize="off" enterkeyhint="go"/>
+        <button id="unlockBtn" type="submit" class="btn">Unlock</button>
+      </form>
+      <div id="authErr" class="err"></div>
+      <div class="muted">Checks <code>config/config.stationPassword</code></div>
+    </section>
+
+    <!-- VIEW: Station list -->
+    <section id="view-list" class="hide">
+      <div id="list" class="list"></div>
+      <div id="empty" class="muted hide">No stations yet.</div>
+    </section>
+
+    <!-- VIEW: Control -->
+    <section id="view-control" class="hide">
+      <!-- Secret exits (keep) -->
+      <div class="hot tl" data-k="TL"></div>
+      <div class="hot tr" data-k="TR"></div>
+      <div class="hot br" data-k="BR"></div>
+      <div class="hot bl" data-k="BL"></div>
+
+      <div class="card" style="margin-top:0">
+        <div class="bigRedWrap">
+          <div id="fireBtn" class="bigRedBtn">
+            ACTIVATE
+          </div>
+        </div>
+
+        <!-- move LCDs BELOW the button -->
+        <div class="lcd-row">
+          <div class="lcd" id="lcd1">0000</div>
+          <div class="lcd" id="lcd2">0000</div>
+          <div class="lcd" id="lcd3">0000</div>
+        </div>
+
+        <!-- add little sci-fi buttons back -->
+        <div class="button-grid" id="comboGrid">
+          <div class="btnSquare red"    data-color="red"></div>
+          <div class="btnSquare blue"   data-color="blue"></div>
+          <div class="btnSquare green"  data-color="green"></div>
+          <div class="btnSquare yellow" data-color="yellow"></div>
+          <div class="btnSquare purple" data-color="purple"></div>
+          <div class="btnSquare orange" data-color="orange"></div>
+          <div class="btnSquare teal"   data-color="teal"></div>
+          <div class="btnSquare pink"   data-color="pink"></div>
+        </div>
+
+        <!-- status only if error/info -->
+        <div id="statusMsg"></div>
+      </div>
+    </section>
+  </div>
+
+  <audio id="ding" src="ding.mp3" preload="auto"></audio>
+
+<script>
+/* ================= Firebase ================= */
+if (!firebase.apps.length) {
+  firebase.initializeApp({
+    apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+    authDomain:"light-the-night-2025.firebaseapp.com",
+    projectId: "light-the-night-2025"
+  });
+}
+const db  = firebase.firestore();
+const FSV = firebase.firestore.FieldValue;
+
+/* ================= Webswitch interop ================= */
+const CONTROL_DOC      = db.collection("webswitch").doc("control");
+const PHONE_RULES_DOC  = db.collection("webswitch").doc("phoneRules");
+let PHONE_RULES = [];
+PHONE_RULES_DOC.onSnapshot((snap)=>{
+  const d = snap.data() || {};
+  PHONE_RULES = Array.isArray(d.rules) ? d.rules : [];
+});
+
+/* =============== DOM + state =============== */
+function $(id){ return document.getElementById(id); }
+const viewAuth = $('view-auth'), viewList = $('view-list'), viewControl = $('view-control');
+const unlockBtn = $('unlockBtn'), pwEl = $('pw'), authErr = $('authErr');
+const listEl = $('list'), emptyEl = $('empty');
+const statusMsg = $('statusMsg');
+const fireBtn = $('fireBtn');
+const lcd1=$('lcd1'), lcd2=$('lcd2'), lcd3=$('lcd3');
+const titleEl = $('title');
+const ding = $('ding');
+
+const UNLOCK_KEY = 'ltngi_unlocked';
+let currentStationId = null;
+let listUnsub = null;
+let stationDocUnsub = null;
+let heartbeatInterval = null;
+let currentStationCfg = null;
+let totalStations = 6;
+
+/* =============== KIOSK helpers =============== */
+let wakeLockObj = null, noSleep = null, DESIRED_ORIENTATION='portrait';
+async function kioskEnter() {
+  try {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) await el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+  } catch(_){}
+  try {
+    if ('wakeLock' in navigator && navigator.wakeLock && navigator.wakeLock.request) {
+      wakeLockObj = await navigator.wakeLock.request('screen');
+      if (wakeLockObj && wakeLockObj.addEventListener){
+        wakeLockObj.addEventListener('release', function(){ wakeLockObj = null; });
+      }
+    } else {
+      if (!noSleep) noSleep = new NoSleep();
+      if (noSleep && noSleep.enable) noSleep.enable();
+    }
+  } catch(_) {
+    try { if (!noSleep) noSleep = new NoSleep(); if (noSleep && noSleep.enable) noSleep.enable(); } catch(_){}
+  }
+  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(DESIRED_ORIENTATION); } catch(_){}
+  paintRotateOverlay();
+  addEventListener('orientationchange', paintRotateOverlay);
+  addEventListener('resize', paintRotateOverlay);
+  document.addEventListener('visibilitychange', async function(){
+    if (document.visibilityState === 'visible') {
+      try {
+        if ('wakeLock' in navigator && navigator.wakeLock && navigator.wakeLock.request && !wakeLockObj) {
+          wakeLockObj = await navigator.wakeLock.request('screen');
+          if (wakeLockObj && wakeLockObj.addEventListener){
+            wakeLockObj.addEventListener('release', function(){ wakeLockObj = null; });
+          }
+        } else { if (noSleep && noSleep.enable) noSleep.enable(); }
+      } catch(_){}
+    }
+  });
+}
+async function kioskExit() {
+  try { if (wakeLockObj && wakeLockObj.release) await wakeLockObj.release(); wakeLockObj = null; } catch(_){}
+  try { if (noSleep && noSleep.disable) noSleep.disable(); } catch(_){}
+  try {
+    if (document.fullscreenElement) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+  } catch(_){}
+  hideRotateOverlay();
+}
+function isPortraitViewport(){ return innerHeight >= innerWidth; }
+function paintRotateOverlay(){
+  const inPortrait = isPortraitViewport();
+  $('rotateOverlay').style.display = (DESIRED_ORIENTATION === 'portrait' && !inPortrait) ? 'flex' : 'none';
+}
+function hideRotateOverlay(){ $('rotateOverlay').style.display = 'none'; }
+
+/* =============== UI helpers =============== */
+function show(which){
+  viewAuth.classList.toggle('hide', which !== 'auth');
+  viewList.classList.toggle('hide', which !== 'list');
+  viewControl.classList.toggle('hide', which !== 'control');
+  if (which !== 'control') {
+    titleEl.textContent = '📱 Stations';
+  }
+}
+function setStatus(msg){
+  if (!msg){
+    statusMsg.style.display = 'none';
+    statusMsg.textContent = '';
+  } else {
+    statusMsg.style.display = 'block';
+    statusMsg.textContent = msg;
+  }
+}
+function primeAudio(){
+  try { ding.volume = 1.0; ding.muted = false; ding.play().then(()=>{ ding.pause(); ding.currentTime = 0; }).catch(()=>{}); } catch(_){}
+}
+function beep(){
+  try{ ding.currentTime = 0; ding.play().catch(()=>{}); }catch(_){}
+}
+
+/* =============== Auth =============== */
+function safeGet(obj, pathArr) { var cur = obj; for (var i=0;i<pathArr.length;i++){ if (!cur || typeof cur!=='object') return; cur = cur[pathArr[i]]; } return cur; }
+let expectedPasswordCache = null;
+function getExpectedPassword() {
+  return new Promise(function(resolve){
+    if (expectedPasswordCache !== null) return resolve(expectedPasswordCache);
+    var settled = false;
+    var to = setTimeout(function(){ if (!settled){ settled=true; resolve(null); } }, 4000);
+    db.collection('config').doc('config').get()
+      .then(function(snap){
+        if (settled) return; clearTimeout(to);
+        var data = snap && snap.exists ? (snap.data ? snap.data() : {}) : {};
+        var passA = data ? data.stationPassword : null;
+        var passB = safeGet(data,['passwords','station']);
+        expectedPasswordCache = passA || passB || null;
+        if (data && Number.isInteger(data.totalStations) && data.totalStations > 0) totalStations = data.totalStations;
+        settled = true; resolve(expectedPasswordCache);
+      })
+      .catch(function(){ if (settled) return; clearTimeout(to); settled = true; resolve(null); });
+  });
+}
+async function checkPassword(pw){
+  try{
+    const expected = await getExpectedPassword();
+    if (expected === null || expected === '') return true;
+    return pw && String(pw) === String(expected);
+  }catch(_){ return false; }
+}
+function unlockUI(){ try { sessionStorage.setItem(UNLOCK_KEY,'1'); } catch(_){ } startList(); }
+function denyUI(){ try { authErr.textContent = 'Incorrect password'; pwEl.value = ''; pwEl.focus(); } catch(_){} }
+
+/* =============== Station list =============== */
+function isNumericId(id){ return /^\d{1,3}$/.test(id); }
+function startList(){
+  kioskExit();
+  if (stationDocUnsub) { stationDocUnsub(); stationDocUnsub=null; }
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
+  show('list');
+  if (listUnsub) listUnsub();
+  listUnsub = db.collection('stations')
+    .orderBy(firebase.firestore.FieldPath.documentId())
+    .onSnapshot((snap)=>{
+      const items = [];
+      snap.forEach((doc)=>{
+        const id = doc.id; if (!isNumericId(id)) return;
+        const d = doc.data() || {};
+        items.push({ id:Number(id), label: d.label || ('Station ' + id) });
+      });
+      items.sort((a,b)=>a.id-b.id);
+      listEl.innerHTML = items.map((row)=>(
+        `<div class="bar" onclick="pick(${row.id})"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">Open ›</div></div>`
+      )).join('');
+      emptyEl.classList.toggle('hide', items.length>0);
+    });
+}
+window.pick = function(id){ currentStationId = String(id); startControlForStation(); };
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+/* =============== Control view (big red button) =============== */
+async function startControlForStation(){
+  if (!sessionStorage.getItem(UNLOCK_KEY)) { show('auth'); return; }
+  show('control');
+  await kioskEnter();
+
+  if (stationDocUnsub) stationDocUnsub();
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+
+  stationDocUnsub = db.collection('stations').doc(currentStationId).onSnapshot((doc)=>{
+    const d = doc.data()||{};
+    const label = d.label ? d.label : ('Station #' + currentStationId);
+    // show ONLY in header
+    titleEl.textContent = label;
+    currentStationCfg = {
+      outlet: (d.outlet != null ? d.outlet : null),
+      onState: (d.onState || 'ON'),
+      pulseMs: (typeof d.pulseMs === 'number' ? d.pulseMs : null)
+    };
+  });
+
+  const beat = ()=>db.collection("stations").doc(currentStationId).set({ heartbeat: firebase.firestore.Timestamp.now() }, { merge:true }).catch(()=>{});
+  beat(); heartbeatInterval = setInterval(beat, 10000);
+
+  startLCDTicker();
+  setStatus(''); // no "Ready"
+}
+
+/* =============== LCD ticker =============== */
+let lcdTimer = null, lcdHoldUntil = 0;
+const LCD_PERIOD_MS = 1800;
+function rand4(){ return String(Math.floor(Math.random()*10000)).padStart(4,'0'); }
+function paintLCDTriplet(a,b,c){ lcd1.textContent=a; lcd2.textContent=b; lcd3.textContent=c; }
+function startLCDTicker(){
+  stopLCDTicker();
+  paintLCDTriplet(rand4(), rand4(), rand4());
+  lcdTimer = setInterval(()=>{ if (Date.now() < lcdHoldUntil) return; paintLCDTriplet(rand4(), rand4(), rand4()); }, LCD_PERIOD_MS);
+}
+function stopLCDTicker(){ if (lcdTimer) { clearInterval(lcdTimer); lcdTimer = null; } }
+function holdLCDFor(text, ms=1600){
+  const s = (String(text||'').replace(/[^\w-]/g,'') || 'FIRED').toUpperCase();
+  const chunk = s.slice(-12).padStart(12,' ');
+  paintLCDTriplet(chunk.slice(0,4), chunk.slice(4,8), chunk.slice(8,12));
+  lcdHoldUntil = Date.now() + ms;
+}
+
+/* =============== Webswitch + rules =============== */
+async function sendSwitchCommand(outlet, state){
+  const payload = {
+    outlet:Number(outlet),
+    state:String(state).toLowerCase(),
+    nonce:Math.random().toString(36).slice(2),
+    ts:FSV.serverTimestamp(),
+    uid:'station:'+(currentStationId||'?'),
+    reqId: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)
+  };
+  await CONTROL_DOC.set(payload, { merge: true });
+}
+async function runPhoneRuleForStation(stationNum){
+  const rule = PHONE_RULES.find(r=>Number(r.station)===Number(stationNum));
+  if (!rule || !rule.steps || !rule.steps.length) return false;
+  const steps = [].concat(rule.steps).filter(s=>s && s.type==='power' && Number.isFinite(s.tMs)).sort((a,b)=>a.tMs - b.tMs);
+  let elapsed = 0; const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+  for (let i=0;i<steps.length;i++){
+    const s = steps[i];
+    const waitMs = clamp((s.tMs - elapsed), 0, 60000);
+    if (waitMs > 0) await new Promise(r=>setTimeout(r, waitMs));
+    elapsed = s.tMs;
+    await sendSwitchCommand(Number(s.outlet), String(s.state));
+  }
+  return true;
+}
+async function maybeTriggerWebSwitch(){
+  const hasRule = PHONE_RULES.some(r=>Number(r.station)===Number(currentStationId));
+  if (hasRule) {
+    await runPhoneRuleForStation(Number(currentStationId));
+    return;
+  }
+  const cfg = currentStationCfg || {};
+  if (cfg.outlet == null) { return; }
+  const desired = (cfg.onState || 'ON').toUpperCase();
+  await sendSwitchCommand(cfg.outlet, desired === 'OFF' ? 'off' : 'on');
+  if (typeof cfg.pulseMs === 'number' && cfg.pulseMs > 0){
+    await new Promise(r=>setTimeout(r, cfg.pulseMs));
+    await sendSwitchCommand(cfg.outlet, desired === 'OFF' ? 'on' : 'off');
+  }
+}
+
+/* =============== Button handler =============== */
+fireBtn.addEventListener('click', async ()=>{
+  if (!currentStationId) return;
+  primeAudio(); beep();
+  holdLCDFor('FIRED', 1700);
+  // don't show "Ready", only show on error
+  try{
+    await maybeTriggerWebSwitch();
+    try{ confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } }); }catch(_){}
+  }catch(e){
+    console.error(e);
+    setStatus('Failed to send signal ❌');
+  }
+});
+
+/* =============== Secret exits (color buttons) =============== */
+(function initSecrets(){
+  // bring back combo to exit
+  const SECRET_SEQUENCE = ['red','blue','yellow','green']; let comboProgress = [];
+  $('comboGrid').addEventListener('click', (e)=>{
+    const el = e.target.closest?.('.btnSquare'); if (!el) return;
+    const color = el.getAttribute('data-color');
+    comboProgress.push(color);
+    if (comboProgress.length > SECRET_SEQUENCE.length) comboProgress = comboProgress.slice(-SECRET_SEQUENCE.length);
+    const ok = SECRET_SEQUENCE.every((c,i)=>comboProgress[i]===c);
+    if (ok && comboProgress.length===SECRET_SEQUENCE.length){
+      comboProgress=[];
+      startList();
+      kioskExit();
+    }
+    clearTimeout(window.__comboTO); window.__comboTO = setTimeout(()=>{ comboProgress=[]; }, 5000);
+  });
+
+  const seq = ['TL','TR','BR','BL']; let progress=[];
+  document.querySelectorAll('.hot').forEach((hot)=>{
+    hot.addEventListener('click', function(){
+      progress.push(this.dataset.k);
+      if (progress.length>seq.length) progress = progress.slice(-seq.length);
+      const ok2 = seq.every((k,i)=>progress[i]===k);
+      if (ok2 && progress.length===seq.length){ progress=[]; startList(); kioskExit(); }
+      clearTimeout(window.__secretTO); window.__secretTO = setTimeout(()=>{ progress=[]; }, 4000);
+    });
+  });
+})();
+
+/* =============== Starfield =============== */
+function startStarfield(){
+  const c = $('bgStars');
+  const ctx = c.getContext('2d', { alpha: false });
+
+  const DPR = Math.max(1, window.devicePixelRatio || 1);
+  let W = 0, H = 0;
+
+  function resize(){
+    W = (innerWidth|0);
+    H = (innerHeight|0);
+    c.width  = W * DPR;
+    c.height = H * DPR;
+    c.style.width  = W + 'px';
+    c.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  const BASE_STARS = 420;
+  const stars = new Array(BASE_STARS);
+  for (let i=0;i<BASE_STARS;i++){
+    stars[i] = {
+      x: (Math.random() - 0.5),
+      y: (Math.random() - 0.5),
+      z: Math.random(),
+      r: Math.random() * 1.5 + 0.4
+    };
+  }
+
+  const meteors = [];
+  let nextMeteorAt = performance.now() + 1200 + Math.random()*2200;
+
+  function spawnMeteor(){
+    const fromTop = Math.random() < 0.5;
+    const startX = fromTop ? Math.random() * W*0.7 : -40;
+    const startY = fromTop ? -20 : Math.random() * H*0.4;
+    const vx = (3 + Math.random()*3);
+    const vy = (fromTop ? (2.2 + Math.random()*2.2) : (1.4 + Math.random()*1.6));
+    meteors.push({
+      x:startX, y:startY, vx, vy,
+      life: 900 + Math.random()*700,
+      age: 0
+    });
+  }
+
+  let last = performance.now();
+  function draw(now){
+    const dt = Math.min(48, now - last);
+    last = now;
+
+    ctx.fillStyle = '#000014';
+    ctx.fillRect(0, 0, W, H);
+
+    for (let i=0;i<BASE_STARS;i++){
+      const s = stars[i];
+      let z = s.z - (2.0 * dt) / 1000;
+      if (z <= 0) z += 1;
+      s.z = z;
+
+      const k = 220 * (1 - z);
+      const x = (W/2) + (s.x * W) * (0.3 + k/220);
+      const y = (H/2) + 50 + (s.y * H) * (0.3 + k/220);
+
+      const radius = Math.max(0.2, s.r * (1 - z));
+      const b = 120 + (1 - z) * 135;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI*2);
+      ctx.fillStyle = `rgb(${b|0},${b|0},${b|0})`;
+      ctx.fill();
+    }
+
+    if (now >= nextMeteorAt){
+      spawnMeteor();
+      nextMeteorAt = now + 1800 + Math.random()*2600;
+    }
+    for (let m = meteors.length - 1; m >= 0; m--){
+      const me = meteors[m];
+      me.age += dt;
+      me.x += me.vx * (dt/16.7);
+      me.y += me.vy * (dt/16.7);
+
+      const trail = 80;
+      const grad = ctx.createLinearGradient(me.x, me.y, me.x - me.vx*trail*0.6, me.y - me.vy*trail*0.6);
+      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(me.x, me.y);
+      ctx.lineTo(me.x - me.vx*trail*0.6, me.y - me.vy*trail*0.6);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(me.x, me.y, 1.6, 0, Math.PI*2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      if (me.age > me.life || me.x > W+60 || me.y > H+60) meteors.splice(m,1);
+    }
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+/* =============== Boot =============== */
+(function boot(){
+  try { sessionStorage.removeItem(UNLOCK_KEY); } catch(_){}
+  show('auth');
+  startStarfield();
+
+  const handler = (ev)=>{ ev?.preventDefault?.(); primeAudio(); authErr.textContent=''; const pw=(pwEl.value||'').trim(); checkPassword(pw).then(ok=>{ ok?unlockUI():denyUI(); }); return false; };
+  unlockBtn?.addEventListener('click', handler, false);
+  unlockBtn?.addEventListener('touchstart', (e)=>{ e?.preventDefault?.(); handler(e); }, false);
+  $('unlock-form')?.addEventListener('submit', handler, false);
+  pwEl?.addEventListener('keydown', (e)=>{ if ((e.key==='Enter')||(e.keyCode===13)){ e.preventDefault(); handler(e); return false; } }, false);
+
+  getExpectedPassword();
+
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState!=='visible'){
+      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
+    }
+  });
+})();
+window.addEventListener('beforeunload', ()=>{
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap" rel="stylesheet">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Chart.js + adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body { margin:0; display:flex; height:100vh; background:#121212; color:#ccc; font-family:'JetBrains Mono',monospace }
+    .sidebar { width:240px; background:#1e1e1e; padding:2rem 0; display:flex; flex-direction:column }
+    .sidebar h2 { color:#00d1c1; text-align:center; margin-bottom:1rem }
+    .nav button { background:none; border:none; color:#ccc; padding:.75rem 1.5rem; text-align:left; cursor:pointer; width:100% }
+    .nav button:hover, .nav button.active { background:#2a2a2a; color:#00d1c1 }
+    .main { flex:1; padding:1.5rem; overflow-y:auto; display:none }
+    .section { display:none }
+    .metrics { display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:1rem }
+    .metric-card { background:#1e1e1e; padding:1rem; flex:1 1 180px; border:1px solid #333; border-radius:8px }
+    .metric-card h3 { margin:0; font-size:1rem; color:#00d1c1 }
+    .metric-card p { margin:.5rem 0 0; font-size:1.5rem }
+    table { width:100%; border-collapse:collapse; margin-top:1rem }
+    th, td { border:1px solid #333; padding:.5rem; text-align:left; vertical-align:top }
+    th { background:#222 }
+    input, select, textarea { width:50%; background:#222; border:1px solid #444; color:#ccc; padding:.5rem; margin:.25rem 0; font-family:'JetBrains Mono',monospace }
+    textarea { width:100%; min-height:70px; resize:vertical }
+    .btn { background:#00d1c1; border:none; padding:.4rem .7rem; color:#000; font-weight:bold; cursor:pointer; margin:.1rem }
+    .btn:hover { background:#00b6aa }
+    #login { position:absolute; inset:0; background:#121212; display:flex; align-items:center; justify-content:center; flex-direction:column }
+    #activityFeed { white-space:pre-wrap; background:#1e1e1e; padding:1rem; border-radius:8px; height:120px; overflow-y:auto }
+    canvas#completionChart { background:#1e1e1e }
+    .pw-mask { letter-spacing:2px }
+    .hint-item { background:#1e1e1e; border:1px solid #333; padding:.75rem 1rem; border-radius:8px; margin-bottom:.75rem }
+    .hint-item h4 { margin:.2rem 0 .5rem; color:#00d1c1 }
+
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:9999; }
+    .modal { width:min(720px,92vw); background:#1b1b1b; border:1px solid #333; border-radius:10px; padding:1rem 1.25rem; }
+    .modal h3 { margin:.25rem 0 .75rem; color:#00d1c1 }
+    .modal .muted { color:#9aa; font-size:.9rem; margin-bottom:.5rem }
+    .modal textarea { width:100%; background:#202020; border:1px solid #444; color:#ddd; min-height:110px }
+    .modal .actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:.75rem }
+    .row-missing { background:rgba(255, 77, 77, 0.10) }
+    .tag-missing { display:inline-block; padding:.15rem .4rem; border-radius:6px; background:#3a1212; color:#ffaaaa; border:1px solid #6a1a1a; font-size:.8rem }
+
+    .toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:.5rem 0 1rem }
+    .pill { display:inline-block; background:#222; border:1px solid #333; color:#9ad; padding:.2rem .5rem; border-radius:999px; font-size:.8rem }
+    .muted { color:#9aa }
+    .tiny { font-size:.8rem; opacity:.8 }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login">
+    <h2>Admin Login</h2>
+    <input id="adminPasswordInput" type="password" placeholder="Enter admin password">
+    <button class="btn" onclick="checkAdminPassword()">Login</button>
+    <p id="loginStatus" style="color:red;"></p>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar" style="display:none">
+    <h2>Admin</h2>
+    <div class="nav">
+      <button onclick="showSection('live')">📋 Live</button>
+      <button onclick="showSection('leaderboard')">🏁 Leaderboard Controls</button>
+      <button onclick="showSection('stations')">🛠 Stations</button>
+      <button onclick="showSection('participants')">🧒 Participants</button>
+      <button onclick="showSection('allvisitors')">🧾 All Visitors</button>
+      <button onclick="showSection('emails')">✉️ Emails</button>
+      <button onclick="showSection('passwords')">🔐 Passwords</button>
+      <button onclick="showSection('hints')">💡 Hints</button>
+      <button class="btn" onclick="exportToCSV()">📤 Export CSV</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main" id="main">
+
+    <!-- LIVE DASHBOARD -->
+    <div id="live" class="section">
+      <h1>Live Dashboard</h1>
+      <div class="metrics">
+        <div class="metric-card"><h3>Total Checked In</h3><p id="metricTotal">0</p></div>
+        <div class="metric-card"><h3>Currently In Maze</h3><p id="metricInMaze">0</p></div>
+        <div class="metric-card"><h3>Completed</h3><p id="metricCompleted">0</p></div>
+        <div class="metric-card"><h3>Avg. Time</h3><p id="metricAvg">0:00</p></div>
+        <div class="metric-card"><h3>Fastest</h3><p id="metricFastest">--</p></div>
+      </div>
+      <h3>📈 Completion Chart</h3>
+      <canvas id="completionChart" height="150"></canvas>
+      <h3>📡 Activity Feed</h3>
+      <div id="activityFeed"></div>
+    </div>
+
+    <!-- LEADERBOARD CONTROLS -->
+    <div id="leaderboard" class="section">
+      <h1>Leaderboard Controls</h1>
+      <button class="btn" onclick="sendCommand('start')">Start</button>
+      <button class="btn" onclick="sendCommand('stop')">Stop</button>
+      <button class="btn" onclick="sendCommand('clear')">Clear</button><br><br>
+      <input id="newLeaderboardTitle" placeholder="New Leaderboard Title">
+      <button class="btn" onclick="updateLeaderboardTitle()">Update Title</button>
+      <button class="btn" onclick="exportLeaderboardPDF()">Export PDF</button>
+      <h3>🏅 Top 5</h3>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Time</th></tr></thead>
+        <tbody id="leaderboardTable"></tbody>
+      </table>
+    </div>
+
+    <!-- STATIONS -->
+    <div id="stations" class="section">
+      <h1>Stations</h1>
+      <p>Total Stations Required: <span id="stationsCount">0</span></p>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Status</th><th>Last Beat</th><th>Turned On?</th>
+          </tr>
+        </thead>
+        <tbody id="stationsTable"></tbody>
+      </table>
+
+      <h3>Rename Station</h3>
+      <input id="stationRenameNumber" placeholder="Station #" />
+      <input id="stationRenameLabel" placeholder="New Label" />
+      <button class="btn" onclick="renameStation()">Rename</button>
+
+      <h3>Toggle Station ON/OFF</h3>
+      <input id="stationToggleNumber" placeholder="Station #" />
+      <select id="stationToggleStatus">
+        <option value="true">ON</option>
+        <option value="false">OFF</option>
+      </select>
+      <button class="btn" onclick="toggleStation()">Toggle</button>
+
+      <h3>Set Total Stations</h3>
+      <input id="totalStationsInput" placeholder="Total Stations" />
+      <button class="btn" onclick="updateTotalStations()">Set Total</button>
+    </div>
+
+    <!-- PARTICIPANTS -->
+    <div id="participants" class="section">
+      <h1>Participants</h1>
+      <div class="tiny">Per-row <b>Clear</b> deletes the Firestore doc.</div>
+      <button class="btn" onclick="selectAllParticipants()">Select All</button>
+      <button class="btn" onclick="batchAction('reset')">Reset</button>
+      <button class="btn" onclick="batchAction('complete')">Complete</button>
+      <button class="btn" onclick="batchAction('delete')">Delete</button>
+      <button class="btn" onclick="startMissingFlow()">⚠️ Missing</button>
+      <button class="btn" onclick="batchAction('clearMissing')">✅ Clear Missing</button>
+      <button class="btn" style="background:#ff7676" onclick="cleanupEvent()">🧹 Cleanup Event (codes+participants+kids)</button>
+      <table>
+        <thead>
+          <tr>
+            <th></th><th>Name</th><th>Code</th><th>Stations</th><th>Done?</th><th>Duration</th><th>Missing</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="participantsList"></tbody>
+      </table>
+    </div>
+
+    <!-- PASSWORDS -->
+    <div id="passwords" class="section">
+      <h1>Passwords</h1>
+      <label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.85rem">
+        <input type="checkbox" id="showPwCheckbox" onchange="renderPasswords()"> Show passwords
+      </label>
+      <table>
+        <thead><tr><th>Type</th><th>Current</th></tr></thead>
+        <tbody id="passwordsTable"></tbody>
+      </table>
+      <h3>Update</h3>
+      <input id="newAdminPassword" placeholder="New Admin Password">
+      <input id="newSigninPassword" placeholder="New Sign-In Password">
+      <input id="newStationPassword" placeholder="New Station Password">
+      <button class="btn" onclick="changePasswords()">Save</button>
+    </div>
+
+    <!-- All Visitors -->
+    <div id="allvisitors" class="section">
+      <h1>All Visitors</h1>
+      <div class="metric-card" style="margin-bottom:1rem; background:#222; display:inline-block;">
+        <h3>Total Visitors</h3><p id="visitorCount">0</p>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <button class="btn" onclick="clearAllVisitors()">Clear All Visitors</button>
+        <button class="btn" onclick="clearAllBarcodeParticipants()">Clear All Barcode Participants</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Name</th><th>Barcode</th><th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="allVisitorsTable"></tbody>
+      </table>
+    </div>
+
+    <!-- EMAILS -->
+    <div id="emails" class="section">
+      <h1>Emails</h1>
+      <div class="toolbar">
+        <span class="pill">Live</span>
+        <button class="btn" onclick="selectAllEmails()">Select All</button>
+        <button class="btn" onclick="deleteSelectedEmails()">Delete</button>
+        <button class="btn" onclick="exportEmailsCSV()">Export CSV</button>
+        <span class="muted" id="emailsSummary"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Source</th>
+            <th>When</th>
+            <th>Doc ID</th>
+          </tr>
+        </thead>
+        <tbody id="emailsTable"></tbody>
+      </table>
+    </div>
+
+    <!-- HINTS -->
+    <div id="hints" class="section">
+      <h1>Hints</h1>
+      <p>Edit the hint shown after a kid scans. Leave blank to remove that hint.</p>
+      <div id="hintsContainer"></div>
+      <button class="btn" onclick="saveHints()">Save Hints</button>
+      <p id="hintsStatus" style="color:#00d1c1;font-weight:bold;"></p>
+    </div>
+
+  </div>
+
+  <!-- Missing Kid Modal -->
+  <div class="modal-bg" id="missingModalBg" role="dialog" aria-modal="true" aria-labelledby="missingTitle">
+    <div class="modal">
+      <h3 id="missingTitle">Mark Missing</h3>
+      <div class="muted" id="missingKidName">Kid:</div>
+      <label for="missingMsg">Message to display/broadcast (unique to this kid):</label>
+      <textarea id="missingMsg" placeholder="Example: Hello, please wait where you are and a team member will come to get you."></textarea>
+      <div class="actions">
+        <button class="btn" onclick="skipMissing()">Skip</button>
+        <button class="btn" onclick="saveMissing()">Save & Next</button>
+        <button class="btn" onclick="cancelMissing()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // FIREBASE INIT
+    firebase.initializeApp({
+      apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+      authDomain:"light-the-night-2025.firebaseapp.com",
+      projectId: "light-the-night-2025"
+    });
+    const db = firebase.firestore();
+
+    let listeners = [];
+    let passwordCache = {};
+    let currentConfig = {};
+    let stationLabels = {};
+
+    // ✅ NEW: Auto-complete globals
+    let autoCompleteUnsub = null;
+    let totalStationsCache = 0;
+    const _autoCompleteBusy = new Set();
+
+    function clearListeners(){
+      listeners.forEach(u => { try { u(); } catch(e){} });
+      listeners = [];
+    }
+
+    function formatTime(ms) {
+      const totalSec = Math.floor(ms/1000),
+            m        = String(Math.floor(totalSec/60)),
+            s        = String(totalSec%60).padStart(2,'0');
+      return `${m}:${s}`;
+    }
+    function safeTS(ts){
+      try{
+        if(!ts) return null;
+        if(ts.toDate) return ts.toDate();
+        if(typeof ts === 'number') return new Date(ts);
+        if(typeof ts === 'string') {
+          const d = new Date(ts);
+          return isNaN(d.getTime()) ? null : d;
+        }
+        if(ts instanceof Date) return ts;
+      }catch(e){}
+      return null;
+    }
+    function isCheckedIn(d){
+      return !!safeTS(d.startCheckIn || d.checkinTime);
+    }
+
+    // AUTH
+    function checkAdminPassword(){
+      db.collection("config").doc("config").get().then(doc=>{
+        if(doc.exists && doc.data().adminPassword === document.getElementById("adminPasswordInput").value){
+          document.getElementById("login").style.display="none";
+          document.getElementById("sidebar").style.display="flex";
+          document.getElementById("main").style.display="block";
+          showSection('live');
+          // ✅ NEW: Start background auto-complete watcher after login
+          startAutoCompleteWatcher();
+        } else {
+          document.getElementById("loginStatus").innerText="Access denied.";
+        }
+      });
+    }
+
+    // NAVIGATION
+    function showSection(id){
+      document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+      const btn = Array.from(document.querySelectorAll('.nav button')).find(b=>b.onclick.toString().includes(id));
+      if(btn) btn.classList.add('active');
+      document.querySelectorAll('.section').forEach(s=>s.style.display='none');
+      clearListeners();
+      document.getElementById(id).style.display='block';
+      if(id==='live')         initLive();
+      if(id==='leaderboard')  initLeaderboard();
+      if(id==='stations')     initStations();
+      if(id==='participants') initParticipants();
+      if(id==='passwords')    initPasswords();
+      if(id==='hints')        initHints();
+      if(id==='allvisitors')  initAllVisitors();
+      if(id==='emails')       initEmails();
+    }
+
+    // LIVE DASHBOARD
+    const completionChart = new Chart(
+      document.getElementById('completionChart').getContext('2d'),
+      { type:'bar', data:{labels:[],datasets:[{label:'Completion Time',data:[]}]}, options:{
+        scales:{
+          x:{ticks:{color:'#ccc'},grid:{color:'#333'}},
+          y:{beginAtZero:true,ticks:{color:'#ccc',callback:v=>formatTime(v)},grid:{color:'#333'}}
+        },
+        plugins:{tooltip:{callbacks:{label:ctx=>formatTime(ctx.raw)}}}
+      }}
+    );
+
+    function initLive(){
+      listeners.push(
+        db.collection("kids").onSnapshot(snap=>{
+          let total=0, inMaze=0, done=0;
+          const completedWithTimes = [];
+
+          snap.forEach(d=>{
+            const dd=d.data();
+            if(!isCheckedIn(dd)) return;
+            total++;
+            if(dd.completed === true){
+              done++;
+              if(typeof dd.durationMs === 'number' && isFinite(dd.durationMs) && dd.durationMs >= 0){
+                completedWithTimes.push({name: dd.name || '', dur: dd.durationMs});
+              } else {
+                const start = safeTS(dd.startMaze) || safeTS(dd.startCheckIn) || safeTS(dd.checkinTime);
+                const end   = safeTS(dd.completionTime);
+                if(start && end){
+                  const dur = end.getTime() - start.getTime();
+                  if(isFinite(dur) && dur >= 0) completedWithTimes.push({name: dd.name || '', dur});
+                }
+              }
+            } else {
+              inMaze++;
+            }
+          });
+
+          document.getElementById("metricTotal").innerText    = total;
+          document.getElementById("metricInMaze").innerText   = inMaze;
+          document.getElementById("metricCompleted").innerText= done;
+
+          const avg = completedWithTimes.length
+            ? completedWithTimes.reduce((a,b)=>a+b.dur,0)/completedWithTimes.length
+            : 0;
+          document.getElementById("metricAvg").innerText = formatTime(avg);
+
+          if(completedWithTimes.length){
+            const fastest = completedWithTimes.reduce((m,c)=> c.dur < m.dur ? c : m, completedWithTimes[0]);
+            document.getElementById("metricFastest").innerText = `${fastest.name || '—'} (${formatTime(fastest.dur)})`;
+          } else {
+            document.getElementById("metricFastest").innerText='--';
+          }
+
+          completionChart.data.labels = completedWithTimes.map(x=>x.name || '—');
+          completionChart.data.datasets[0].data = completedWithTimes.map(x=>x.dur);
+          completionChart.update();
+        })
+      );
+
+      listeners.push(
+        db.collection("scans").orderBy("timestamp","desc").limit(10)
+          .onSnapshot(snap=>{
+            document.getElementById("activityFeed").innerText=
+              snap.docs.map(d=>{
+                const dt = safeTS(d.data().timestamp);
+                return `[${dt?dt.toLocaleTimeString():"—"}] ${d.data().name}@${d.data().station}`;
+              }).join('\n');
+          })
+      );
+    }
+
+    // LEADERBOARD CONTROLS
+    function initLeaderboard(){
+      listeners.push(
+        db.collection("kids")
+          .where("completed","==",true)
+          .orderBy("durationMs","asc")
+          .limit(5)
+          .onSnapshot(snap=>{
+            document.getElementById("leaderboardTable").innerHTML=
+              snap.docs.map((d,i)=>`<tr><td>${i+1}</td><td>${(d.data().name||'')}</td><td>${formatTime(d.data().durationMs||0)}</td></tr>`).join('');
+          })
+      );
+    }
+    function sendCommand(cmd){
+      db.collection("leaderboard").doc("control").set({command:cmd,timestamp:Date.now()},{merge:true});
+    }
+    function updateLeaderboardTitle(){
+      const t=document.getElementById("newLeaderboardTitle").value.trim();
+      if(t) db.collection("config").doc("leaderboard").set({title:t},{merge:true});
+    }
+    function exportLeaderboardPDF(){
+      const iframe=document.createElement('iframe');
+      iframe.src="/leaderboard.html";
+      iframe.onload=()=>html2pdf().from(iframe.contentDocument.body).save();
+      document.body.appendChild(iframe);
+      setTimeout(()=>iframe.remove(),4000);
+    }
+
+    // STATIONS
+    function initStations(){
+      const TH=30000; let total=0, data={};
+      listeners.push(
+        db.collection("config").doc("config").onSnapshot(doc=>{
+          total = (doc.data()||{}).totalStations||0;
+          document.getElementById("stationsCount").innerText=total;
+          render();
+        })
+      );
+      listeners.push(
+        db.collection("stations").onSnapshot(snap=>{
+          data = {};
+          snap.forEach(d=> data[d.id] = d.data());
+          render();
+        })
+      );
+      function render(){
+        document.getElementById("stationsTable").innerHTML=
+          Array.from({length:total},(_,i)=>{
+            const id=(i+1)+'', d=data[id]||{};
+            const hb   = (d.heartbeat?.toMillis?.()) || (d.heartbeat?.seconds? d.heartbeat.seconds*1000 : 0),
+                  age  = Date.now() - hb,
+                  onln = (d.active!==false && age<TH);
+            return `<tr>
+              <td>${id}</td>
+              <td>${d.label||'Station '+id}</td>
+              <td>${onln?'🟢':'🔴'}</td>
+              <td>${hb?new Date(hb).toLocaleTimeString():'—'}</td>
+              <td>${d.active!==false?'ON':'OFF'}</td>
+            </tr>`;
+          }).join('');
+      }
+    }
+    function renameStation(){
+      const n=document.getElementById("stationRenameNumber"),
+            l=document.getElementById("stationRenameLabel");
+      if(n.value && l.value){
+        db.collection("stations").doc(n.value).set({label:l.value},{merge:true});
+        n.value=''; l.value='';
+      }
+    }
+    function toggleStation(){
+      const n=document.getElementById("stationToggleNumber"),
+            s=document.getElementById("stationToggleStatus");
+      if(n.value){
+        db.collection("stations").doc(n.value).set({active:s.value==='true'},{merge:true});
+        n.value=''; s.value='true';
+      }
+    }
+    function updateTotalStations(){
+      const v=parseInt(document.getElementById("totalStationsInput").value,10);
+      if(v>0) db.collection("config").doc("config").set({totalStations:v},{merge:true});
+      document.getElementById("totalStationsInput").value='';
+    }
+
+    // ===== PARTICIPANTS =====
+    function initParticipants(){
+      listeners.push(
+        db.collection("kids").orderBy("startCheckIn","desc").onSnapshot(snap=>{
+          document.getElementById("participantsList").innerHTML=
+            snap.docs.map(d=>{
+              const D=d.data(), id=d.id, count=(D.scans||[]).length;
+              const rowClass = D.missing ? ' class="row-missing"' : '';
+              const missingCell = D.missing
+                ? `<span class="tag-missing">MISSING</span><br>${(D.missingMsg||'').replace(/</g,'&lt;')}`
+                : '—';
+              return `<tr${rowClass}>
+                <td><input type="checkbox" class="p-cb" data-id="${id}" data-name="${(D.name||'').replace(/"/g,'&quot;')}"></td>
+                <td><input value="${(D.name||'').replace(/"/g,'&quot;')}" onchange="updateField('${id}','name',this.value)"></td>
+                <td><input value="${(D.barcode||id).replace(/"/g,'&quot;')}" onchange="updateField('${id}','barcode',this.value)"></td>
+                <td>${count} station${count===1?'':'s'} completed</td>
+                <td>${D.completed?'✅':'🚀'}</td>
+                <td>${D.durationMs!=null?formatTime(D.durationMs):'N/A'}</td>
+                <td>${missingCell}</td>
+                <td>
+                  <button class="btn" onclick="markComplete('${id}')">Complete</button>
+                  <button class="btn" style="background:#ff9aa2" onclick="resetKid('${id}')">Reset</button>
+                  <button class="btn" style="background:#ff7676" onclick="deleteKid('${id}')">Clear</button>
+                </td>
+              </tr>`;
+            }).join('');
+        })
+      );
+    }
+    function updateField(id,field,val){
+      db.collection("kids").doc(id).update({[field]:val});
+    }
+    function resetKid(id){
+      db.collection("kids").doc(id).set({
+        scans:           [],
+        completed:       false,
+        durationMs:      null,
+        completionTime:  null,
+        startMaze:       null,
+        startCheckIn:    new Date().toISOString(),
+        missing:         false,
+        missingMsg:      firebase.firestore.FieldValue.delete(),
+        missingAt:       firebase.firestore.FieldValue.delete()
+      },{merge:true});
+    }
+    function deleteKid(id){
+      if(confirm("Delete this participant from Firestore? This cannot be undone.")){
+        db.collection("kids").doc(id).delete();
+      }
+    }
+    function selectAllParticipants(){
+      document.querySelectorAll('.p-cb').forEach(cb=>cb.checked=true);
+    }
+    function batchAction(act){
+      const ids = Array.from(document.querySelectorAll('.p-cb:checked')).map(cb=>cb.dataset.id);
+      if(!ids.length) return;
+      ids.forEach(id=>{
+        if(act==='reset')   resetKid(id);
+        if(act==='complete') markComplete(id);
+        if(act==='delete')  deleteKid(id);
+        if(act==='clearMissing') clearMissingFor(id);
+      });
+    }
+
+    // ✅ Complete calculation (manual)
+    function markComplete(id) {
+      db.collection("kids").doc(id).get().then(doc => {
+        if (!doc.exists) return;
+        const d = doc.data() || {};
+        const start =
+          safeTS(d.startMaze) ||
+          safeTS(d.startCheckIn) ||
+          safeTS(d.checkinTime);
+        const end = new Date();
+        const durationMs = start ? Math.max(0, end.getTime() - start.getTime()) : 0;
+
+        db.collection("kids").doc(id).set({
+          completed: true,
+          completionTime: firebase.firestore.Timestamp.now(),
+          durationMs: durationMs,
+          completedBy: "manual"
+        }, { merge: true });
+
+        db.collection("leaderboard").doc("control").set({
+          lastCompletedId: id,
+          ping: Date.now()
+        }, { merge: true });
+      });
+    }
+
+    // 🧹 Cleanup (codes + participants + kids)
+    async function cleanupEvent(){
+      if(!confirm("This will DELETE all documents in 'codes', 'participants', and 'kids'. Proceed?")) return;
+      try{
+        await Promise.all([
+          deleteCollectionRecursive('codes'),
+          deleteCollectionRecursive('participants'),
+          deleteCollectionRecursive('kids')
+        ]);
+        alert("Cleanup complete. You're ready for a fresh event.");
+      }catch(e){
+        console.error(e);
+        alert("Cleanup failed. Check console for details.");
+      }
+    }
+    async function deleteCollectionRecursive(colName, batchSize=400){
+      // Recurse until collection empty
+      while(true){
+        const snap = await db.collection(colName).limit(batchSize).get();
+        if (snap.empty) return;
+        const batch = db.batch();
+        snap.forEach(doc=>batch.delete(doc.ref));
+        await batch.commit();
+      }
+    }
+
+    // PASSWORDS
+    function initPasswords(){
+      listeners.push(
+        db.collection("config").doc("config").onSnapshot(doc=>{
+          passwordCache = doc.data()||{};
+          renderPasswords();
+        })
+      );
+    }
+    function renderPasswords(){
+      const show = document.getElementById("showPwCheckbox").checked,
+            d    = passwordCache,
+            cell = v=>!v?'': show
+              ? `<span>${v} ✅</span>`
+              : `<span class="pw-mask">${'•'.repeat(Math.min(v.length,8))}</span>`;
+      document.getElementById("passwordsTable").innerHTML=`
+        <tr><td>Admin</td><td>${cell(d.adminPassword||'')}</td></tr>
+        <tr><td>Sign-In</td><td>${cell(d.signinPassword||'')}</td></tr>
+        <tr><td>Station</td><td>${cell(d.stationPassword||'')}</td></tr>`;
+    }
+    function changePasswords(){
+      const upd={},
+            a = document.getElementById("newAdminPassword").value,
+            s = document.getElementById("newSigninPassword").value,
+            t = document.getElementById("newStationPassword").value;
+      if(a) upd.adminPassword   = a;
+      if(s) upd.signinPassword = s;
+      if(t) upd.stationPassword= t;
+      if(Object.keys(upd).length){
+        db.collection("config").doc("config").update(upd).then(()=>{
+          document.getElementById("newAdminPassword").value='';
+          document.getElementById("newSigninPassword").value='';
+          document.getElementById("newStationPassword").value='';
+        });
+      }
+    }
+
+    // HINTS
+    function initHints(){
+      listeners.push(
+        db.collection("config").doc("config").onSnapshot(doc=>{
+          currentConfig = doc.data()||{};
+          renderHintsEditor();
+        })
+      );
+      listeners.push(
+        db.collection("stations").onSnapshot(snap=>{
+          snap.forEach(d=> stationLabels[d.id]=d.data().label||`Station ${d.id}`);
+          renderHintsEditor();
+        })
+      );
+    }
+    function renderHintsEditor(){
+      const container = document.getElementById("hintsContainer"),
+            tot       = currentConfig.totalStations||0,
+            hints     = currentConfig.hints||{};
+      if(!tot){
+        container.innerHTML = "<p>No stations configured.</p>";
+        return;
+      }
+      container.innerHTML = Array.from({length:tot},(_,i)=>{
+        const id    = (i+1)+'',
+              label = stationLabels[id]||`Station ${id}`,
+              val   = (hints[id]||"");
+        return `<div class="hint-item">
+          <h4>Station ${id} – ${label}</h4>
+          <textarea id="hint_${id}" placeholder="Hint for ${label}...">${val.replace(/</g,"&lt;")}</textarea>
+        </div>`;
+      }).join('');
+    }
+    function saveHints(){
+      const tot      = currentConfig.totalStations||0,
+            newHints = {};
+      for(let i=1;i<=tot;i++){
+        const v = document.getElementById(`hint_${i}`)?.value.trim();
+        if(v) newHints[i] = v;
+      }
+      db.collection("config").doc("config").set({hints:newHints},{merge:true})
+        .then(()=>{
+          document.getElementById("hintsStatus").innerText="Hints saved!";
+          setTimeout(()=>document.getElementById("hintsStatus").innerText='',2000);
+        });
+    }
+
+    // ===== All Visitors (LIVE) =====
+    let unsubVisitors = null;
+    let unsubKids = null;
+    function initAllVisitors() {
+      const table = document.getElementById("allVisitorsTable");
+      const count = document.getElementById("visitorCount");
+
+      const rows = new Map(); // key -> merged row
+      function render(){
+        const arr = Array.from(rows.values()).sort((a,b)=>(b.timestampMs||0)-(a.timestampMs||0));
+        table.innerHTML = arr.map(entry => `
+          <tr>
+            <td>${entry.number || '—'}</td>
+            <td>${entry.name || '—'}</td>
+            <td>${entry.barcode || 'No Barcode'}</td>
+            <td>${entry.when ? new Date(entry.when).toLocaleString() : "—"}</td>
+          </tr>
+        `).join('');
+        count.innerText = arr.length;
+      }
+
+      if (unsubVisitors) { try{unsubVisitors();}catch(e){} }
+      if (unsubKids) { try{unsubKids();}catch(e){} }
+
+      unsubVisitors = db.collection("participants").onSnapshot(snap=>{
+        // remove stale
+        for (const [k,v] of Array.from(rows.entries())) {
+          if (v.src === 'participants' && !snap.docs.find(d=>`participants/${d.id}`===k)) rows.delete(k);
+        }
+        snap.forEach(doc=>{
+          const d = doc.data()||{};
+          const ts = safeTS(d.timestamp);
+          rows.set(`participants/${doc.id}`, {
+            src:'participants',
+            number: d.number || '—',
+            name: d.name || '—',
+            barcode: (d.barcode && d.barcode!=="No Barcode") ? d.barcode : 'No Barcode',
+            when: ts ? ts.getTime() : 0,
+            timestampMs: ts ? ts.getTime() : 0
+          });
+        });
+        render();
+      });
+
+      unsubKids = db.collection("kids").onSnapshot(snap=>{
+        for (const [k,v] of Array.from(rows.entries())) {
+          if (v.src === 'kids' && !snap.docs.find(d=>`kids/${d.id}`===k)) rows.delete(k);
+        }
+        let idx = 0;
+        snap.forEach(doc=>{
+          const d = doc.data()||{};
+          const ts = safeTS(d.startCheckIn || d.checkinTime);
+          rows.set(`kids/${doc.id}`, {
+            src:'kids',
+            number: `K${++idx}`,
+            name: d.name || '—',
+            barcode: d.barcode || doc.id,
+            when: ts ? ts.getTime() : 0,
+            timestampMs: ts ? ts.getTime() : 0
+          });
+        });
+        render();
+      });
+    }
+
+    function clearAllVisitors() {
+      if (confirm("Are you sure you want to delete ALL visitors (non-barcode participants)?")) {
+        db.collection("participants").get().then(snapshot => {
+          const batch = db.batch();
+          snapshot.forEach(doc => batch.delete(doc.ref));
+          return batch.commit();
+        }).then(() => {
+          alert("All visitors deleted.");
+        });
+      }
+    }
+    function clearAllBarcodeParticipants() {
+      if (confirm("Are you sure you want to delete ALL barcode participants (from 'kids' collection)?")) {
+        db.collection("kids").get().then(snapshot => {
+          const batch = db.batch();
+          snapshot.forEach(doc => batch.delete(doc.ref));
+          return batch.commit();
+        }).then(() => {
+          alert("All barcode participants deleted.");
+        });
+      }
+    }
+
+    // EMAILS
+    let emailUnsubs = [];
+    function initEmails(){
+      emailUnsubs.forEach(u=>{ try{u();}catch(e){} });
+      emailUnsubs = [];
+
+      const table = document.getElementById('emailsTable');
+      const summary = document.getElementById('emailsSummary');
+
+      const sources = [
+        {col: 'leaderboardViewers', label: 'leaderboardViewers'}
+      ];
+
+      const rows = new Map();
+      const seenEmailForDisplay = new Set();
+
+      function render(){
+        const arr = Array.from(rows.values()).sort((a,b)=>(b.whenMs||0)-(a.whenMs||0));
+        seenEmailForDisplay.clear();
+        arr.forEach(r=>{ if(r.email) seenEmailForDisplay.add(r.email.toLowerCase()); });
+
+        table.innerHTML = arr.map(r => `
+          <tr>
+            <td><input type="checkbox" class="e-cb" data-path="${r.path}"></td>
+            <td>${r.email || '—'}</td>
+            <td>${r.name || '—'}</td>
+            <td>${r.source || '—'}</td>
+            <td>${r.when ? r.when.toLocaleString() : '—'}</td>
+            <td class="muted" title="${r.path}">${r.id}</td>
+          </tr>
+        `).join('');
+
+        summary.textContent = `Total: ${arr.length} | Unique emails: ${seenEmailForDisplay.size}`;
+      }
+
+      function attach(colName, label){
+        const unsub = db.collection(colName).onSnapshot(snap=>{
+          for(const [k,v] of rows.entries()){
+            if(v.col === colName && !snap.docs.find(d=>`${colName}/${d.id}`===k)){
+              rows.delete(k);
+            }
+          }
+          snap.forEach(doc=>{
+            const d = doc.data()||{};
+            const when = safeTS(d.timestamp || d.createdAt || d.when || d.date || d.ts);
+            rows.set(`${colName}/${doc.id}`, {
+              path: `${colName}/${doc.id}`,
+              col: colName,
+              id: doc.id,
+              source: 'leaderboard',
+              email: (d.email || d.mail || d.e || '').trim(),
+              name: (d.name || d.n || '').trim(),
+              when,
+              whenMs: when ? when.getTime() : 0
+            });
+          });
+          render();
+        });
+        emailUnsubs.push(unsub);
+      }
+
+      sources.forEach(s=>attach(s.col, s.label));
+    }
+    function selectAllEmails(){
+      document.querySelectorAll('.e-cb').forEach(cb=>cb.checked=true);
+    }
+    function deleteSelectedEmails(){
+      const cbs = Array.from(document.querySelectorAll('.e-cb:checked'));
+      if(!cbs.length) return;
+      if(!confirm(`Delete ${cbs.length} selected email record(s)?`)) return;
+
+      const batch = db.batch();
+      cbs.forEach(cb=>{
+        const [col, id] = cb.dataset.path.split('/');
+        batch.delete(db.collection(col).doc(id));
+      });
+      batch.commit().then(()=>alert('Deleted selected emails.'));
+    }
+    function exportEmailsCSV(){
+      const rows = Array.from(document.querySelectorAll('#emailsTable tr'));
+      let csv = "Email,Name,Source,When,DocID\n";
+
+      const esc = s => (s||'').replace(/"/g,'""');  // proper CSV escaping
+
+      rows.forEach(tr=>{
+        const tds = tr.querySelectorAll('td');
+        if(tds.length < 6) return;
+        const email = esc(tds[1].textContent);
+        const name  = esc(tds[2].textContent);
+        const src   = esc(tds[3].textContent);
+        const when  = esc(tds[4].textContent);
+        const id    = esc(tds[5].textContent);
+        csv += `"${email}","${name}","${src}","${when}","${id}"\n`;
+      });
+      const blob = new Blob([csv],{type:'text/csv'}),
+            a    = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'emails.csv';
+      a.click();
+    }
+
+    // EXPORT PARTICIPANTS CSV
+    function exportToCSV(){
+      db.collection("kids").get().then(snap=>{
+        let csv = "Name,Barcode,Scans,Completed,Duration(s),Missing,MissingMsg\n";
+        snap.docs.forEach(d=>{
+          const D = d.data();
+          csv += `"${(D.name||'').replace(/"/g,'""')}","${(D.barcode||d.id).replace(/"/g,'""')}",${(D.scans||[]).length},${!!D.completed},${Math.round((D.durationMs||0)/1000)},${!!D.missing},"${(D.missingMsg||'').replace(/"/g,'""')}"\n`;
+        });
+        const blob = new Blob([csv],{type:'text/csv'}),
+              a    = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "participants.csv";
+        a.click();
+      });
+    }
+
+    // ===== Missing Kid Flow =====
+    let missingQueue = [];
+    let missingIndex = 0;
+
+    function startMissingFlow(){
+      const selected = Array.from(document.querySelectorAll('.p-cb:checked'))
+        .map(cb => ({ id: cb.dataset.id, name: cb.dataset.name || '' }));
+      if(!selected.length) return;
+
+      missingQueue = selected;
+      missingIndex = 0;
+      openMissingModalForCurrent();
+    }
+
+    function openMissingModalForCurrent(){
+      if(missingIndex >= missingQueue.length){
+        closeMissingModal();
+        return;
+      }
+      const {id, name} = missingQueue[missingIndex];
+      document.getElementById('missingKidName').textContent = `Kid: ${name || id}`;
+      db.collection("kids").doc(id).get().then(doc=>{
+        const d = doc.data() || {};
+        document.getElementById('missingMsg').value = (d.missingMsg || '');
+        document.getElementById('missingModalBg').style.display = 'flex';
+      });
+    }
+
+    function saveMissing(){
+      const {id, name} = missingQueue[missingIndex];
+      const msg = document.getElementById('missingMsg').value.trim();
+      const payload = {
+        missing: true,
+        missingMsg: msg || '',
+        missingAt: firebase.firestore.Timestamp.now()
+      };
+      db.collection("kids").doc(id).set(payload, {merge:true});
+      db.collection("alerts_missing").doc(id).set({
+        kidId: id,
+        name: name || null,
+        message: msg || '',
+        active: true,
+        updatedAt: firebase.firestore.Timestamp.now()
+      }, {merge:true});
+      missingIndex++;
+      if(missingIndex < missingQueue.length){
+        openMissingModalForCurrent();
+      } else {
+        closeMissingModal();
+      }
+    }
+
+    function skipMissing(){
+      missingIndex++;
+      if(missingIndex < missingQueue.length){
+        openMissingModalForCurrent();
+      } else {
+        closeMissingModal();
+      }
+    }
+
+    function cancelMissing(){
+      missingQueue = [];
+      missingIndex = 0;
+      closeMissingModal();
+    }
+
+    function closeMissingModal(){
+      document.getElementById('missingModalBg').style.display = 'none';
+      document.getElementById('missingMsg').value = '';
+    }
+
+    function clearMissingFor(id){
+      db.collection("kids").doc(id).set({
+        missing:false,
+        missingMsg: firebase.firestore.FieldValue.delete(),
+        missingAt:  firebase.firestore.FieldValue.delete()
+      }, {merge:true});
+      db.collection("alerts_missing").doc(id).set({
+        active:false,
+        updatedAt: firebase.firestore.Timestamp.now()
+      }, {merge:true});
+    }
+
+    // ✅ NEW: Background watcher to auto-complete when all stations scanned
+    function startAutoCompleteWatcher(){
+      // Avoid double attaching across logins
+      if (autoCompleteUnsub) { try{ autoCompleteUnsub(); } catch(e){} autoCompleteUnsub = null; }
+
+      // 1) Track totalStations from config
+      db.collection("config").doc("config").onSnapshot(doc=>{
+        const d = doc.data() || {};
+        totalStationsCache = parseInt(d.totalStations || 0, 10) || 0;
+      });
+
+      // 2) Watch kids and auto-complete when scans hit totalStations
+      autoCompleteUnsub = db.collection("kids").onSnapshot(snap=>{
+        if (!totalStationsCache || totalStationsCache <= 0) return; // nothing to do until configured
+        snap.forEach(doc=>{
+          const id = doc.id;
+          const data = doc.data() || {};
+          if (data.completed === true) return;             // already done
+          if (_autoCompleteBusy.has(id)) return;           // in-flight write
+
+          const scansArr = Array.isArray(data.scans) ? data.scans : [];
+          // Ensure uniqueness of station numbers; accept number or object {station: N}
+          const uniqueStations = [...new Set(scansArr.map(s => {
+            if (s && typeof s === 'object' && typeof s.station !== 'undefined') return String(s.station);
+            return String(s);
+          }))];
+
+          if (uniqueStations.length >= totalStationsCache) {
+            _autoCompleteBusy.add(id);
+            // Compute duration
+            const start =
+              safeTS(data.startMaze) ||
+              safeTS(data.startCheckIn) ||
+              safeTS(data.checkinTime) ||
+              new Date();
+            const end = new Date();
+            const durationMs = Math.max(0, end.getTime() - start.getTime());
+
+            // Mark complete + ping leaderboard
+            const kidRef = db.collection("kids").doc(id);
+            kidRef.set({
+              completed: true,
+              completionTime: firebase.firestore.Timestamp.now(),
+              durationMs: durationMs,
+              completedBy: "auto",
+              completedReason: "allStationsScanned",
+              next: "leaderboard" // optional hint; phones can redirect when they see this
+            }, { merge: true }).then(()=>{
+              return db.collection("leaderboard").doc("control").set({
+                lastCompletedId: id,
+                ping: Date.now()
+              }, { merge: true });
+            }).catch(console.error).finally(()=>{
+              setTimeout(()=>_autoCompleteBusy.delete(id), 1500);
+            });
+          }
+        });
+      });
+    }
+
+    // INITIALIZE (shows Live by default; login gates controls)
+    showSection('live');
+  </script>
+</body>
+</html>

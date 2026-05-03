@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xrgb>
+  <models>
+    <model DisplayAs="Single Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" LayoutGroup="Default" name="Single Line-2" Controller="Dasher (Main)" WorldPosX="138.7848" WorldPosY="5.2770" WorldPosZ="-199.6504" X2="66.081978" Y2="-3.400993" Z2="857.682983" versionNumber="7" StartChannel="!Dasher (Main):1051">
+      <ControllerConnection Port="4" Protocol="ws2811"/>
+    </model>
+    <model DisplayAs="Single Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" name="Single Line" LayoutGroup="Default" Controller="Dasher (Main)" WorldPosX="-133.7866" WorldPosY="5.2570" WorldPosZ="-199.6504" X2="-72.020081" Y2="-3.400993" Z2="857.682983" versionNumber="7" StartChannel="!Dasher (Main):901">
+      <ControllerConnection Protocol="ws2811" Port="3"/>
+    </model>
+    <model DisplayAs="Arches" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm3="1" LayoutGroup="Default" parm2="50" LayerSizes="" parm1="3" name="Arches-3" Controller="Dasher (Main)" WorldPosX="-713.9904" WorldPosY="5.8266" WorldPosZ="338.0085" X2="506.450806" Y2="0.000000" Z2="0.004974" RotateX="0.00000000" Height="1.000000" Angle="0" versionNumber="7" StartChannel="!Dasher (Main):451">
+      <ControllerConnection Port="2" Protocol="ws2811"/>
+    </model>
+    <model DisplayAs="Arches" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm3="1" LayoutGroup="Default" parm2="50" LayerSizes="" name="Arches-2" parm1="3" Controller="Dasher (Main)" WorldPosX="237.2882" WorldPosY="5.8066" WorldPosZ="338.0085" X2="506.450806" Y2="0.000000" Z2="0.004974" RotateX="0.00000000" Height="1.000000" Angle="0" versionNumber="7" StartChannel="!Dasher (Main):1">
+      <ControllerConnection Port="1" Protocol="ws2811"/>
+    </model>
+    <model StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm2="50" parm3="1" name="Tree" parm1="16" LayoutGroup="Default" TreeRotation="20.000000" DisplayAs="Tree 180" NoZig="false" Controller="No Controller" AlternateNodes="true" WorldPosX="-607.4186" WorldPosY="139.5895" WorldPosZ="-27.5375" ScaleX="1.7177" ScaleY="1.7539" ScaleZ="1.0000" RotateX="0.00000000" RotateY="0.00000000" RotateZ="0.00000000" versionNumber="7" StartChannel="1802">
+      <ControllerConnection Protocol="ws2811"/>
+    </model>
+    <model DisplayAs="Poly Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" LayoutGroup="Default" name="Left Side" Controller="Dasher (Main)" WorldPosX="2906.0200" WorldPosY="-1844.0865" WorldPosZ="0.0000" ScaleX="1.0000" ScaleY="1.0000" ScaleZ="1.0000" NumPoints="2" PointData="-3230.053955,2144.189209,-1155.347290,-3221.996582,2133.469727,-187.547684" cPointData="" versionNumber="7" StartChannel="!Dasher (Main):1201">
+      <ControllerConnection Protocol="ws2811" Port="9"/>
+      <Aliases>
+        <alias name="oldname:poly line-4"/>
+      </Aliases>
+    </model>
+    <model DisplayAs="Poly Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" LayoutGroup="Default" name="Right Side" ModelChain="&gt;Front Line" Controller="Dasher (Main)" WorldPosX="2866.0200" WorldPosY="-1844.1066" WorldPosZ="0.0000" ScaleX="1.0000" ScaleY="1.0000" ScaleZ="1.0000" NumPoints="2" PointData="-2540.495117,2139.357422,-1149.859741,-2537.977539,2129.510498,-185.771210" cPointData="" versionNumber="7" StartChannel="!Dasher (Main):1501">
+      <ControllerConnection Port="9" Protocol="ws2811"/>
+    </model>
+    <model DisplayAs="Poly Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" LayoutGroup="Default" name="Peak" Controller="Dasher (Main)" WorldPosX="2826.0955" WorldPosY="-1844.1266" WorldPosZ="0.0000" ScaleX="1.0000" ScaleY="1.0000" ScaleZ="1.0000" NumPoints="2" PointData="-2823.064453,2320.697266,-1147.664185,-2822.254883,2312.301758,-184.870407" cPointData="" versionNumber="7" StartChannel="!Dasher (Main):1651">
+      <ControllerConnection Protocol="ws2811" Port="10"/>
+    </model>
+    <model DisplayAs="Poly Line" StringType="RGB Nodes" StartSide="B" Dir="L" Antialias="1" PixelSize="2" Transparency="0" parm1="1" parm2="50" parm3="1" LayoutGroup="Default" name="Front Line" ModelChain="&gt;Left Side" Controller="Dasher (Main)" WorldPosX="-319.4282" WorldPosY="272.8538" WorldPosZ="-202.6590" ScaleX="1.0000" ScaleY="1.0000" ScaleZ="1.0000" NumPoints="3" PointData="3.124176,14.284637,0.532028,323.594116,189.299500,0.532028,649.458374,7.368988,0.532028" cPointData="" versionNumber="7" StartChannel="!Dasher (Main):1351">
+      <ControllerConnection Port="9" Protocol="ws2811"/>
+      <Aliases>
+        <alias name="oldname:poly line"/>
+      </Aliases>
+    </model>
+  </models>
+  <view_objects>
+    <view_object name="Mesh" DisplayAs="Mesh" LayoutGroup="Default" ObjFile="/Users/kylechristman/Desktop/Light Show/2026/Golf Cart Garage XLights Model- 1-1-25/GolfCartGarageXLights Model- 1-1-25.obj" WorldPosX="53.2904" WorldPosY="3.2437" WorldPosZ="-679.7685" ScaleX="125.3800" ScaleY="125.3800" ScaleZ="125.3800" RotateX="-89.46907043" RotateY="-0.00000024" RotateZ="-0.05086439" versionNumber="7"/>
+    <view_object DisplayAs="Gridlines" LayoutGroup="Default" name="Gridlines" GridLineSpacing="50" Active="1" GridHeight="4000" GridWidth="2200" WorldPosX="0.0000" WorldPosY="0.0000" WorldPosZ="0.0000" ScaleX="0.6819" ScaleY="0.6819" ScaleZ="0.6819" RotateX="-90.00000000" RotateY="-0.00000000" RotateZ="0.00000000" versionNumber="7"/>
+  </view_objects>
+  <effects version="0007"/>
+  <views/>
+  <palettes/>
+  <modelGroups/>
+  <layoutGroups/>
+  <perspectives current="Default Perspective">
+    <perspective name="Default Perspective" settings="layout2|name=ModelPreview;caption=Model Preview;state=6293440;dir=4;layer=1;row=0;pos=0;prop=100000;bestw=250;besth=250;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=HousePreview;caption=House Preview;state=6293440;dir=4;layer=1;row=0;pos=1;prop=100000;bestw=250;besth=250;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=EffectAssist;caption=Effect Assist;state=2099198;dir=4;layer=1;row=0;pos=2;prop=100000;bestw=250;besth=250;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=DisplayElements;caption=Display Elements;state=6293503;dir=4;layer=0;row=0;pos=0;prop=100000;bestw=750;besth=1050;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=750;floath=1050|name=Perspectives;caption=Perspectives;state=2099198;dir=4;layer=1;row=0;pos=0;prop=100000;bestw=20;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Effect;caption=Effect Settings;state=2099196;dir=4;layer=0;row=1;pos=0;prop=100000;bestw=487;besth=874;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=SelectEffect;caption=Select Effects;state=2099198;dir=4;layer=1;row=0;pos=0;prop=100000;bestw=593;besth=406;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=SearchPanel;caption=Search Panel;state=2099198;dir=4;layer=1;row=0;pos=0;prop=100000;bestw=574;besth=376;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=EffectDropper;caption=Effects;state=2099198;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=1260;besth=756;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=ValueCurveDropper;caption=Value Curves;state=2099198;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=40;besth=40;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=ColourDropper;caption=Colours;state=2099198;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=20;besth=35;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Jukebox;caption=Jukebox;state=2099198;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=100;besth=200;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=FindData;caption=Find Data;state=2099198;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=20;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=Color;caption=Color;state=2099196;dir=1;layer=0;row=0;pos=0;prop=100000;bestw=392;besth=383;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=LayerTiming;caption=Layer Blending;state=2099196;dir=1;layer=0;row=0;pos=1;prop=100000;bestw=304;besth=269;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=LayerSettings;caption=Layer Settings;state=2099196;dir=1;layer=0;row=0;pos=2;prop=100000;bestw=20;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|name=SequenceVideo;caption=Sequence Video;state=2099199;dir=4;layer=0;row=0;pos=0;prop=100000;bestw=320;besth=180;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=278;floaty=177;floatw=320;floath=199|name=Main Sequencer;caption=Main Sequencer;state=768;dir=5;layer=0;row=0;pos=0;prop=100000;bestw=122;besth=62;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1|dock_size(4,1,0)=252|dock_size(4,0,1)=352|dock_size(1,0,0)=143|dock_size(5,0,0)=124|" version="2.0"/>
+  </perspectives>
+  <settings>
+    <LayoutMode3D value="1"/>
+    <scaleImage value="0"/>
+    <previewWidth value="1920"/>
+    <previewHeight value="1080"/>
+  </settings>
+  <colors>
+    <DisabledEffect Red="200" Green="200" Blue="0"/>
+    <EffectDefault Red="192" Green="192" Blue="192"/>
+    <EffectSelected Red="204" Green="102" Blue="255"/>
+    <EffectSelectedDisabled Red="200" Green="200" Blue="64"/>
+    <EffectSelectedFixed Red="255" Green="128" Blue="0"/>
+    <EffectSelectedLocked Red="200" Green="128" Blue="152"/>
+    <GridDashes Red="255" Green="255" Blue="0"/>
+    <Gridlines Red="40" Green="40" Blue="40"/>
+    <LabelOutline Red="103" Green="103" Blue="103"/>
+    <Labels Red="255" Green="255" Blue="204"/>
+    <LayoutDashes Red="255" Green="255" Blue="0"/>
+    <LockedEffect Red="200" Green="0" Blue="0"/>
+    <ModelDefault Red="211" Green="211" Blue="211"/>
+    <ModelOverlap Red="255" Green="0" Blue="0"/>
+    <ModelSelected Red="255" Green="255" Blue="0"/>
+    <Phonemes Red="255" Green="181" Blue="218"/>
+    <Phrases Red="153" Green="255" Blue="153"/>
+    <ReferenceEffect Red="255" Green="0" Blue="255"/>
+    <ReferenceEffectDisabled Red="255" Green="255" Blue="127"/>
+    <ReferenceEffectLocked Red="255" Green="0" Blue="127"/>
+    <RowHeaderSelected Red="130" Green="178" Blue="207"/>
+    <TextHighlighted Red="0" Green="0" Blue="255"/>
+    <TextUnselected Red="211" Green="211" Blue="211"/>
+    <Timing1 Red="0" Green="255" Blue="255"/>
+    <Timing2 Red="255" Green="0" Blue="0"/>
+    <Timing3 Red="0" Green="255" Blue="0"/>
+    <Timing4 Red="0" Green="0" Blue="255"/>
+    <Timing5 Red="255" Green="255" Blue="0"/>
+    <TimingDefault Red="255" Green="255" Blue="255"/>
+    <Waveform Red="130" Green="178" Blue="207"/>
+    <WaveformMouseMarker Red="0" Green="0" Blue="255"/>
+    <WaveformSelected Red="0" Green="0" Blue="200"/>
+    <WaveformSelectedEffect Red="255" Green="128" Blue="0"/>
+    <Words Red="255" Green="218" Blue="145"/>
+  </colors>
+  <Viewpoints/>
+</xrgb>

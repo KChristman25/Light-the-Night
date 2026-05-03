@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leaderboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: #0ff;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .title {
+      font-size: 3rem;
+      margin: 3rem 0 1rem;
+      text-shadow: 0 0 12px #0ff, 0 0 24px #00f5f5;
+    }
+
+    .count {
+      font-size: 1.8rem;
+      font-weight: bold;
+      text-shadow: 0 0 10px #0ff;
+    }
+
+    .entry-list {
+      margin-top: 2rem;
+      width: 90%;
+      height: 60vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .scroll-inner {
+      display: flex;
+      flex-direction: column;
+      animation: scrollList 60s linear infinite;
+    }
+
+    .entry {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.75rem 1.25rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 8px;
+      font-size: 2rem;
+    }
+
+    .scroll-text {
+      width: 100%;
+      padding: 2rem 1rem 1rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: center;
+      font-size: 3rem;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .rank {
+      margin-right: 1rem;
+      font-weight: bold;
+      font-size: 2.2rem;
+      text-shadow: 0 0 10px #fff;
+    }
+
+    .first { background: rgba(255,215,0,0.2); color: gold; }
+    .second { background: rgba(192,192,192,0.2); color: silver; }
+    .third { background: rgba(205,127,50,0.2); color: #cd7f32; }
+
+    .glow { text-shadow: 0 0 10px #0ff; }
+
+    @keyframes scrollList {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
+    }
+
+    .message {
+      position: absolute;
+      bottom: 20px;
+      color: #0f0;
+      font-size: 1.6rem;
+      animation: slideUp 1s ease-out;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .fallback {
+      margin-top: 2rem;
+      font-size: 1.8rem;
+      color: #888;
+      text-align: center;
+    }
+
+    .qr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .qr img {
+      width: 150px;
+      height: 150px;
+      border: 2px solid #0ff;
+      border-radius: 10px;
+      box-shadow: 0 0 12px #0ff;
+    }
+
+    .qr .text {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      color: #0ff;
+      text-shadow: 0 0 6px #0ff;
+    }
+
+    .halloween {
+      margin-top: 1.5rem;
+      font-size: 3rem;
+      color: orange;
+      font-weight: bold;
+      text-shadow: 0 0 6px orange;
+      text-align: center;
+      width: 100%;
+    }
+
+    .spacer { height: 3rem; }
+    .large-spacer { height: 3rem; }
+  </style>
+</head>
+<body>
+  <!-- star bg -->
+  <canvas id="starsCanvas" style="position:fixed; top:0; left:0; z-index:-1; pointer-events:none;"></canvas>
+
+  <div class="title" id="leaderboardTitle">Leaderboard</div>
+  <div class="count" id="finisherCount">Loading...</div>
+
+  <div class="entry-list">
+    <div class="scroll-inner" id="entryList"></div>
+  </div>
+
+  <div class="fallback" id="fallbackMessage" style="display:none;">
+    🛰️ No missions completed yet. Awaiting brave explorers...
+  </div>
+  <div class="message" id="messageArea"></div>
+
+  <script>
+    // --- FIREBASE SETUP ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+      authDomain: "light-the-night-2025.firebaseapp.com",
+      projectId: "light-the-night-2025"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // --- DOM refs ---
+    const listEl = document.getElementById("entryList");
+    const countEl = document.getElementById("finisherCount");
+    const titleEl = document.getElementById("leaderboardTitle");
+    const fallbackEl = document.getElementById("fallbackMessage");
+    const msgEl = document.getElementById("messageArea");
+
+    const titles = ["Commander", "Captain", "Pilot", "Agent", "Navigator"];
+
+    let isLive = true;
+    let totalStations = 6; // default, override from config/config
+
+    // read total stations from config
+    db.collection("config").doc("config").onSnapshot(doc => {
+      if (doc.exists) {
+        const d = doc.data();
+        if (d.totalStations) {
+          totalStations = d.totalStations;
+        }
+      }
+    });
+
+    // optional leaderboard title
+    db.collection("config").doc("leaderboard").onSnapshot(doc => {
+      if (doc.exists && doc.data().title) {
+        titleEl.textContent = doc.data().title;
+      }
+    });
+
+    // control channel
+    db.collection("leaderboard").doc("control").onSnapshot(doc => {
+      const data = doc.data();
+      if (!data) return;
+
+      if (data.command === "start") isLive = true;
+      if (data.command === "stop") isLive = false;
+      if (data.command === "clear") {
+        listEl.innerHTML = "";
+        countEl.textContent = "0 Finishers";
+        fallbackEl.style.display = "block";
+      }
+
+      if (data.lastCompletedId) {
+        db.collection("kids").doc(data.lastCompletedId).get().then(docSnap => {
+          if (docSnap.exists) {
+            const d = docSnap.data();
+            const name = d.name || "Unnamed";
+            const cmd = titles[Math.floor(Math.random() * titles.length)];
+            msgEl.textContent = `${cmd} ${name} has completed the mission.`;
+            setTimeout(() => msgEl.textContent = "", 5000);
+            db.collection("leaderboard").doc("control").update({
+              lastCompletedId: firebase.firestore.FieldValue.delete()
+            });
+          }
+        });
+      }
+    });
+
+    // MAIN LISTENER
+    db.collection("kids").onSnapshot(snapshot => {
+      // 1) collect all docs
+      const allDocs = [];
+      snapshot.forEach(doc => {
+        allDocs.push({ id: doc.id, data: doc.data() });
+      });
+
+      // 2) build barcode -> name map from ANY doc that has a name
+      const barcodeNameMap = {};
+      allDocs.forEach(({ data }) => {
+        if (data && data.barcode && data.name) {
+          barcodeNameMap[data.barcode] = data.name;
+        }
+      });
+
+      // 3) now figure out finishers
+      const finished = [];
+
+      allDocs.forEach(({ id, data: d }) => {
+        if (!d) return;
+
+        // skip revoked / reused
+        if (d.revoked === true) return;
+
+        const scans = Array.isArray(d.scans) ? d.scans : [];
+        const hasEnoughScans = scans.length >= totalStations;
+        const alreadyCompletedFlag = d.completed === true;
+
+        const startMaze = d.startMaze || d.startCheckIn;
+        const endTime = d.lastScanAt || d.completionTime;
+
+        if (hasEnoughScans || alreadyCompletedFlag) {
+          let durationMs = d.durationMs || null;
+
+          if (!durationMs && startMaze && endTime) {
+            const startMs = startMaze.toMillis ? startMaze.toMillis() : Date.parse(startMaze);
+            const endMs = endTime.toMillis ? endTime.toMillis() : Date.parse(endTime);
+            if (!isNaN(startMs) && !isNaN(endMs)) {
+              durationMs = Math.max(0, endMs - startMs);
+            }
+          }
+
+          // try: field name -> name from matching barcode doc -> fallback
+          const resolvedName =
+            d.name ||
+            (d.barcode ? barcodeNameMap[d.barcode] : null) ||
+            "Unnamed";
+
+          finished.push({
+            id,
+            name: resolvedName,
+            durationMs,
+            scansCount: scans.length
+          });
+        }
+      });
+
+      // sort: ones with real duration first
+      finished.sort((a, b) => {
+        const aHas = typeof a.durationMs === "number";
+        const bHas = typeof b.durationMs === "number";
+        if (aHas && bHas) return a.durationMs - b.durationMs;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+
+      // render
+      fallbackEl.style.display = finished.length === 0 ? "block" : "none";
+      countEl.textContent = `${finished.length} Finishers`;
+
+      listEl.innerHTML = "";
+
+      // header bits
+      const halloween = document.createElement("div");
+      halloween.className = "halloween";
+      halloween.textContent = "🎃 Happy Halloween 🎃";
+      listEl.appendChild(halloween);
+
+      const spacer1 = document.createElement("div");
+      spacer1.className = "spacer";
+      listEl.appendChild(spacer1);
+
+      const qrBlock = document.createElement("div");
+      qrBlock.className = "qr";
+      qrBlock.innerHTML = `
+        <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://ltn-leaderboard.web.app/&size=150x150&color=00ffff&bgcolor=000000" alt="QR Code">
+        <div class="text">📱 Scan for leaderboard</div>
+      `;
+      listEl.appendChild(qrBlock);
+
+      const spacer2 = document.createElement("div");
+      spacer2.className = "spacer";
+      listEl.appendChild(spacer2);
+
+      const light = document.createElement("div");
+      light.className = "scroll-text";
+      light.textContent = "Light the Night 2025";
+      listEl.appendChild(light);
+
+      const spacer3 = document.createElement("div");
+      spacer3.className = "large-spacer";
+      listEl.appendChild(spacer3);
+
+      // entries
+      finished.forEach((data, i) => {
+        const e = document.createElement("div");
+        e.className = "entry glow";
+        if (i === 0) e.classList.add("first");
+        else if (i === 1) e.classList.add("second");
+        else if (i === 2) e.classList.add("third");
+
+        const rank = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+
+        let timeStr = "—";
+        if (typeof data.durationMs === "number") {
+          const secs = Math.round(data.durationMs / 1000);
+          const m = Math.floor(secs / 60);
+          const s = secs % 60;
+          timeStr = `${m}m ${s.toString().padStart(2, '0')}s`;
+        } else {
+          timeStr = `${data.scansCount}/${totalStations} stations`;
+        }
+
+        e.innerHTML = `<span><span class="rank">${rank}</span> ${data.name}</span><span>${timeStr}</span>`;
+        listEl.appendChild(e);
+      });
+
+      // duplicate for infinite scroll
+      const currentHTML = listEl.innerHTML;
+      listEl.innerHTML = currentHTML + currentHTML;
+
+      // animation speed
+      const scrollDiv = document.querySelector('.scroll-inner');
+      if (scrollDiv) {
+        if (isLive) {
+          const itemCount = finished.length + 6; // header + qr + light + spacer
+          scrollDiv.style.animation = `scrollList ${Math.max(itemCount * 3, 30)}s linear infinite`;
+        } else {
+          scrollDiv.style.animation = "none";
+        }
+      }
+    });
+  </script>
+
+  <!-- STARFIELD -->
+  <script>
+    const canvas = document.getElementById('starsCanvas');
+    const ctx = canvas.getContext('2d');
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    let W, H;
+
+    function resizeCanvas() {
+      W = Math.floor(window.innerWidth);
+      H = Math.floor(window.innerHeight);
+      canvas.width = W * DPR;
+      canvas.height = H * DPR;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const stars = Array.from({ length: 400 }, () => ({
+      x: (Math.random() - 0.5) * W,
+      y: (Math.random() - 0.5) * H,
+      z: Math.random() * W,
+      radius: Math.random() * 1.5 + 0.5
+    }));
+
+    const shootingStars = [];
+    let nextSpawn = performance.now() + randRange(1200, 3500);
+
+    function spawnShootingStar() {
+      const edge = Math.random();
+      let x, y, vx, vy;
+      const speed = randRange(700, 1100) / 1000;
+      const angle = randRange(20, 35) * (Math.PI / 180);
+
+      if (edge < 0.5) {
+        x = randRange(-W * 0.2, W * 0.3);
+        y = randRange(-H * 0.2, H * 0.15);
+      } else {
+        x = randRange(-W * 0.1, W * 0.9);
+        y = randRange(-H * 0.2, H * 0.05);
+      }
+
+      vx = Math.cos(angle) * randRange(8, 14) * speed;
+      vy = Math.sin(angle) * randRange(8, 14) * speed;
+
+      shootingStars.push({
+        x, y, vx, vy,
+        length: randRange(120, 220),
+        life: 0,
+        maxLife: randRange(700, 1400),
+        width: randRange(1.2, 2.2)
+      });
+    }
+
+    function randRange(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function drawStars() {
+      for (let s of stars) {
+        s.z -= 2;
+        if (s.z <= 0) s.z = W;
+
+        const k = 128 / s.z;
+        const x = W / 2 + s.x * k;
+        const y = H / 2 + 50 + s.y * k;
+        const r = Math.max(0.2, s.radius * (1 - s.z / W));
+        const b = 120 + (1 - s.z / W) * 135;
+
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = `rgb(${b},${b},${b})`;
+        ctx.fill();
+      }
+    }
+
+    function drawShootingStars(dt) {
+      for (let i = shootingStars.length - 1; i >= 0; i--) {
+        const m = shootingStars[i];
+        m.life += dt;
+
+        m.x += m.vx * (dt / 16.67);
+        m.y += m.vy * (dt / 16.67);
+
+        const trailDX = -m.vx * (m.length / Math.hypot(m.vx, m.vy));
+        const trailDY = -m.vy * (m.length / Math.hypot(m.vx, m.vy));
+
+        const alpha = Math.max(0, 1 - (m.life / m.maxLife));
+
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#00ffff';
+        ctx.lineWidth = m.width + 1.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(m.x + trailDX, m.y + trailDY);
+        ctx.strokeStyle = 'rgba(0,255,255,0.9)';
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = m.width;
+        ctx.lineCap = 'round';
+        const grad = ctx.createLinearGradient(m.x, m.y, m.x + trailDX, m.y + trailDY);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.4, 'rgba(200,255,255,0.9)');
+        grad.addColorStop(1, 'rgba(0,255,255,0)');
+        ctx.strokeStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(m.x + trailDX, m.y + trailDY);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.width * 0.9, 0, Math.PI * 2);
+        ctx.fillStyle = 'white';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+
+        if (m.life > m.maxLife || m.x - m.length > W + 50 || m.y - m.length > H + 50) {
+          shootingStars.splice(i, 1);
+        }
+      }
+    }
+
+    let last = performance.now();
+    function draw() {
+      const now = performance.now();
+      const dt = now - last;
+      last = now;
+
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, W, H);
+
+      drawStars();
+      drawShootingStars(dt);
+
+      if (now > nextSpawn) {
+        spawnShootingStar();
+        nextSpawn = now + randRange(900, 3200);
+        if (Math.random() < 0.2) {
+          setTimeout(spawnShootingStar, randRange(120, 350));
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  </script>
+</body>
+</html>

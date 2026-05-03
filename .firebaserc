@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "light-the-night-2025"
+  },
+  "targets": {
+    "light-the-night-2025": {
+      "hosting": {
+        "ltn-leaderboard": [
+          "ltn-leaderboard"
+        ],
+        "default": [
+          "light-the-night-2025"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Light the Night — Participant</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+<style>
+  :root{
+    --cyan:#22d3ee; --bg:#000014; --panel:#0e1222; --muted:#8aa;
+    --border:#1b2244; --ok:#16301a; --okb:#2e7d32; --warn:#301616; --warnb:#7d2e2e;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:#fff;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:16px 14px;max-width:1100px;margin:0 auto}
+  h1{margin:0 0 6px;font-size:22px;color:var(--cyan)}
+  .sub{color:#bcd;font-size:13px}
+
+  main{max-width:1100px;margin:10px auto 60px;padding:0 12px;display:grid;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+  .kv div:nth-child(odd){color:#9fc}
+  .status-pill{display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid #2b365f;background:#121a33;color:#cfe;font-size:13px}
+  .linkbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .btn{background:var(--cyan);color:#001119;border:none;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
+  .btn.secondary{background:#121a33;color:#dbe;border:1px solid #2b365f}
+  .btn:active{transform:translateY(1px)}
+  canvas{background:#0b1230;border-radius:12px;display:block;width:100%;height:auto}
+  .leaderboard{margin:0;padding:0;list-style:none}
+  .leaderboard li{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #1e274a;font-size:15px}
+  .leaderboard li span.time{color:#9fe}
+  .muted{color:var(--muted);font-size:13px}
+  footer{max-width:1100px;margin:14px auto;padding:0 12px;color:#9ab}
+
+  /* Email gate modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,20,.7);display:none;align-items:center;justify-content:center;z-index:9999}
+  .modal{width:min(520px,92vw);background:#0f1430;border:1px solid #24305c;border-radius:16px;padding:18px}
+  .modal h2{margin:0 0 8px;color:var(--cyan)}
+  .field{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+  .field input{background:#0c1020;color:#fff;border:1px solid #283056;border-radius:10px;padding:12px 12px;font-size:16px}
+  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .error{color:#ffb3b3;font-size:12px;margin-top:6px;min-height:16px}
+
+  /* NOT SIGNED IN banner */
+  #not-signed{display:none;max-width:1100px;margin:8px auto;padding:14px;border:2px dashed var(--warnb);background:#2a0d0d;border-radius:14px;color:#ffd5d5}
+  #not-signed h2{margin:0 0 6px;font-size:19px;letter-spacing:.4px}
+  #not-signed p{margin:0;color:#ffbfbf}
+
+  /* Game container + flash border on life loss */
+  .game-wrap{position:relative;border-radius:14px;overflow:hidden}
+  .game-ui{position:absolute;inset:auto 8px 8px auto;display:flex;gap:8px;z-index:2}
+  #game-start{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
+    font-weight:800;border:0;border-radius:12px;margin:8px;z-index:3
+  }
+  #game-start button{padding:14px 18px;border-radius:12px;border:none;font-weight:900;background:var(--cyan);color:#001119;font-size:16px}
+  .flash-red{animation:flashBorder .35s ease-out}
+  @keyframes flashBorder{
+    0%{box-shadow:inset 0 0 0 0 rgba(255,0,0,.0)}
+    10%{box-shadow:inset 0 0 0 8px rgba(255,0,0,.85)}
+    100%{box-shadow:inset 0 0 0 0 rgba(255,0,0,0)}
+  }
+
+  @media (max-width:720px){
+    h1{font-size:20px}
+    .kv{grid-template-columns:1fr;gap:4px 12px}
+    .leaderboard li{padding:10px}
+    .btn{width:100%}
+    #game-start button{width:88%}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎃 Light the Night — Participant</h1>
+    <div class="sub">Live status, progress, a quick game, and links.</div>
+  </header>
+
+  <!-- Access badge -->
+  <section class="card" style="max-width:1100px;margin:0 auto 8px;display:flex;align-items:center;gap:10px">
+    <strong>Access:</strong>
+    <span id="auth-status" class="status-pill">Checking…</span>
+  </section>
+
+  <!-- Big banner if the code hasn't been attached by the real Check-In yet -->
+  <section id="not-signed">
+    <h2>NOT SIGNED IN</h2>
+    <p>This code hasn’t been attached at check-in yet. Please visit the Check-In desk to get started.</p>
+  </section>
+
+  <main id="content" style="display:none">
+    <section class="card">
+      <h2 style="margin:0 0 12px">Participant</h2>
+      <div class="kv">
+        <div>Code</div><div id="p-code">—</div>
+        <div>Name</div><div id="p-name">—</div>
+        <div>Email</div><div id="p-email">—</div>
+        <div>Status</div><div><span id="p-status" class="status-pill">Loading…</span></div>
+        <div>Time</div><div id="p-time">—</div>
+        <div>Stations</div><div id="p-stations">—</div>
+      </div>
+
+      <div class="linkbar">
+        <a class="btn" id="btn-leaderboard" href="/leaderboard.html" target="_blank" rel="noopener">Open Public Leaderboard</a>
+        <a class="btn secondary" href="https://www.scfbc.org" target="_blank" rel="noopener">Main Website</a>
+        <button class="btn secondary" id="btn-refresh">Refresh</button>
+      </div>
+    </section>
+
+    <section class="card" id="progress-section" style="display:none">
+      <h2 style="margin-top:0">Progress</h2>
+      <canvas id="progressChart" height="220"></canvas>
+      <p class="muted" id="chart-hint" style="margin-top:8px"></p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 8px">Leaderboard</h2>
+      <ul class="leaderboard" id="lb-list"></ul>
+      <p class="muted" id="lb-extra" style="margin-top:8px"></p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 8px">Pumpkin Runner 👻</h2>
+
+      <div id="game-wrap" class="game-wrap">
+        <div id="game-start"><button type="button">Tap to Start</button></div>
+        <canvas id="game" width="640" height="260" aria-label="Pumpkin runner game"></canvas>
+        <div class="game-ui" aria-hidden="true">
+          <button class="btn secondary" id="btn-pause">Pause</button>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:8px">Tap to jump (double-jump). Land on platforms, avoid spikes. Game pauses when you switch tabs.</p>
+    </section>
+  </main>
+
+  <!-- Email Gate Modal -->
+  <div class="modal-backdrop" id="gate">
+    <div class="modal">
+      <h2>Enter Email to Continue</h2>
+      <p class="muted" id="gate-sub">We’ll add you to the event newsletter and attach this email to your code.</p>
+      <div class="field"><label for="gate-name">Name</label><input id="gate-name" type="text" placeholder="First Last" inputmode="text" autocomplete="name"></div>
+      <div class="field"><label for="gate-email">Email</label><input id="gate-email" type="email" placeholder="you@example.com" inputmode="email" autocomplete="email"></div>
+      <div class="actions">
+        <button class="btn" id="gate-continue">Continue</button>
+        <button class="btn secondary" id="gate-cancel">Cancel</button>
+      </div>
+      <div class="error" id="gate-error"></div>
+      <div class="muted" id="auth-msg" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <footer style="display:none" id="foot-note">
+    <div class="muted">Example URL:
+      <code>https://light-the-night-2025.web.app/participant.html?code=LTN-2025-ZH4Y-8WA</code>
+    </div>
+  </footer>
+
+<script>
+/* ---------- Init ---------- */
+const cfg = {
+  apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain: "light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025",
+  storageBucket: "light-the-night-2025.firebasestorage.app",
+  messagingSenderId: "563168577950",
+  appId: "1:563168577950:web:874ffc743c2f8a77b1ee8",
+  measurementId: "G-F4XJR2YT9K"
+};
+firebase.initializeApp(cfg);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* ---------- URL / DOM ---------- */
+const qs = new URLSearchParams(location.search);
+const code = (qs.get('code') || '').trim();
+const $ = id => document.getElementById(id);
+
+$('p-code').textContent = code || '—';
+$('btn-refresh').onclick = () => location.reload();
+
+/* ---------- Access badge ---------- */
+async function ensureAuth() {
+  try {
+    if (!auth.currentUser) { await auth.signInAnonymously(); }
+    setAccessBadge(true);
+  } catch (e) {
+    console.error("Anon access failed:", e);
+    setAccessBadge(false);
+    $('auth-msg').textContent = 'Access service is unavailable right now.';
+  }
+}
+function setAccessBadge(ok){
+  const badge = $('auth-status');
+  if (ok){ badge.textContent = 'Online'; badge.style.background = '#16301a'; badge.style.borderColor = '#2e7d32'; }
+  else  { badge.textContent = 'Offline'; badge.style.background = '#301616'; badge.style.borderColor = '#7d2e2e'; }
+}
+
+/* ---------- Helpers ---------- */
+function fmtMs(ms){
+  if (!ms || ms < 0) return '—';
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), r = s%60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+function safeDocId(id){ return (id || '').replace(/[^A-Za-z0-9_-]/g,'_'); }
+
+/* ---------- Read stations from kids.scans (array OR map) ---------- */
+function parseStationsFromKids(k){
+  if (!k) return {list:[], count:0};
+  if (Array.isArray(k.scans)){
+    const nums = [...new Set(k.scans.map(s=> parseInt(s.station,10)).filter(n=>Number.isFinite(n)))];
+    nums.sort((a,b)=>a-b);
+    return {list:nums, count:nums.length};
+  }
+  if (k.scans && typeof k.scans === 'object'){
+    const ignore = new Set(['startCheckIn','timestamp','startMaze','endMaze']);
+    const nums = Object.keys(k.scans)
+      .filter(key=>!ignore.has(key))
+      .map(key=>parseInt(key.replace(/\D+/g,''),10))
+      .filter(n=>Number.isFinite(n));
+    const uniq = [...new Set(nums)].sort((a,b)=>a-b);
+    return {list:uniq, count:uniq.length};
+  }
+  return {list:[], count:0};
+}
+
+/* ---------- State ---------- */
+let participantsUnsub = null;
+let kidsUnsub = null;
+let kidsData = null;          // SOURCE OF TRUTH for sign-in
+let participantData = null;   // Display fields merge
+let lastRendered = {};
+
+/* ---------- STRICT kids-based Signed-In logic ---------- */
+function isKidsSignedIn(k){
+  if (!k) return false;
+  return !!(k.checkedIn === true || k.isCheckedIn === true || k.checkinTime || k.startCheckIn || k.claimed === true || k.claimedAt);
+}
+
+/* ---------- Status from kids + display from merged ---------- */
+function computeStatusFromKids(k){
+  if (!isKidsSignedIn(k)) return 'Not signed in';
+  const parsed = parseStationsFromKids(k);
+  const inMaze = !!k?.startMaze || parsed.count > 0;
+  if (k?.completed === true) return 'Completed';
+  return inMaze ? 'In Progress / In Maze' : 'Signed in';
+}
+
+/* Merge display fields favoring participant doc, then kids */
+function mergedForDisplay(){
+  const kidsParsed = parseStationsFromKids(kidsData);
+  const scansFromKids = kidsParsed.list.map(n=>({station:n, time:null}));
+  const scans = Array.isArray(participantData?.scans) ? participantData.scans : scansFromKids;
+
+  return {
+    code,
+    name:  participantData?.name  ?? kidsData?.name  ?? null,
+    email: participantData?.email ?? kidsData?.email ?? null,
+    scans,
+    startMaze: participantData?.startMaze ?? kidsData?.startMaze ?? null,
+    completionTime: participantData?.completionTime ?? kidsData?.completionTime ?? null,
+    durationMs: participantData?.durationMs ?? kidsData?.durationMs ?? null,
+    totalStations: participantData?.totalStations ?? kidsData?.totalStations ?? kidsData?.stationsRequired ?? 6,
+    stationsCompleted: participantData?.stationsCompleted ?? kidsParsed.count ?? null,
+    completed: participantData?.completed ?? kidsData?.completed ?? false,
+  };
+}
+
+/* ---------- Rendering ---------- */
+function renderAll(){
+  const statusText = computeStatusFromKids(kidsData);
+  const disp = mergedForDisplay();
+
+  if (JSON.stringify({statusText,disp}) === lastRendered.json) return;
+  lastRendered = { json: JSON.stringify({statusText,disp}) };
+
+  const signedIn = statusText !== 'Not signed in';
+  if (!signedIn){
+    showContent(false);
+    showNotSignedBanner(true);
+    $('gate').style.display = 'none';
+  } else {
+    showNotSignedBanner(false);
+    showContent(true);
+    const hasEmail = !!disp.email;
+    $('gate').style.display = hasEmail ? 'none' : 'flex';
+  }
+
+  $('p-name').textContent  = disp.name  || '—';
+  $('p-email').textContent = disp.email || '—';
+  $('p-status').textContent = statusText;
+
+  const isComplete = statusText === 'Completed';
+  $('p-status').style.borderColor = isComplete ? '#2e7d32' : statusText.includes('Progress') ? '#2b365f' : '#7d2e2e';
+  $('p-status').style.background = isComplete ? '#16301a' : statusText.includes('Progress') ? '#121a33' : '#301616';
+
+  // Time
+  let duration = disp.durationMs;
+  if ((!duration || duration <= 0) && disp.startMaze && disp.completionTime) {
+    try {
+      const start = disp.startMaze.toMillis ? disp.startMaze.toMillis() : +disp.startMaze;
+      const end   = disp.completionTime.toMillis ? disp.completionTime.toMillis() : +disp.completionTime;
+      if (end > start) duration = end - start;
+    } catch(e){}
+  }
+  $('p-time').textContent = fmtMs(duration);
+
+  // Stations (count + list)
+  const totalStations = typeof disp.totalStations === 'number' ? disp.totalStations : 6;
+  const doneSet = new Set(
+    Array.isArray(disp.scans) ? disp.scans.map(s=>parseInt(s.station,10)).filter(n=>Number.isFinite(n)) : []
+  );
+  const done = doneSet.size || (typeof disp.stationsCompleted === 'number' ? disp.stationsCompleted : (disp.completed ? totalStations : 0));
+  const listTxt = doneSet.size ? ` (${[...doneSet].sort((a,b)=>a-b).join(', ')})` : '';
+  $('p-stations').textContent = `${done}/${totalStations}${listTxt}`;
+
+  drawChart(disp);
+}
+
+function showNotSignedBanner(show){ $('not-signed').style.display = show ? 'block' : 'none'; }
+function showContent(show){
+  $('content').style.display = show ? '' : 'none';
+  $('foot-note').style.display = show ? '' : 'none';
+}
+
+/* ---------- Email Gate actions ---------- */
+$('gate-cancel').onclick = () => { $('gate').style.display = 'none'; };
+$('gate-continue').onclick = async () => {
+  const name = $('gate-name').value.trim();
+  const email = $('gate-email').value.trim();
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) { $('gate-error').textContent = 'Please enter a valid email.'; return; }
+  $('gate-error').textContent = 'Saving…';
+  await ensureAuth();
+  if (!auth.currentUser) { $('gate-error').textContent = 'Access not available. Try again later.'; return; }
+
+  try {
+    const now = firebase.firestore.Timestamp.now();
+    await db.collection('participants').doc(safeDocId(code)).set(
+      { code, name: name || null, email, updatedAt: now },
+      { merge: true }
+    );
+    await db.collection('email_list').add({ email, name: name || null, code, createdAt: now, source: 'participant-gate' });
+    $('gate').style.display = 'none';
+  } catch (e) {
+    console.error(e); $('gate-error').textContent = 'Save failed. Please check your connection.';
+  }
+};
+
+/* ---------- Chart ---------- */
+let chart;
+function drawChart(p){
+  const section = document.getElementById('progress-section');
+  const canvas = document.getElementById('progressChart');
+  const ctx = canvas.getContext('2d');
+  if (chart) { chart.destroy(); chart = null; }
+
+  const scans = Array.isArray(p?.scans) ? p.scans : [];
+  if (!scans.length){
+    section.style.display = 'none';
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('chart-hint').textContent = '';
+    return;
+  }
+
+  section.style.display = '';
+  const sorted = [...scans].sort((a,b)=>{
+    const ta = a.time?.toMillis ? a.time.toMillis() : +a.time || 0;
+    const tb = b.time?.toMillis ? b.time.toMillis() : +b.time || 0;
+    return ta - tb;
+  });
+  const labels = [];
+  const values = [];
+  let count = 0;
+  for (const s of sorted){
+    count++;
+    labels.push(`Station ${s.station ?? count}`);
+    values.push(count);
+  }
+  document.getElementById('chart-hint').textContent = 'Based on your scan history.';
+
+  chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Stations Completed', data: values, borderWidth:2, borderColor:'#22d3ee', backgroundColor:'rgba(34,211,238,0.25)', pointRadius:3, tension:0.2, fill:true }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{stepSize:1}}}}
+  });
+}
+
+/* ---------- Leaderboard (no composite index needed) ---------- */
+async function loadLeaderboard(){
+  const list = $('lb-list');
+  const extra = $('lb-extra');
+  list.innerHTML = '<li class="muted" style="padding:10px 12px">Loading…</li>';
+  extra.textContent = '';
+
+  try{
+    // Query completed first (no order), then sort client-side to avoid composite index requirements.
+    const q = await db.collection('participants')
+      .where('completed','==',true)
+      .limit(100)
+      .get();
+
+    const items = q.docs.map(d=>d.data()).sort((a,b)=>{
+      const da = Number(a.durationMs||Infinity);
+      const dbb = Number(b.durationMs||Infinity);
+      return da - dbb;
+    }).slice(0,10);
+
+    list.innerHTML = '';
+    if (items.length === 0){
+      list.innerHTML = '<li class="muted" style="padding:10px 12px">No one completed — awaiting brave explorers.</li>';
+      return;
+    }
+    items.forEach((d,i)=>{
+      const li = document.createElement('li');
+      const name = d.name || d.code || `#${i+1}`;
+      li.innerHTML = `<span>${i+1}. ${name}</span><span class="time">${fmtMs(d.durationMs)}</span>`;
+      list.appendChild(li);
+    });
+  }catch(e){
+    console.error(e);
+    list.innerHTML = '<li class="muted" style="padding:10px 12px">Could not load leaderboard.</li>';
+  }
+}
+
+/* ---------- Activity hint ---------- */
+async function loadActivityHint(){
+  const extra = $('lb-extra');
+  try{
+    const q = await db.collection('participants').orderBy('updatedAt','desc').limit(50).get();
+    let inMaze = 0;
+    q.forEach(doc=>{
+      const d = doc.data();
+      const scans = Array.isArray(d.scans) ? d.scans.length : 0;
+      if (d.completed) return;
+      if (d.startMaze || scans > 0) inMaze++;
+    });
+    if (inMaze > 0){ extra.textContent = `Currently in maze: ${inMaze}`; }
+  } catch(e){ /* silent */ }
+}
+
+/* ---------- Live listeners ---------- */
+async function startListeners(){
+  const pid = safeDocId(code);
+  const partRef = db.collection('participants').doc(pid);
+
+  kidsUnsub = db.collection('kids').where('code','==', code).limit(1)
+    .onSnapshot(snap=>{
+      kidsData = snap.empty ? null : snap.docs[0].data();
+      renderAll();
+    }, err=> console.error('kids listen error', err));
+
+  participantsUnsub = partRef.onSnapshot(snap=>{
+    participantData = snap.exists ? snap.data() : null;
+    renderAll();
+  }, err=> console.error('participants listen error', err));
+}
+
+/* ---------- Game: platforms + persistent spikes + red flash + i-frames ---------- */
+(function(){
+  const wrap = document.getElementById('game-wrap');
+  const overlay = document.getElementById('game-start');
+  const startBtn = overlay.querySelector('button');
+  const pauseBtn = document.getElementById('btn-pause');
+  const c = document.getElementById('game');
+  const g = c.getContext('2d');
+
+  function fitCanvas(){
+    const rect = c.getBoundingClientRect();
+    c.style.width = '100%';
+    const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.max(360, Math.min(900, rect.width));
+    const targetH = 260;
+    c.width  = Math.floor(targetW * dpr);
+    c.height = Math.floor(targetH * dpr);
+    scale = dpr;
+  }
+  let scale = 1;
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  const W = ()=>c.width, H = ()=>c.height;
+
+  let groundY = ()=> H() - 40*scale;
+  let px = 80*scale, py = groundY(), vy = 0;
+  const GRAV = 0.55*scale, JUMP = -10.5*scale, MAX_FALL = 16*scale;
+
+  let spikes = [];      // obstacles (persistent)
+  let candies = [];
+  let plats = [];       // platforms: {x,y,w,h}
+  let t = 0;
+  let speed = 4.0*scale;
+  let score = 0, lives = 3;
+  let running = false, raf=null;
+  let jumpsLeft = 2; // double jump
+  let hitCooldown = 0; // invulnerability frames
+
+  function reset(){
+    px = 80*scale; py = groundY(); vy = 0;
+    spikes = []; candies = []; plats = []; t = 0; speed = 4.0*scale;
+    score = 0; lives = 3; jumpsLeft = 2; hitCooldown = 0;
+    overlay.style.display = 'flex';
+    startBtn.textContent = 'Tap to Start';
+  }
+
+  function spawnStuff(){
+    // spikes
+    if (t % 70 === 0){
+      const y = groundY() - (Math.random()*120 + 40)*scale;
+      spikes.push({ x: W()+40*scale, y, r: 16*scale });
+    }
+    // candies
+    if (t % 50 === 0){
+      const y = groundY() - (Math.random()*140 + 30)*scale;
+      candies.push({ x: W()+40*scale, y, r: 10*scale, taken:false });
+    }
+    // platforms (some are higher/lower)
+    if (t % 160 === 0){
+      const w = (Math.random()*80 + 100)*scale;
+      const h = 10*scale;
+      const y = groundY() - (Math.random()*110 + 50)*scale;
+      plats.push({ x: W()+40*scale, y, w, h });
+    }
+  }
+
+  function circleHit(a,b){ const dx=a.x-b.x, dy=a.y-b.y, rr=(a.r+b.r); return dx*dx+dy*dy <= rr*rr; }
+
+  function borderFlash(){
+    wrap.classList.remove('flash-red'); void wrap.offsetWidth; wrap.classList.add('flash-red');
+  }
+
+  function onPlatform(){
+    for (const p of plats){
+      // simple AABB check beneath the player
+      const r = 14*scale;
+      const feetY = py + 1*scale;
+      const nextY = py + vy;
+      // check if crossing top of platform this frame
+      if (py <= p.y - r && nextY >= p.y - r){
+        // horizontally within platform?
+        if (px + r > p.x && px - r < p.x + p.w){
+          py = p.y - r; vy = 0; jumpsLeft = 2; return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function update(){
+    t++;
+    spawnStuff();
+    if (hitCooldown > 0) hitCooldown--;
+
+    vy = Math.min(MAX_FALL, vy + GRAV);
+    py += vy;
+
+    // collide with ground or platforms
+    if (py > groundY()){ py = groundY(); vy = 0; jumpsLeft = 2; }
+    else { onPlatform(); }
+
+    // move world
+    for (const o of spikes)   o.x -= speed;
+    for (const cdy of candies) cdy.x -= speed;
+    for (const p of plats)    p.x -= speed;
+
+    // collect candy
+    for (const cdy of candies){
+      if (!cdy.taken && circleHit({x:px,y:py,r:14*scale}, cdy)){
+        cdy.taken = true; score += 5;
+      }
+    }
+
+    // spike hit (persistent)
+    for (const o of spikes){
+      if (circleHit({x:px,y:py,r:14*scale}, o) && hitCooldown===0){
+        lives--;
+        hitCooldown = 45; // ~0.75s at 60fps
+        borderFlash();
+        if (lives <= 0){ gameOver(); return; }
+      }
+    }
+
+    // cull off-screen (but spikes persist until off-screen naturally)
+    spikes = spikes.filter(o=> o.x > -80*scale);
+    candies = candies.filter(c=> c.x > -80*scale && !c.taken);
+    plats   = plats.filter(p=> p.x + p.w > -80*scale);
+
+    if (t % 600 === 0){ speed += 0.4*scale; }
+
+    draw();
+    if (running) raf = requestAnimationFrame(update);
+  }
+
+  function draw(){
+    // bg
+    g.fillStyle='#00001c'; g.fillRect(0,0,W(),H());
+    g.fillStyle='#061033'; g.fillRect(0, groundY(), W(), 6*scale);
+
+    // platforms
+    for (const p of plats){
+      g.fillStyle = '#123a63';
+      g.fillRect(p.x, p.y, p.w, p.h);
+      g.strokeStyle='#0b2744'; g.lineWidth=2; g.strokeRect(p.x, p.y, p.w, p.h);
+    }
+
+    // candies
+    for (const cdy of candies){
+      g.beginPath(); g.arc(cdy.x, cdy.y, cdy.r, 0, Math.PI*2);
+      g.fillStyle = '#ffd166'; g.fill();
+      g.strokeStyle = '#000'; g.lineWidth=2; g.stroke();
+    }
+
+    // spikes (triangles) - persistent
+    g.fillStyle = '#6cc'; g.strokeStyle='#003b44'; g.lineWidth=2;
+    for (const o of spikes){
+      g.beginPath();
+      g.moveTo(o.x - o.r, o.y + o.r/2);
+      g.lineTo(o.x, o.y - o.r);
+      g.lineTo(o.x + o.r, o.y + o.r/2);
+      g.closePath();
+      g.fill(); g.stroke();
+    }
+
+    // player pumpkin
+    const r = 18*scale;
+    g.beginPath(); g.arc(px, py - r/3, r, 0, Math.PI*2);
+    g.fillStyle='orange'; g.fill(); g.lineWidth=2; g.strokeStyle='#000'; g.stroke();
+
+    g.fillStyle='#000'; g.beginPath();
+    g.arc(px-6*scale, py - r/3 - 3*scale, 2*scale, 0, Math.PI*2);
+    g.arc(px+6*scale, py - r/3 - 3*scale, 2*scale, 0, Math.PI*2);
+    g.fill();
+    g.beginPath();
+    g.moveTo(px-6*scale, py - r/3 + 5*scale);
+    g.lineTo(px,            py - r/3 + 9*scale);
+    g.lineTo(px+6*scale, py - r/3 + 5*scale);
+    g.closePath(); g.fill();
+
+    // HUD
+    g.fillStyle='#cfe';
+    g.font = `${14*scale}px sans-serif`;
+    g.fillText(`Score: ${score}`, 12*scale, 20*scale);
+    g.fillText(`Lives: ${lives}`, 12*scale, 38*scale);
+  }
+
+  function jump(){
+    if (jumpsLeft > 0){
+      vy = JUMP;
+      jumpsLeft--;
+    }
+  }
+
+  function start(){ if (running) return; running = true; overlay.style.display='none'; raf = requestAnimationFrame(update); }
+  function stop(){ running = false; if (raf) cancelAnimationFrame(raf); raf = null; }
+  function gameOver(){
+    stop();
+    g.fillStyle='rgba(0,0,0,0.5)'; g.fillRect(0,0,W(),H());
+    g.fillStyle='#fff';
+    g.font = `${22*scale}px sans-serif`;
+    g.fillText('Game Over', W()/2 - 60*scale, H()/2 - 10*scale);
+    g.font = `${16*scale}px sans-serif`;
+    g.fillText(`Score: ${score}`, W()/2 - 28*scale, H()/2 + 18*scale);
+    startBtn.textContent = 'Restart';
+    overlay.style.display = 'flex';
+  }
+
+  // Controls
+  startBtn.addEventListener('click', ()=>{ reset(); start(); });
+  pauseBtn.addEventListener('click', ()=>{
+    if (running){ stop(); pauseBtn.textContent='Resume'; overlay.style.display='flex'; startBtn.textContent='Resume'; }
+    else { start(); pauseBtn.textContent='Pause'; }
+  });
+  c.addEventListener('click', ()=>{ if (running) { jump(); } });
+  c.addEventListener('touchstart', (e)=>{ e.preventDefault(); if (running){ jump(); } }, {passive:false});
+  document.addEventListener('visibilitychange', ()=> document.hidden ? stop() : start());
+
+  reset(); // show Start overlay initially
+})();
+
+/* ---------- Boot ---------- */
+(async function boot(){
+  $('p-code').textContent = code || '—';
+  await ensureAuth();
+  if (!code){
+    document.getElementById('not-signed').style.display = 'block';
+    return;
+  }
+  await startListeners();
+  loadLeaderboard();
+  loadActivityHint();
+})();
+</script>
+</body>
+</html>

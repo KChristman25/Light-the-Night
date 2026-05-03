@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>WebSwitch Editor</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5/lib/codemirror.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5/lib/codemirror.css">
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5/mode/python/python.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body{margin:0;background:#0b1228;color:#eaf2ff;font:14px/1.4 system-ui,Segoe UI,Arial}
+    header{display:flex;gap:8px;align-items:center;padding:10px;background:#071025;position:sticky;top:0}
+    button{border:1px solid #1a2b55;background:#0a142b;color:#eaf2ff;border-radius:8px;padding:8px 12px;cursor:pointer}
+    button:hover{background:#0f1c3a}
+    #msg{margin-left:8px;opacity:.85}
+    .ok{color:#22d3ee} .warn{color:#f59e0b} .err{color:#ef4444}
+    #editor{height:80vh;border-top:1px solid #1a2b55}
+  </style>
+</head>
+<body>
+<header>
+  <button id="btnLoad">Load engine.py</button>
+  <button id="btnSave">Save</button>
+  <button id="btnRestart">Restart service</button>
+  <span id="msg" class=""></span>
+</header>
+<div id="editor"></div>
+
+<script>
+/* --- Firebase config (same project you’re using) --- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain: "light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025",
+  storageBucket: "light-the-night-2025.firebasestorage.app",
+  messagingSenderId: "563168577950",
+  appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* --- UI helpers --- */
+let cm;
+function setMsg(text, cls="ok"){ const m=document.getElementById('msg'); m.className=cls; m.textContent=text; }
+function nowIso(){ return new Date().toISOString(); }
+
+/* --- Paths --- */
+const FILE_DOC = db.doc("editor/files/engine.py");
+const CMDS_COL = db.collection("editor/commands");
+
+/* --- Ensure doc exists (creates a stub once) --- */
+async function ensureDoc() {
+  const snap = await FILE_DOC.get();
+  if (!snap.exists){
+    await FILE_DOC.set({
+      name:"engine.py",
+      content:"# WebSwitch engine.py\n# (Write code here, then click Save → Restart)\n",
+      version: 1,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: "web-editor",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+}
+
+/* --- Actions --- */
+async function loadFile(){
+  try{
+    await ensureDoc();
+    const d = (await FILE_DOC.get()).data();
+    cm.setValue(d.content || "");
+    setMsg("Loaded v"+(d.version||"?"), "ok");
+  }catch(e){ setMsg("Load error: "+(e.message||e), "err"); }
+}
+
+async function saveFile(){
+  try{
+    await db.runTransaction(async tx=>{
+      const snap = await tx.get(FILE_DOC);
+      const prev = snap.exists ? (snap.data().version||0) : 0;
+      tx.set(FILE_DOC, {
+        name:"engine.py",
+        content: cm.getValue(),
+        version: prev + 1,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: "web-editor"
+      }, {merge:true});
+    });
+    setMsg("Saved & version bumped", "ok");
+  }catch(e){ setMsg("Save error: "+(e.message||e), "err"); }
+}
+
+async function restartService(){
+  try{
+    await CMDS_COL.add({
+      type:"restart",
+      by:"web-editor",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    setMsg("Restart requested", "ok");
+  }catch(e){ setMsg("Restart error: "+(e.message||e), "err"); }
+}
+
+/* --- Boot --- */
+window.addEventListener('load', ()=>{
+  cm = CodeMirror(document.getElementById('editor'), {
+    value: "# Click 'Load engine.py' to fetch the current file...\n",
+    mode: "python", lineNumbers: true
+  });
+  document.getElementById('btnLoad').onclick = loadFile;
+  document.getElementById('btnSave').onclick = saveFile;
+  document.getElementById('btnRestart').onclick = restartService;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Certificate - Light the Night 2025</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+
+    @page {
+      size: landscape;
+      margin: 1in;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Orbitron', sans-serif;
+      background: white;
+      color: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .certificate {
+      border: 3px dashed black;
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+      max-width: 1000px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      margin-bottom: 1.5rem;
+      color: #333;
+    }
+
+    .name {
+      font-size: 3rem;
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+
+    .details {
+      font-size: 1rem;
+      margin-top: 2rem;
+      color: #444;
+    }
+
+    @media print {
+      body {
+        background: white !important;
+      }
+    }
+  </style>
+
+  <!-- Firebase scripts -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div class="certificate" id="cert">
+    <h1>Light the Night 2025</h1>
+    <h2>Lost in Space Maze Explorer</h2>
+    <div class="name" id="name">Participant</div>
+    <div class="details" id="details">Completion Time: -- | Date: --</div>
+  </div>
+
+  <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+      authDomain: "light-the-night-2025.firebaseapp.com",
+      projectId: "light-the-night-2025"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    function getQueryParam(key) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(key) || '';
+    }
+
+    function logPrint(name, time) {
+      db.collection("prints").add({
+        name: name,
+        time: time,
+        date: new Date().toLocaleDateString(),
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    window.onload = function () {
+      const name = decodeURIComponent(getQueryParam("name") || "Explorer");
+      const time = decodeURIComponent(getQueryParam("time") || "--");
+      const date = new Date().toLocaleDateString();
+
+      document.getElementById("name").textContent = name;
+      document.getElementById("details").textContent = `Completion Time: ${time} | Date: ${date}`;
+
+      logPrint(name, time); // Log the print event
+
+      // Auto print after short delay
+      setTimeout(() => {
+        window.print();
+      }, 1000);
+    };
+  </script>
+</body>
+</html>

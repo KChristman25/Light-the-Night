@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Light The Night Navigation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 18px;
+      padding: 24px;
+    }
+    h1 { font-size: 2rem; margin: 0 0 1rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      width: min(900px, 96vw);
+    }
+    button {
+      background: #0c7bdc;
+      color: #fff;
+      padding: 1rem 1.25rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      width: 100%;
+      transition: background .15s ease, transform .06s ease, box-shadow .15s ease;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+    button:hover { background: #095cad; }
+    button:active { transform: translateY(1px); }
+    .sub { opacity:.9; font-size:.95rem; margin-top:-6px; }
+    footer { opacity:.7; font-size:.85rem; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <h1>Light The Night 2025</h1>
+  <div class="sub">Quick navigation</div>
+
+  <div class="grid" id="navGrid">
+    <button onclick="location.href='signin.html'">Check-In Page</button>
+    <button onclick="location.href='station.html'">Station Scanner</button>
+    <button onclick="location.href='admin.html'">Admin Dashboard</button>
+    <button onclick="location.href='wristbands.html'">Wristband Codes</button>
+    <button onclick="location.href='leaderboard.html'">Leaderboard</button>
+    <button onclick="location.href='web-switch.html'">Web Switch Control</button>
+  </div>
+
+  <footer>Happy Halloween! 🎃</footer>
+</body>
+</html>

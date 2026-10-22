@@ -281,11 +281,11 @@
 
     // 4. OSC config
     try {
-      const snap = await db.collection('config').doc('stationOscCues').get();
-      const d = snap.exists ? snap.data() : {};
-      const keys = Object.keys(d).filter(k => d[k]?.address || d[k]?.qlabAddress);
+      const snap = await db.collection('webswitch').doc('config').get();
+      const d = snap.exists ? (snap.data().stationOscCues || {}) : {};
+      const keys = Object.keys(d).filter(k => d[k]?.cue || d[k]?.address || d[k]?.qlabAddress);
       if (keys.length === 0) {
-        results.push({ group: 'OSC', status: 'warn', title: 'No OSC Cues Configured', detail: 'Set up OSC triggers in Mission Control → Station Events.' });
+        results.push({ group: 'OSC', status: 'warn', title: 'No OSC Cues Configured', detail: 'Set up OSC triggers in Mission Control → Automation → Station OSC Events.' });
       } else {
         results.push({ group: 'OSC', status: 'pass', title: `${keys.length} OSC Cue(s) Configured`, detail: keys.join(', ') });
       }

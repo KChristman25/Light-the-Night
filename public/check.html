@@ -163,7 +163,7 @@
     try {
       await firebase.auth().signInAnonymously().catch(() => {});
       const doc = await db.collection('config').doc('config').get();
-      if (!doc.exists || doc.data().adminPassword !== pw) {
+      if (!doc.exists || (doc.data().adminPassword||'').toLowerCase() !== pw.toLowerCase()) {
         err.textContent = 'Incorrect password.'; return;
       }
       document.getElementById('login').style.display = 'none';
@@ -193,7 +193,6 @@
       const issues = [];
       if (!cfg.adminPassword)   issues.push('no admin password');
       if (!cfg.signinPassword)  issues.push('no sign-in password');
-      if (!cfg.stationPassword) issues.push('no station password');
       if (!cfg.totalStations)   issues.push('total stations not set');
       if (!cfg.codeLength)      issues.push('code length not set');
       if (issues.length) {

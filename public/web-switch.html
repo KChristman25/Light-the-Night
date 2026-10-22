@@ -190,6 +190,16 @@
   <!-- OUTLETS TAB -->
   <div id="tab-outlets" class="tab-panel active">
     <div class="wrap">
+      <div style="margin-bottom:16px;padding:16px 20px;background:#fff;border:3px solid #231207;border-radius:6px;box-shadow:4px 4px 0 #231207;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:#231207;margin-bottom:4px">⚡ Emergency</div>
+          <div style="font-size:12px;color:#8b6040">Immediately cuts power to every outlet</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button onclick="emergencyAllOff()" style="background:#e52521;color:#fff;border:3px solid #231207;border-radius:4px;padding:12px 24px;font-size:14px;font-weight:800;font-family:'Inter',sans-serif;cursor:pointer;box-shadow:4px 4px 0 #231207;letter-spacing:.02em">🔴 ALL OFF</button>
+          <span id="emergencyStatus" style="font-size:12px;color:#8b6040"></span>
+        </div>
+      </div>
       <div id="cards" class="grid"></div>
       <div id="err" class="status err" style="margin-top:12px"></div>
     </div>
@@ -502,6 +512,25 @@ async function sendCommand(outlet, state, statusEl){
     setError(e);
     if (statusEl) statusEl.textContent = "Failed to send";
     if (globalStatus) globalStatus.textContent = "Send failed";
+  }
+}
+
+/* Emergency all-off */
+async function emergencyAllOff(){
+  if(!confirm('Turn OFF all outlets now?')) return;
+  const user = auth.currentUser;
+  if(!user) return setError('Not signed in');
+  const stEl = document.getElementById('emergencyStatus');
+  if(stEl) stEl.textContent = 'Sending…';
+  try{
+    const outlets = Object.keys(OUTLET_NAMES || {});
+    await Promise.all(outlets.map(n =>
+      QUEUE_COL.add({ outlet:Number(n), state:'off', nonce:mkNonce(),
+        ts:firebase.firestore.FieldValue.serverTimestamp(), uid:user.uid, processed:false })
+    ));
+    if(stEl) stEl.textContent = '✅ All off — ' + new Date().toLocaleTimeString();
+  }catch(e){
+    if(stEl) stEl.textContent = '❌ ' + e.message;
   }
 }
 

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Super Mushroom</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #248a26;
+      font-family: 'Inter', sans-serif;
+      color: #fff;
+      overflow: hidden;
+      user-select: none;
+    }
+    .page {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 100vw; height: 100dvh; gap: clamp(8px,2vh,18px);
+      padding: 16px;
+    }
+    .mushroom-icon { font-size: clamp(80px,20vw,160px); line-height: 1; animation: shroomBounce 1s ease-in-out infinite; }
+    @keyframes shroomBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(18px,4.5vw,36px);
+      color: #fff; text-shadow: 3px 3px 0 #0a4a0a;
+      text-align: center; line-height: 1.4;
+    }
+    .subtitle {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(9px,2vw,13px);
+      color: #a8f0a8; text-align: center; line-height: 1.9;
+    }
+    .keypad-display {
+      display: flex; gap: clamp(8px,2vw,14px); margin: clamp(4px,1vh,10px) 0;
+    }
+    .ds {
+      width: clamp(44px,11vw,64px); height: clamp(54px,13vw,76px);
+      background: rgba(0,0,0,.3); border: 3px solid rgba(255,255,255,.5);
+      border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      font-family: 'Press Start 2P', monospace; font-size: clamp(22px,5.5vw,36px);
+      color: #fff; text-shadow: 1px 1px 0 #000;
+      transition: border-color .1s, background .1s;
+    }
+    .ds.filled { background: rgba(0,0,0,.5); border-color: #fff; }
+    .ds.pop { animation: digitPop .25s ease-out; }
+    @keyframes digitPop {
+      0%   { transform: scale(1.35); background: rgba(255,255,255,.35); }
+      60%  { transform: scale(0.92); }
+      100% { transform: scale(1);    background: rgba(0,0,0,.5); }
+    }
+    .key-btn.flash { animation: keyFlash .18s ease-out; }
+    @keyframes keyFlash {
+      0%   { background: rgba(255,255,255,.55); transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+      100% { background: rgba(0,0,0,.25); transform: translateY(0);  box-shadow: 0 4px 0 rgba(0,0,0,.4); }
+    }
+    /* Floating coins on success */
+    .coin-burst { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+    .coin-burst span {
+      position: absolute; bottom: -10%; font-size: clamp(24px,6vw,40px);
+      animation: coinFloat var(--dur) ease-out var(--delay) forwards;
+      opacity: 0;
+    }
+    @keyframes coinFloat {
+      0%   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+      80%  { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-110vh) rotate(var(--rot)) scale(.6); }
+    }
+    .keypad {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: clamp(8px,2vw,12px); width: min(320px, 90vw);
+    }
+    .key-btn {
+      height: clamp(56px,14vw,80px);
+      background: rgba(0,0,0,.25); border: 3px solid rgba(255,255,255,.4);
+      border-radius: 4px; box-shadow: 0 4px 0 rgba(0,0,0,.4);
+      font-family: 'Press Start 2P', monospace; font-size: clamp(18px,4.5vw,28px);
+      color: #fff; cursor: pointer; transition: transform .08s, box-shadow .08s;
+    }
+    .key-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+    .overlay {
+      position: fixed; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 50;
+      text-align: center; padding: 24px; gap: 16px;
+    }
+    .overlay.show { display: flex; }
+    #successOverlay { background: #e8a000; }
+    #alreadyOverlay { background: #e52521; }
+    .ov-icon  { font-size: clamp(60px,16vw,110px); }
+    .ov-title { font-family:'Press Start 2P',monospace; font-size:clamp(16px,4vw,30px); color:#fff; text-shadow:2px 2px 0 rgba(0,0,0,.35); line-height:1.5; }
+    .ov-sub   { font-family:'Press Start 2P',monospace; font-size:clamp(9px,2vw,13px); color:rgba(255,255,255,.85); line-height:1.9; }
+  </style>
+  <script src="/pw.js"></script>
+</head>
+<body>
+<div class="page" id="mainPage">
+  <div class="mushroom-icon"><img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></div>
+  <div class="title">SUPER MUSHROOM!</div>
+  <div class="subtitle">Your Reward:<br>×2 coins at your next station<br>🛡 Protected from Red Shell</div>
+
+  <div class="keypad-display" id="keypadDisplay">
+    <div class="ds" id="ds0">_</div>
+    <div class="ds" id="ds1">_</div>
+    <div class="ds" id="ds2">_</div>
+  </div>
+
+  <div class="keypad" id="keypad">
+    <button class="key-btn" data-key="1">1</button>
+    <button class="key-btn" data-key="2">2</button>
+    <button class="key-btn" data-key="3">3</button>
+    <button class="key-btn" data-key="4">4</button>
+    <button class="key-btn" data-key="5">5</button>
+    <button class="key-btn" data-key="6">6</button>
+    <button class="key-btn" data-key="7">7</button>
+    <button class="key-btn" data-key="8">8</button>
+    <button class="key-btn" data-key="9">9</button>
+    <div></div>
+    <button class="key-btn" data-key="0">0</button>
+    <div></div>
+  </div>
+</div>
+
+<div class="overlay" id="successOverlay">
+  <div class="ov-icon"><img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></div>
+  <div class="ov-title" id="successName">POWERED UP!</div>
+  <div class="ov-sub">×2 coins at next station!<br>🛡 Shell shield active!</div>
+</div>
+
+<div class="overlay" id="alreadyOverlay">
+  <div class="ov-icon">⚠️</div>
+  <div class="ov-title">ALREADY USED</div>
+  <div class="ov-sub">You already used a mushroom today!</div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain: "light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db  = firebase.firestore();
+const FSV = firebase.firestore.FieldValue;
+const QUEUE_COL = db.collection('webswitch').doc('queueRoot').collection('queue');
+
+let codeLength = 3;
+let powerupSeconds = 90;
+let qlabMushroomCue = '';
+let codeBuffer = '';
+
+firebase.auth().signInAnonymously().then(()=>{
+  db.collection('config').doc('config').get().then(s=>{
+    if(!s.exists) return;
+    const d = s.data()||{};
+    if(d.codeLength >= 1) codeLength = d.codeLength;
+    if(d.gamePowerupSeconds) powerupSeconds = Number(d.gamePowerupSeconds);
+    updateDisplay();
+  }).catch(()=>{});
+  db.collection('webswitch').doc('config').get().then(s=>{
+    if(s.exists && s.data().mushroomQlabCue) qlabMushroomCue = s.data().mushroomQlabCue;
+  }).catch(()=>{});
+}).catch(()=>{});
+
+function updateDisplay(popIndex){
+  for(let i=0;i<3;i++){
+    const slot=document.getElementById('ds'+i);
+    if(!slot) continue;
+    if(i<codeBuffer.length){
+      slot.textContent=codeBuffer[i];
+      slot.classList.add('filled');
+      if(i===popIndex){ slot.classList.remove('pop'); void slot.offsetWidth; slot.classList.add('pop'); }
+    } else {
+      slot.textContent='_';
+      slot.classList.remove('filled','pop');
+    }
+  }
+}
+
+function shakeDisplay(){
+  const disp=document.getElementById('keypadDisplay');
+  if(!disp) return;
+  disp.style.transition='transform .05s';
+  const shake=[6,-6,5,-5,3,-3,0]; let i=0;
+  const next=()=>{if(i<shake.length){disp.style.transform=`translateX(${shake[i++]}px)`;setTimeout(next,50);}else{disp.style.transform='';disp.style.transition='';}};
+  next();
+}
+
+document.getElementById('keypad').addEventListener('click', e=>{
+  const btn = e.target.closest('.key-btn');
+  if(!btn) return;
+  btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash');
+  const key = btn.dataset.key;
+  if(/^\d$/.test(key) && codeBuffer.length < codeLength){
+    const idx = codeBuffer.length;
+    codeBuffer += key; updateDisplay(idx);
+    if(codeBuffer.length === codeLength){ const c=codeBuffer; codeBuffer=''; setTimeout(()=>updateDisplay(), 180); submitCode(c); }
+  }
+});
+
+function launchCoins(){
+  const burst = document.createElement('div');
+  burst.className = 'coin-burst';
+  const emojis = ['🍄','⭐','🪙','✨','💥'];
+  for(let i=0;i<18;i++){
+    const s = document.createElement('span');
+    s.textContent = emojis[i % emojis.length];
+    s.style.left = (5 + Math.random()*90) + '%';
+    s.style.setProperty('--dur', (.9 + Math.random()*.8) + 's');
+    s.style.setProperty('--delay', (Math.random()*.4) + 's');
+    s.style.setProperty('--rot', (Math.random()*720 - 360) + 'deg');
+    burst.appendChild(s);
+  }
+  document.body.appendChild(burst);
+}
+
+async function submitCode(code){
+  let docRef=null, kidData=null;
+  try{const q=await db.collection('kids').where('barcode','==',code).orderBy('timestamp','desc').limit(1).get();if(!q.empty){docRef=q.docs[0].ref;kidData=q.docs[0].data();}}catch(_){}
+  if(!docRef){try{const q=await db.collection('kids').where('code','==',code).orderBy('timestamp','desc').limit(1).get();if(!q.empty){docRef=q.docs[0].ref;kidData=q.docs[0].data();}}catch(_){}}
+  if(!docRef){ shakeDisplay(); return; }
+
+  if(kidData.usedMushroom){
+    document.getElementById('alreadyOverlay').classList.add('show');
+    setTimeout(()=>document.getElementById('alreadyOverlay').classList.remove('show'), 4000);
+    return;
+  }
+
+  const name = kidData.name || kidData.displayName || 'Participant';
+  const expiry = new Date(Date.now() + powerupSeconds * 1000);
+
+  try{
+    await docRef.update({
+      usedMushroom: true,
+      superMarioActive: true,
+      superMarioExpiry: firebase.firestore.Timestamp.fromDate(expiry),
+      shellShield: true
+    });
+    await db.collection('scans').add({kidId:docRef.id, name, coins:0, gameType:'mushroom_ipad', timestamp:firebase.firestore.Timestamp.now()});
+
+    if(qlabMushroomCue){
+      await QUEUE_COL.add({type:'osc', address:qlabMushroomCue, processed:false, ts:firebase.firestore.FieldValue.serverTimestamp()});
+    }
+
+    document.getElementById('successName').textContent = name.toUpperCase() + ' POWERED UP!';
+    document.getElementById('successOverlay').classList.add('show');
+    launchCoins();
+    setTimeout(()=>{ document.getElementById('successOverlay').classList.remove('show'); document.querySelector('.coin-burst')?.remove(); }, 5000);
+  }catch(e){ console.error(e); shakeDisplay(); }
+}
+</script>
+</body>
+</html>

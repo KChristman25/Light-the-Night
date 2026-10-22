@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    // Require any Firebase auth (anonymous or Google) for all access.
+    // This blocks unauthenticated scrapers/bots completely.
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // ── kids collection ───────────────────────────────────────────────────────
+    // Stations read/write kid records (coins, scans, frozen state).
+    // Anyone authenticated can read — participants see their own balance.
+    match /kids/{kidId} {
+      allow read: if isAuthed();
+      allow write: if isAuthed();
+    }
+
+    // ── scans collection ─────────────────────────────────────────────────────
+    // Scan history written by stations, readable for admin/leaderboard.
+    match /scans/{scanId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if false; // immutable once written
+    }
+
+    // ── config collection ────────────────────────────────────────────────────
+    // App config (passwords, coin values, game settings, API keys).
+    // Readable by authenticated users (stations need coin values, etc).
+    // Writable by authenticated users — passwords are hashed/checked client-side.
+    match /config/{docId} {
+      allow read: if isAuthed();
+      allow write: if isAuthed();
+    }
+
+    // ── numberBatches collection ─────────────────────────────────────────────
+    // Wristband code batches. Admin only in practice (behind password UI).
+    match /numberBatches/{batchId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── webswitch collection ─────────────────────────────────────────────────
+    // Power switch control, blocks, phone rules, health data.
+    match /webswitch/{docId} {
+      allow read, write: if isAuthed();
+    }
+    match /webswitch/{docId}/{sub}/{subId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── stations collection ──────────────────────────────────────────────────
+    match /stations/{stationId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── rescueStations collection ────────────────────────────────────────────
+    match /rescueStations/{stationId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── showControl collection ───────────────────────────────────────────────
+    match /showControl/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── email_list collection ────────────────────────────────────────────────
+    // Participants (anonymous auth) write their email; admin reads/deletes.
+    match /email_list/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── leaderboard collection ───────────────────────────────────────────────
+    match /leaderboard/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── leaderboardQueue collection ──────────────────────────────────────────
+    match /leaderboardQueue/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── alerts_missing collection ────────────────────────────────────────────
+    match /alerts_missing/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── participants collection ──────────────────────────────────────────────
+    match /participants/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── codes collection ─────────────────────────────────────────────────────
+    match /codes/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── snapshots collection (station camera captures) ───────────────────────
+    match /snapshots/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── webrtcAudio collection (WebRTC signaling for audio monitoring) ────────
+    match /webrtcAudio/{stationId} {
+      allow read, write: if isAuthed();
+    }
+    match /webrtcAudio/{stationId}/{sub}/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── Deny everything else ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

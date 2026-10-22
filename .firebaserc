@@ -10,6 +10,9 @@
         ],
         "default": [
           "light-the-night-2025"
+        ],
+        "ltn-main": [
+          "light-the-night"
         ]
       }
     }

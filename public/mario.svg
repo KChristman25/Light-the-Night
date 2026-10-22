@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 80" shape-rendering="crispEdges">
+  <!-- Based on NES Super Mario Bros. pixel art, scaled up -->
+
+  <!-- ── Hat ── -->
+  <rect x="20" y="2"  width="32" height="4"  fill="#e52521"/>
+  <rect x="16" y="6"  width="40" height="4"  fill="#e52521"/>
+  <rect x="12" y="10" width="48" height="4"  fill="#e52521"/>
+  <!-- Hat brim -->
+  <rect x="8"  y="14" width="52" height="4"  fill="#e52521"/>
+
+  <!-- ── Hair (under hat brim) ── -->
+  <rect x="8"  y="18" width="8"  height="4"  fill="#7a3b00"/>
+
+  <!-- ── Face (skin) ── -->
+  <rect x="16" y="18" width="36" height="4"  fill="#fbd8a8"/>
+  <rect x="12" y="22" width="44" height="4"  fill="#fbd8a8"/>
+  <rect x="12" y="26" width="44" height="4"  fill="#fbd8a8"/>
+
+  <!-- ── Eyes ── -->
+  <rect x="20" y="22" width="8"  height="4"  fill="#3b4bc0"/>
+  <rect x="36" y="22" width="8"  height="4"  fill="#3b4bc0"/>
+  <!-- Eye shine -->
+  <rect x="22" y="22" width="2"  height="2"  fill="#ffffff"/>
+  <rect x="38" y="22" width="2"  height="2"  fill="#ffffff"/>
+
+  <!-- ── Nose ── -->
+  <rect x="24" y="28" width="16" height="4"  fill="#f0a060"/>
+
+  <!-- ── Mustache ── -->
+  <rect x="12" y="32" width="16" height="4"  fill="#7a3b00"/>
+  <rect x="36" y="32" width="16" height="4"  fill="#7a3b00"/>
+  <rect x="8"  y="36" width="20" height="4"  fill="#7a3b00"/>
+  <rect x="36" y="36" width="20" height="4"  fill="#7a3b00"/>
+
+  <!-- ── Neck ── -->
+  <rect x="24" y="36" width="16" height="4"  fill="#fbd8a8"/>
+
+  <!-- ── Shirt (red, sides visible) ── -->
+  <rect x="4"  y="40" width="8"  height="16" fill="#e52521"/>
+  <rect x="52" y="40" width="8"  height="16" fill="#e52521"/>
+
+  <!-- ── Overalls (blue body) ── -->
+  <rect x="12" y="40" width="40" height="20" fill="#3b79c1"/>
+
+  <!-- Overalls straps -->
+  <rect x="16" y="40" width="12" height="4"  fill="#3b79c1"/>
+  <rect x="36" y="40" width="12" height="4"  fill="#3b79c1"/>
+
+  <!-- Overalls pocket detail -->
+  <rect x="20" y="44" width="24" height="12" fill="#2a5a9a"/>
+  <rect x="22" y="46" width="8"  height="6"  fill="#1a4a8a"/>
+  <rect x="34" y="46" width="8"  height="6"  fill="#1a4a8a"/>
+
+  <!-- Buttons -->
+  <rect x="18" y="42" width="4"  height="4"  fill="#ffd700"/>
+  <rect x="42" y="42" width="4"  height="4"  fill="#ffd700"/>
+
+  <!-- ── Left glove ── -->
+  <rect x="0"  y="40" width="8"  height="12" fill="#ffffff"/>
+  <rect x="0"  y="52" width="4"  height="4"  fill="#ffffff"/>
+
+  <!-- ── Right glove ── -->
+  <rect x="56" y="40" width="8"  height="12" fill="#ffffff"/>
+  <rect x="60" y="52" width="4"  height="4"  fill="#ffffff"/>
+
+  <!-- ── Legs (red) ── -->
+  <rect x="12" y="60" width="16" height="12" fill="#e52521"/>
+  <rect x="36" y="60" width="16" height="12" fill="#e52521"/>
+
+  <!-- ── Boots ── -->
+  <rect x="8"  y="68" width="24" height="8"  fill="#7a3b00"/>
+  <rect x="4"  y="72" width="28" height="4"  fill="#7a3b00"/>
+  <rect x="32" y="68" width="24" height="8"  fill="#7a3b00"/>
+  <rect x="32" y="72" width="28" height="4"  fill="#7a3b00"/>
+
+  <!-- Boot highlight -->
+  <rect x="10" y="70" width="8"  height="2"  fill="#b86000"/>
+  <rect x="34" y="70" width="8"  height="2"  fill="#b86000"/>
+
+  <!-- ── Hat M logo ── -->
+  <text x="33" y="13" font-family="Arial Black, Arial" font-weight="900" font-size="7" fill="#ffffff" text-anchor="middle">M</text>
+</svg>

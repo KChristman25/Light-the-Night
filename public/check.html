@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pre-Event Checklist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{font-size:14px}
+    body{
+      min-height:100vh;
+      background-color:#5c94fc;
+      background-image:
+        radial-gradient(ellipse 90px 50px at 12% 18%,#fff 50%,transparent 51%),
+        radial-gradient(ellipse 65px 38px at 9% 18%,#fff 50%,transparent 51%),
+        radial-gradient(ellipse 75px 44px at 15% 14%,#fff 50%,transparent 51%),
+        radial-gradient(ellipse 110px 55px at 72% 10%,#fff 50%,transparent 51%),
+        radial-gradient(ellipse 80px 42px at 69% 10%,#fff 50%,transparent 51%),
+        radial-gradient(ellipse 90px 48px at 76% 7%,#fff 50%,transparent 51%);
+      font-family:'Inter',system-ui,sans-serif;
+      display:flex;align-items:flex-start;justify-content:center;
+      padding:32px 16px 48px;
+    }
+    .card{
+      background:#fff;border:3px solid #231207;border-radius:4px;
+      box-shadow:6px 6px 0 #231207;
+      width:100%;max-width:640px;
+      overflow:hidden;
+    }
+    .card-header{
+      background:#e52521;padding:20px 24px;
+      border-bottom:3px solid #231207;
+    }
+    .card-header h1{
+      font-family:'Press Start 2P',monospace;font-size:10px;color:#fff;
+      line-height:1.6;letter-spacing:.02em;
+    }
+    .card-header p{font-size:12px;color:rgba(255,255,255,.85);margin-top:6px}
+    .card-body{padding:24px}
+
+    /* Login */
+    #login{display:flex;flex-direction:column;gap:12px}
+    #login input{
+      padding:10px 14px;border:2px solid #ccc;border-radius:4px;
+      font-size:14px;font-family:'Inter',sans-serif;
+      outline:none;transition:border-color .2s;
+    }
+    #login input:focus{border-color:#e52521;box-shadow:2px 2px 0 #e52521}
+    #loginErr{font-size:13px;color:#dc2626;min-height:18px}
+
+    /* Buttons */
+    .btn{
+      display:inline-flex;align-items:center;gap:5px;
+      background:#e52521;border:2px solid #231207;
+      padding:8px 16px;color:#fff;font-weight:700;font-size:12px;
+      cursor:pointer;border-radius:4px;
+      box-shadow:3px 3px 0 #231207;font-family:'Inter',sans-serif;
+      transition:transform .05s,box-shadow .05s;
+    }
+    .btn:hover{background:#b01a18}
+    .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #231207}
+    .btn-sm{padding:5px 11px;font-size:11px}
+
+    /* Checklist */
+    #checklist{display:none}
+    .check-header{
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:20px;flex-wrap:wrap;gap:8px;
+    }
+    .check-header h2{
+      font-family:'Press Start 2P',monospace;font-size:9px;
+      color:#231207;line-height:1.6;
+    }
+    .last-run{font-size:11px;color:#8b6040}
+
+    .check-group{margin-bottom:20px}
+    .check-group-title{
+      font-size:9px;font-weight:700;color:#e52521;
+      font-family:'Press Start 2P',monospace;
+      letter-spacing:.03em;line-height:1.6;
+      margin-bottom:8px;
+    }
+    .check-item{
+      display:flex;align-items:flex-start;gap:12px;
+      padding:10px 14px;border-radius:4px;
+      border:2px solid #e0d4b8;background:#fff;
+      margin-bottom:6px;
+    }
+    .check-item.pass {border-color:#16a34a;background:#f0fdf4}
+    .check-item.warn {border-color:#d97706;background:#fffbeb}
+    .check-item.fail {border-color:#dc2626;background:#fef2f2}
+    .check-icon{font-size:16px;flex-shrink:0;line-height:1.4}
+    .check-text{flex:1}
+    .check-title{font-size:13px;font-weight:700;color:#231207}
+    .check-detail{font-size:12px;color:#6b4a2a;margin-top:2px;line-height:1.5}
+    .check-item.pass .check-title{color:#15803d}
+    .check-item.warn .check-title{color:#b45309}
+    .check-item.fail .check-title{color:#dc2626}
+
+    .station-grid{
+      display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;
+    }
+    .st-chip{
+      padding:4px 10px;border-radius:4px;font-size:11px;font-weight:700;
+      border:2px solid;font-family:'Inter',sans-serif;
+    }
+    .st-chip.online{background:#f0fdf4;border-color:#16a34a;color:#15803d}
+    .st-chip.offline{background:#fef2f2;border-color:#dc2626;color:#dc2626}
+    .st-chip.stale{background:#fffbeb;border-color:#d97706;color:#b45309}
+  </style>
+  <script src="/pw.js"></script>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <h1>Pre-Event Checklist</h1>
+    <p>Light the Night Hunt — verify everything is ready before doors open</p>
+  </div>
+  <div class="card-body">
+
+    <div id="login">
+      <input id="pwInput" type="password" placeholder="Admin password" autofocus/>
+      <button class="btn" onclick="doLogin()">Sign In</button>
+      <div id="loginErr"></div>
+    </div>
+
+    <div id="checklist">
+      <div class="check-header">
+        <h2>System Status</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="last-run" id="lastRun"></span>
+          <button class="btn btn-sm" onclick="runChecks()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="checkItems"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  firebase.initializeApp({
+    apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+    authDomain:"light-the-night-2025.firebaseapp.com",
+    projectId: "light-the-night-2025"
+  });
+  const db = firebase.firestore();
+
+  firebase.auth().signInAnonymously().catch(() => {});
+
+  document.getElementById('pwInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  async function doLogin() {
+    const pw = document.getElementById('pwInput').value;
+    const err = document.getElementById('loginErr');
+    try {
+      await firebase.auth().signInAnonymously().catch(() => {});
+      const doc = await db.collection('config').doc('config').get();
+      if (!doc.exists || doc.data().adminPassword !== pw) {
+        err.textContent = 'Incorrect password.'; return;
+      }
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('checklist').style.display = 'block';
+      runChecks();
+      setInterval(runChecks, 15000);
+    } catch(e) {
+      err.textContent = 'Error connecting to Firebase: ' + e.message;
+    }
+  }
+
+  async function runChecks() {
+    document.getElementById('lastRun').textContent = 'Last checked: ' + new Date().toLocaleTimeString();
+    const results = [];
+
+    // 1. Firebase connection
+    try {
+      await db.collection('config').doc('config').get();
+      results.push({ group: 'Firebase', status: 'pass', title: 'Firebase Connected', detail: 'Firestore is reachable and responding.' });
+    } catch(e) {
+      results.push({ group: 'Firebase', status: 'fail', title: 'Firebase Unreachable', detail: e.message });
+    }
+
+    // 2. Game config
+    try {
+      const cfg = (await db.collection('config').doc('config').get()).data() || {};
+      const issues = [];
+      if (!cfg.adminPassword)   issues.push('no admin password');
+      if (!cfg.signinPassword)  issues.push('no sign-in password');
+      if (!cfg.stationPassword) issues.push('no station password');
+      if (!cfg.totalStations)   issues.push('total stations not set');
+      if (!cfg.codeLength)      issues.push('code length not set');
+      if (issues.length) {
+        results.push({ group: 'Config', status: 'warn', title: 'Config Incomplete', detail: 'Missing: ' + issues.join(', ') });
+      } else {
+        const stCount = cfg.totalStations || '?';
+        const codeLen = cfg.codeLength || '?';
+        results.push({ group: 'Config', status: 'pass', title: 'Game Config OK', detail: `${stCount} stations · code length ${codeLen} · passwords set` });
+      }
+    } catch(e) {
+      results.push({ group: 'Config', status: 'fail', title: 'Config Read Error', detail: e.message });
+    }
+
+    // 3. Stations heartbeat
+    try {
+      const [stSnap, rtcSnap] = await Promise.all([
+        db.collection('stations').get(),
+        db.collection('webrtcAudio').get()
+      ]);
+      const ONLINE_MS = 2 * 60 * 1000;
+      const STALE_MS  = 10 * 60 * 1000;
+      const allDocs = {};
+      stSnap.forEach(doc => { allDocs[doc.id] = doc.data(); });
+      const rtcDocs = {};
+      rtcSnap.forEach(doc => { rtcDocs[doc.id] = doc.data(); });
+
+      function chipFor(displayName, stationId, stationData) {
+        const d = stationData || {};
+        // Check heartbeat first
+        const hb = d.heartbeat?.toMillis?.() || (d.heartbeat?.seconds ? d.heartbeat.seconds * 1000 : 0);
+        const age = hb ? Date.now() - hb : Infinity;
+        // Also check webrtcAudio.broadcasting as a fallback (cameras uses this)
+        const broadcasting = rtcDocs[stationId]?.broadcasting === true;
+        let cls, timeLabel;
+        if (age <= ONLINE_MS)      { cls = 'online'; timeLabel = Math.round(age/1000)+'s ago'; }
+        else if (broadcasting)     { cls = 'online'; timeLabel = 'Live'; }
+        else if (age <= STALE_MS)  { cls = 'stale';  timeLabel = Math.round(age/60000)+'m ago'; }
+        else                       { cls = 'offline'; timeLabel = 'Offline'; }
+        return { cls, chip: `<span class="st-chip ${cls}">${displayName} <span style="font-weight:400">${timeLabel}</span></span>` };
+      }
+
+      // Coin stations (numeric IDs)
+      const numericIds = Object.keys(allDocs).filter(id => /^\d+$/.test(id)).sort((a,b)=>Number(a)-Number(b));
+      let coinOnline = 0, coinChips = [];
+      numericIds.forEach(id => {
+        const name = allDocs[id]?.label || ('Station '+id);
+        const r = chipFor(name, id, allDocs[id]);
+        coinChips.push(r.chip);
+        if (r.cls === 'online') coinOnline++;
+      });
+      if (!numericIds.length) {
+        results.push({ group: 'Coin Stations', status: 'warn', title: 'No Coin Stations Configured', detail: 'Add stations in Admin → Stations.' });
+      } else {
+        const grid = `<div class="station-grid">${coinChips.join('')}</div>`;
+        const off = numericIds.length - coinOnline;
+        results.push({ group: 'Coin Stations', status: off===0?'pass':off===numericIds.length?'fail':'warn',
+          title: `${coinOnline} / ${numericIds.length} Coin Stations Online`,
+          detail: (off===0?'All online.':off+' offline or not seen yet.')+grid });
+      }
+
+      // Special stations
+      const SPECIALS = [
+        {id:'start',        name:'🏁 Start Line'},
+        {id:'rescue_peach', name:'👸 Princess Peach'},
+        {id:'bowser',       name:'🦖 Bowser Castle'},
+        {id:'land_ice',     name:'🧊 Ice Land'},
+        {id:'land_water',   name:'🌊 Water Land'},
+        {id:'land_fire',    name:'🔥 Fire Land'},
+        {id:'land_lava',    name:'🌋 Lava Land'},
+      ];
+      let specOnline = 0, specChips = [];
+      SPECIALS.forEach(({id, name}) => {
+        const r = chipFor(name, id, allDocs[id]);
+        specChips.push(r.chip);
+        if (r.cls === 'online') specOnline++;
+      });
+      const specGrid = `<div class="station-grid">${specChips.join('')}</div>`;
+      const specOff = SPECIALS.length - specOnline;
+      results.push({ group: 'Special Stations', status: specOff===0?'pass':specOff===SPECIALS.length?'fail':'warn',
+        title: `${specOnline} / ${SPECIALS.length} Special Stations Online`,
+        detail: (specOff===0?'All online.':specOff+' not yet active — select mode on iPad to activate.')+specGrid });
+
+    } catch(e) {
+      results.push({ group: 'Stations', status: 'fail', title: 'Stations Read Error', detail: e.message });
+    }
+
+    // 4. OSC config
+    try {
+      const snap = await db.collection('config').doc('stationOscCues').get();
+      const d = snap.exists ? snap.data() : {};
+      const keys = Object.keys(d).filter(k => d[k]?.address || d[k]?.qlabAddress);
+      if (keys.length === 0) {
+        results.push({ group: 'OSC', status: 'warn', title: 'No OSC Cues Configured', detail: 'Set up OSC triggers in Mission Control → Station Events.' });
+      } else {
+        results.push({ group: 'OSC', status: 'pass', title: `${keys.length} OSC Cue(s) Configured`, detail: keys.join(', ') });
+      }
+    } catch(e) {
+      results.push({ group: 'OSC', status: 'warn', title: 'OSC Config Unreadable', detail: e.message });
+    }
+
+    // 5. Leaderboard
+    try {
+      const doc = await db.collection('leaderboard').doc('control').get();
+      const cmd = doc.exists ? (doc.data().command || '') : '';
+      if (cmd === 'start') {
+        results.push({ group: 'Leaderboard', status: 'warn', title: 'Leaderboard Already Running', detail: 'It\'s live right now. Pause it if the event hasn\'t started yet.' });
+      } else {
+        results.push({ group: 'Leaderboard', status: 'pass', title: 'Leaderboard Stopped / Paused', detail: 'Ready to start when you need it.' });
+      }
+    } catch(e) {
+      results.push({ group: 'Leaderboard', status: 'warn', title: 'Leaderboard Status Unknown', detail: e.message });
+    }
+
+    renderChecks(results);
+  }
+
+  function renderChecks(results) {
+    const groups = {};
+    results.forEach(r => {
+      if (!groups[r.group]) groups[r.group] = [];
+      groups[r.group].push(r);
+    });
+    const icon = s => s === 'pass' ? '✅' : s === 'warn' ? '⚠️' : '❌';
+    let html = '';
+    for (const [group, items] of Object.entries(groups)) {
+      html += `<div class="check-group"><div class="check-group-title">${group}</div>`;
+      items.forEach(item => {
+        html += `<div class="check-item ${item.status}">
+          <span class="check-icon">${icon(item.status)}</span>
+          <div class="check-text">
+            <div class="check-title">${item.title}</div>
+            <div class="check-detail">${item.detail}</div>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+    document.getElementById('checkItems').innerHTML = html;
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Light the Night — In the Maze</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="/pw.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: #5c94fc;
+    background-image:
+      radial-gradient(ellipse 90px 48px at 10% 6%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse 65px 38px at  7% 6%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse 75px 44px at 14% 4%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse 130px 62px at 55%  4%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse  95px 52px at 51%  4%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse  75px 42px at 88% 5%, #fff 50%, transparent 51%),
+      radial-gradient(ellipse  55px 34px at 85% 5%, #fff 50%, transparent 51%);
+    background-attachment: fixed;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #231207;
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+  }
+
+  /* ── Header ── */
+  .topbar {
+    flex-shrink: 0;
+    background: #e52521;
+    border-bottom: 3px solid #231207;
+    display: flex; align-items: center;
+    padding: 10px 32px;
+    gap: 16px;
+    position: relative;
+  }
+  .topbar-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.8vw, 16px);
+    color: #fff;
+    text-shadow: 2px 2px 0 #231207;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .topbar-count { margin-left: auto; }
+  .topbar-count {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 1.4vw, 13px);
+    color: #fff;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 3px;
+    padding: 4px 12px;
+  }
+  .topbar-coin {
+    display: inline-block;
+    width: 16px; height: 16px;
+    background: #e8a000; border: 2px solid #fff; border-radius: 50%;
+    animation: coinSpin 1.2s steps(4) infinite; flex-shrink: 0;
+  }
+  @keyframes coinSpin {
+    0%,100% { transform: scaleX(1); background: #e8a000; }
+    25%,75%  { transform: scaleX(0.3); background: #c07800; }
+    50%      { transform: scaleX(0.1); background: #c07800; }
+  }
+
+  /* ── Scroll area ── */
+  .scroll-wrap {
+    flex: 1; min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .scroll-inner {
+    position: absolute;
+    width: 100%;
+    will-change: transform;
+  }
+
+  /* ── Rows ── */
+  .im-row {
+    display: flex; align-items: center; gap: clamp(12px,2vw,28px);
+    padding: clamp(12px,1.8vh,22px) clamp(20px,3vw,48px);
+    border-bottom: 2px solid rgba(35,18,7,.12);
+    background: rgba(255,255,255,.88);
+  }
+  .im-row:nth-child(even) { background: rgba(255,255,255,.72); }
+
+  .im-dot {
+    width: clamp(10px,1.4vw,16px); height: clamp(10px,1.4vw,16px);
+    border-radius: 50%;
+    background: #4cff50; box-shadow: 0 0 8px #4cff50;
+    flex-shrink: 0; animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .im-name {
+    font-weight: 800;
+    font-size: clamp(16px, 2.6vw, 36px);
+    color: #231207; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .im-coins {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.6vw, 20px);
+    color: #e8a000; flex-shrink: 0;
+    min-width: clamp(60px,8vw,110px); text-align: right;
+  }
+  .im-elapsed {
+    font-size: clamp(12px, 1.6vw, 20px);
+    color: #7a5c44; flex-shrink: 0;
+    min-width: clamp(56px,7vw,100px); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty-msg {
+    padding: 60px 24px;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px,1.6vw,16px);
+    color: #7a5c44;
+    line-height: 2.2;
+  }
+
+  /* ── QR row ── */
+  .qr-row {
+    display: flex; align-items: center; justify-content: center; gap: clamp(20px,3vw,40px);
+    padding: clamp(20px,3vh,40px) clamp(20px,3vw,48px);
+    background: #231207;
+    border-bottom: 2px solid rgba(232,160,0,.2);
+  }
+  .qr-row img { border: 4px solid #e8a000; border-radius: 4px; display: block; }
+  .qr-text { font-family: 'Press Start 2P', monospace; color: #e8a000; line-height: 2; text-align: left; }
+  .qr-text .qr-headline { font-size: clamp(11px,1.8vw,18px); }
+  .qr-text .qr-sub { font-size: clamp(8px,1.1vw,12px); color: rgba(255,255,255,.5); margin-top: 6px; }
+
+  /* ── Ground bar ── */
+  .ground {
+    flex-shrink: 0;
+    height: 14px;
+    background: #c8601c;
+    border-top: 3px solid #231207;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-coin"></span>
+    <div class="topbar-title">IN THE MAZE</div>
+    <div class="topbar-count" id="countEl">0 players</div>
+  </div>
+
+  <div class="scroll-wrap" id="scrollWrap">
+    <div class="scroll-inner" id="scrollInner">
+      <div class="empty-msg">No one in maze yet</div>
+    </div>
+  </div>
+
+  <div class="ground"></div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db = firebase.firestore();
+
+const countEl    = document.getElementById('countEl');
+const scrollWrap = document.getElementById('scrollWrap');
+const scrollInner= document.getElementById('scrollInner');
+
+function fmtTime(ms) {
+  if (!ms || ms < 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── Auto-scroll ──────────────────────────────────────────
+// Content is rendered twice (duplicated). Scroll through the first copy,
+// then silently reset to 0 — the second copy looks identical so there's
+// no visible jump. Loops forever with no gaps.
+let scrollPos = 0, scrollAnim = null;
+function stopScroll() {
+  if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
+  scrollPos = 0;
+  scrollInner.style.transform = '';
+}
+function startScroll() {
+  if (scrollAnim) cancelAnimationFrame(scrollAnim);
+  function tick() {
+    const half = scrollInner.scrollHeight / 2;
+    scrollPos += 0.5;
+    if (half > 0 && scrollPos >= half) scrollPos -= half;
+    scrollInner.style.transform = `translateY(-${scrollPos}px)`;
+    scrollAnim = requestAnimationFrame(tick);
+  }
+  scrollAnim = requestAnimationFrame(tick);
+}
+function maybeScroll() {
+  if (scrollInner.scrollHeight > scrollWrap.clientHeight) {
+    scrollInner.innerHTML += scrollInner.innerHTML;
+    startScroll();
+  } else {
+    stopScroll();
+  }
+}
+
+// ── Render ───────────────────────────────────────────────
+let latestKids = [];
+
+function render() {
+  // Only show kids who have scanned at the start station (mazeStartTime set) and haven't finished
+  const inMaze = latestKids
+    .filter(k => k.mazeStartTime && !k.mazeEndTime)
+    .sort((a, b) => {
+      const ta = a.mazeStartTime?.toMillis?.() ?? 0;
+      const tb = b.mazeStartTime?.toMillis?.() ?? 0;
+      return ta - tb; // earliest start first = longest in maze at top
+    });
+
+  countEl.textContent = inMaze.length + (inMaze.length === 1 ? ' player' : ' players');
+
+  if (!inMaze.length) {
+    stopScroll();
+    scrollInner.innerHTML = '<div class="empty-msg">No one in maze yet</div>';
+    return;
+  }
+
+  const qrUrl = 'https://light-the-night.web.app/participant.html';
+  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=231207&bgcolor=ffffff&data=${encodeURIComponent(qrUrl)}`;
+  const qrRow = `<div class="qr-row">
+    <img src="${qrImg}" width="clamp(100px,12vw,160px)" height="auto" alt="QR code to guest leaderboard">
+    <div class="qr-text">
+      <div class="qr-headline">See the scores!</div>
+      <div class="qr-sub">Scan to view the<br>live leaderboard</div>
+    </div>
+  </div>`;
+
+  const rows = inMaze.map(k => {
+    const startMs = k.mazeStartTime.toMillis(); // guaranteed by filter above
+    return `<div class="im-row" data-start="${startMs}">
+      <div class="im-dot"></div>
+      <div class="im-name">${escHtml(k.name || '?')}</div>
+      <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
+      <div class="im-elapsed">${fmtTime(Date.now() - startMs)}</div>
+    </div>`;
+  }).join('');
+  stopScroll();
+  scrollInner.innerHTML = rows + qrRow;
+  requestAnimationFrame(() => maybeScroll());
+}
+
+// Tick elapsed times every second
+setInterval(() => {
+  scrollInner.querySelectorAll('[data-start]').forEach(row => {
+    const el = row.querySelector('.im-elapsed');
+    if (el) el.textContent = fmtTime(Date.now() - parseInt(row.dataset.start, 10));
+  });
+}, 1000);
+
+// Firestore listener
+firebase.auth().signInAnonymously().catch(() => {});
+firebase.auth().onAuthStateChanged(user => {
+  if (!user) return;
+  db.collection('kids').onSnapshot(snap => {
+    latestKids = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (d.revoked) return;
+      latestKids.push({ id: doc.id, ...d });
+    });
+    render();
+  });
+});
+</script>
+</body>
+</html>

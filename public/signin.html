@@ -1,823 +1,516 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <meta charset="UTF-8" />
- <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
- <title>Lost in Space — Check-In</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Light the Night — Check-In</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
- <meta name="mobile-web-app-capable" content="yes">
- <meta name="theme-color" content="#2a5298">
- <link rel="manifest" href="manifest.json">
- <link rel="apple-touch-icon" href="icon-192.png">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
- <!-- ZXing (fallback QR/Barcode scanning) -->
- <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
- <!-- Firebase compat SDKs -->
- <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
- <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #333;
+    }
 
- <style>
-   :root{ --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --info:#60a5fa; }
-   * { box-sizing: border-box; }
-   html, body { height:100%; }
-   body {
-     margin: 0;
-     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-     background: #000014;
-     color: #e6f6ff;
-     min-height: 100vh;
-     display: grid;
-     place-items: center;
-     padding: 24px;
-     -webkit-touch-callout:none;
-     -webkit-user-select:none; user-select:none;
-   }
-   .wrap { width: 100%; max-width: 520px; }
-   .card {
-     background: linear-gradient(180deg,#0b132b, #0b132b 60%, #0a1b3f);
-     border: 1px solid rgba(255,255,255,.08);
-     border-radius: 16px;
-     padding: 20px;
-     box-shadow: 0 10px 30px rgba(0,0,0,.4);
-     position: relative;
-   }
-   h1,h2 { margin: 0 0 10px; }
-   h1 { font-size: 20px; color: #9be2ff; letter-spacing: .3px; }
-   h2 { font-size: 18px; color: #aff; }
-   label { display:block; margin-top: 10px; margin-bottom: 6px; font-weight:600; color:#c8f2ff}
-   input, button {
-     width: 100%;
-     padding: 12px 14px;
-     border-radius: 10px;
-     border: 1px solid rgba(255,255,255,.1);
-     font-size: 16px;
-   }
-   input { background:#fff; color:#000; }
-   button {
-     background:#2aa6ff; color:#fff; border:none; cursor:pointer;
-     transition: transform .05s ease, background .2s ease, opacity .15s ease;
-     font-weight:700;
-   }
-   button:hover { background:#188fe2; }
-   button:active { transform: translateY(1px); }
-   button:disabled { opacity:.55; cursor:not-allowed; }
-   .btn-clear{
-     background:transparent;
-     color:#cfefff;
-     border:1px solid rgba(255,255,255,.28);
-   }
-   .btn-clear:hover{ background:rgba(255,255,255,.06); }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f5f5f5;
+      padding: 68px 16px 32px;
+    }
 
-   .row { display:flex; gap:10px; margin-top:10px; }
-   .row > button, .row > label { flex:1; }
-   .row > label { display:flex; align-items:center; gap:.5rem; justify-content:center; user-select:none; }
-   .subtle { opacity:.9; font-size:13px; margin-top:6px; }
-   .hidden{ display:none; }
+    /* ── Top bar ── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: #000;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+    }
+    .topbar-brand {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .topbar-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 4px;
+      font-size: 11px;
+      color: #fff;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ok   { background: #10b981; }
+    .warn { background: #f59e0b; }
+    .err  { background: #ef4444; }
+    .info { background: #60a5fa; }
 
-   .videoWrap {
-     position: relative;
-     margin-top: 12px;
-     border-radius: 12px;
-     overflow: hidden;
-     touch-action: none;
-   }
-   video {
-     width: 100%;
-     background: #000;
-     aspect-ratio: 16/9;
-     object-fit: cover;
-     display:block;
-     transform-origin: center center;
-   }
-   .overlay { position:absolute; inset:0; pointer-events:none; }
-   .corner {
-     position:absolute; width:22px; height:22px; border:3px solid rgba(255,255,255,.8);
-   }
-   .tl { left:10px; top:10px; border-right:none; border-bottom:none; border-radius:8px 0 0 0; }
-   .tr { right:10px; top:10px; border-left:none; border-bottom:none; border-radius:0 8px 0 0; }
-   .bl { left:10px; bottom:10px; border-right:none; border-top:none; border-radius:0 0 0 8px; }
-   .br { right:10px; bottom:10px; border-left:none; border-top:none; border-radius:0 0 8px 0; }
+    /* ── Page content ── */
+    .page {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      justify-content: center;
+    }
 
-   .focus-ring{
-     position:absolute; width:84px; height:84px; border:2px solid rgba(255,255,255,.95);
-     border-radius:12px; transform:translate(-50%,-50%); pointer-events:none; display:none;
-     box-shadow:0 0 0 2px rgba(255,255,255,.25) inset, 0 0 12px rgba(0,0,0,.6);
-   }
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      color: #333;
+    }
+    .hidden { display: none !important; }
 
-   ul { list-style: none; padding-left: 0; margin: 14px 0 0; }
-   li {
-     background: rgba(255,255,255,.06);
-     border: 1px solid rgba(255,255,255,.08);
-     padding: 8px 12px;
-     border-radius: 10px;
-     margin-bottom: 8px;
-   }
+    /* ── Login header ── */
+    .login-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-header h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
+      line-height: 1.3;
+      margin-bottom: 6px;
+    }
+    .login-header p {
+      font-size: 13px;
+      color: #666;
+    }
 
-   .fab {
-     position:absolute; right:12px; top:12px; width:42px; height:42px;
-     border-radius:999px; background:#10b981; display:grid; place-items:center;
-     color:#001; font-weight:900; border:none; cursor:pointer;
-   }
-   .toast {
-     position:absolute; right:12px; top:60px; background:#10b981; color:#001;
-     padding:6px 10px; border-radius:8px; font-weight:700; display:none;
-   }
+    /* ── Form fields ── */
+    label.field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      margin-bottom: 6px;
+      margin-top: 16px;
+    }
+    input[type=password], input[type=text] {
+      width: 100%;
+      padding: 12px 14px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      color: #333;
+      font-size: 15px;
+      font-family: 'Inter', system-ui, sans-serif;
+      outline: none;
+      transition: border-color .12s;
+    }
+    input::placeholder { color: #aaa; }
+    input:focus { border-color: #2a6ff0; }
 
-   .chip {
-     position:fixed; left:12px; top:12px; padding:.35rem .6rem; border-radius:999px;
-     font-size:.82rem; font-weight:600; background:rgba(255,255,255,.12);
-     display:flex; align-items:center; gap:.45rem; z-index:3;
-   }
-   .dot{width:.6rem;height:.6rem;border-radius:999px;display:inline-block}
-   .ok{ background:var(--ok);} .warn{ background:var(--warn);}
-   .err{ background:var(--err);} .info{ background:var(--info);}
-   .msg { margin-top:8px; min-height:20px; font-size:.95rem; color:#ffd2d2 }
-   code { background:rgba(255,255,255,.12); padding:.08rem .35rem; border-radius:.35rem }
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Inter', system-ui, sans-serif;
+      transition: opacity .1s;
+      margin-top: 14px;
+    }
+    .btn:active { opacity: .8; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-red   { background: #111; color: #fff; }
+    .btn-green { background: #10b981; color: #fff; }
 
-   .titlebar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-   .brand{ font-weight:800; color:#9be2ff; letter-spacing:.4px }
+    .msg {
+      font-size: 13px;
+      color: #e53e3e;
+      margin-top: 10px;
+      min-height: 18px;
+      text-align: center;
+    }
+    .msg.ok { color: #10b981; }
 
-   .switch { appearance: none; width: 38px; height: 22px; background: #334;
-     border-radius: 999px; position: relative; outline: none; cursor: pointer; border: 1px solid #556;
-   }
-   .switch:after {
-     content: ""; position:absolute; left:2px; top:2px; width:18px; height:18px; background:#fff;
-     border-radius:999px; transition: left .15s ease;
-   }
-   .switch:checked { background:#10b981; border-color:#10b981; }
-   .switch:checked:after { left:18px; }
+    /* ── Check-in header ── */
+    .checkin-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .checkin-titlebar h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111;
+    }
+    .count-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #555;
+    }
 
-   .banner {
-     margin-top:8px;
-     background: rgba(239, 68, 68, .18);
-     border: 1px solid rgba(239, 68, 68, .35);
-     color:#ffdada;
-     padding:8px 10px;
-     border-radius:10px;
-     font-size:.95rem;
-     display:none;
-   }
-   .banner.ok {
-     background: rgba(16,185,129,.18);
-     border-color: rgba(16,185,129,.35);
-     color:#d7fff1;
-   }
- </style>
+    /* ── Scan area ── */
+    .scan-area {
+      padding: 14px;
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .scan-ring-wrap { width: 52px; height: 52px; flex-shrink: 0; }
+    .scan-ring {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 3px solid #2a6ff0;
+      display: flex; align-items: center; justify-content: center;
+      background: #e8f0fe;
+    }
+    .scan-ring-inner {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #2a6ff0;
+      border: 2px solid #6ea8fe;
+    }
+    .scan-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #333;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    /* ── Live list ── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: #888;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    .count-badge { font-size: 12px; color: #666; margin-bottom: 8px; }
+    ul#liveList {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    ul#liveList li {
+      background: #fafafa;
+      border: 1px solid #ddd;
+      padding: 7px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    ul#liveList li small { color: #666; font-size: 11px; font-family: monospace; }
+  </style>
+  <script src="/pw.js"></script>
 </head>
 <body>
 
- <!-- DB status / diagnostics -->
- <div class="chip" id="dbChip"><span class="dot info"></span><span id="dbText">Initializing…</span> · <span id="projId">…</span></div>
-
- <div class="wrap">
-   <!-- LOGIN -->
-   <div class="card" id="loginView">
-     <div class="titlebar">
-       <h1 class="brand">Lost in Space • Check-In</h1>
-     </div>
-     <h2>Enter Password</h2>
-     <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password"/>
-     <div class="row">
-       <button id="loginBtn">Enter</button>
-     </div>
-     <div id="loginMessage" class="msg"></div>
-     <div class="subtle">Reads <code>signinPassword</code> from <code>config/config</code>.</div>
-   </div>
-
-   <!-- CHECK-IN -->
-   <div class="card hidden" id="checkinView">
-     <button class="fab" title="Add walk-in visitor" onclick="manualAddVisitor()">＋</button>
-     <div id="addedToast" class="toast">Visitor added!</div>
-
-     <div class="titlebar">
-       <h2 style="margin:0">Check-In</h2>
-     </div>
-
-     <label for="nameInput">Name</label>
-     <input id="nameInput" placeholder="Enter participant name" autocomplete="off" autofocus />
-
-     <label for="codeInput">Code / URL</label>
-     <input id="codeInput" placeholder="Scan or paste (e.g., LTN-2025-6WSH-VGQH or …?code=LTN-…)" autocomplete="off" inputmode="latin"/>
-     <div class="subtle">Tip: only real Light the Night codes are accepted (LTN-2025-XXXX-XXXX).</div>
-
-     <div class="row" style="align-items:center">
-       <button onclick="submitCheckin()" id="submitBtn">Submit</button>
-       <button class="btn-clear" id="clearBtn" onclick="clearAll()" title="Clear name/code (Esc)">Clear</button>
-     </div>
-
-     <div class="row" style="align-items:center">
-       <button onclick="startCamera(event)" title="SHIFT-click to choose a camera">Start Camera</button>
-       <button onclick="stopCamera()">Stop Camera</button>
-     </div>
-
-     <div class="videoWrap" id="videoWrap">
-       <video id="video" autoplay muted playsinline></video>
-       <div class="overlay" aria-hidden="true">
-         <div class="corner tl"></div>
-         <div class="corner tr"></div>
-         <div class="corner bl"></div>
-         <div class="corner br"></div>
-         <div id="focusRing" class="focus-ring"></div>
-       </div>
-     </div>
-
-     <div class="row" style="margin-top:8px">
-       <label title="When on, will navigate to the participant page after saving.">
-         <input id="openAfterToggle" class="switch" type="checkbox">
-         Open participant page after check-in
-       </label>
-     </div>
-
-     <div id="scanBanner" class="banner"></div>
-
-     <h2 style="margin-top:14px">Recent</h2>
-     <div id="totalCount" class="subtle">Total Checked In: 0</div>
-     <ul id="liveList"><li>Loading…</li></ul>
-   </div>
- </div>
-
- <audio id="dingSound" src="ding.mp3" preload="auto"></audio>
-
- <script>
-   // -------- Firebase (compat) --------
-   const firebaseConfig = {
-     apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
-     authDomain: "light-the-night-2025.firebaseapp.com",
-     projectId: "light-the-night-2025",
-     storageBucket: "light-the-night-2025.appspot.com",
-     messagingSenderId: "563168577950",
-     appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f"
-   };
-   firebase.initializeApp(firebaseConfig);
-   const db = firebase.firestore();
-
-   // -------- UI helpers --------
-   const ding = document.getElementById('dingSound');
-   const dbChip = document.getElementById('dbChip');
-   const dbText = document.getElementById('dbText');
-   const projId = document.getElementById('projId');
-   const banner = document.getElementById('scanBanner');
-   function setChip(state, text){
-     dbText.textContent = text || '';
-     dbChip.querySelector('.dot').className = 'dot ' + state;
-   }
-   try { projId.textContent = firebase.app()?.options?.projectId || '(unknown)'; } catch {}
-
-   function showBanner(msg, kind='err', ttl=1500){
-     banner.textContent = msg;
-     banner.classList.toggle('ok', kind==='ok');
-     banner.style.display = 'block';
-     clearTimeout(showBanner._t);
-     showBanner._t = setTimeout(()=>{ banner.style.display='none'; banner.classList.remove('ok'); }, ttl);
-   }
-
-   // -------- Code extraction (URL or bare) --------
-   // Strictly match real LTN codes
-   const LTN_RE = /LTN-20\d{2}-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
-   function extractLTNCode(text){
-     if (!text) return null;
-     const s = String(text).trim();
-     try {
-       const u = new URL(s);
-       const q = u.searchParams.get('code');
-       if (q && LTN_RE.test(q)) return q.toUpperCase();
-       const pathHit = u.pathname.match(LTN_RE);
-       if (pathHit) return pathHit[0].toUpperCase();
-       const hashHit = (u.hash||'').match(LTN_RE);
-       if (hashHit) return hashHit[0].toUpperCase();
-     } catch {}
-     const m = s.match(LTN_RE);
-     return m ? m[0].toUpperCase() : null;
-   }
-
-   // -------- Probe Firestore connectivity --------
-   async function probe(){
-     try{
-       const snap = await db.collection('config').doc('config').get();
-       if(!snap.exists){
-         setChip('warn','Connected (config missing)');
-       }else{
-         const v = snap.data()?.signinPassword;
-         if (typeof v !== 'string') setChip('warn','Connected (signinPassword missing)');
-         else setChip('ok','Connected');
-       }
-     }catch(e){
-       const m = String(e?.message||e);
-       if (/permission|insufficient/i.test(m)) setChip('err','Permission denied (rules?)');
-       else setChip('err','DB error');
-     }
-   }
-   probe();
-
-   // -------- Login flow --------
-   async function fetchSigninPasswordStrict(){
-     const snap = await db.collection('config').doc('config').get();
-     if(!snap.exists) return {ok:false, reason:'missing-doc'};
-     const raw = snap.data()?.signinPassword;
-     if (typeof raw !== 'string') return {ok:false, reason:'missing-field'};
-     return {ok:true, password: String(raw).trim()};
-   }
-
-   async function doLogin(){
-     const msg = document.getElementById('loginMessage');
-     const attempt = String(document.getElementById('passwordInput').value||'').trim();
-     msg.textContent = 'Checking…';
-
-     try{
-       const res = await fetchSigninPasswordStrict();
-       if(!res.ok){
-         if (res.reason === 'missing-doc') {
-           msg.innerHTML = `Missing <code>config/config</code> doc. Add field <code>signinPassword</code>.`;
-         } else if (res.reason === 'missing-field') {
-           msg.innerHTML = `Missing <code>signinPassword</code> (string) in <code>config/config</code>.`;
-         } else {
-           msg.textContent = 'Unknown configuration error.';
-         }
-         return;
-       }
-       const correct = res.password;
-       if (!attempt) { msg.textContent = 'Please enter password.'; return; }
-       if (attempt === correct){
-         msg.textContent = 'Signed in.';
-         openCheckin();
-       } else {
-         msg.textContent = 'Incorrect password.';
-       }
-     }catch(e){
-       const m = String(e?.message||e);
-       if (/permission|insufficient/i.test(m)) msg.textContent = 'DB permission denied (check Firestore rules).';
-       else msg.textContent = 'Login error: ' + m;
-     }
-   }
-   document.getElementById('loginBtn').addEventListener('click', doLogin);
-   document.getElementById('passwordInput').addEventListener('keydown', e => {
-     if (e.key === 'Enter') doLogin();
-   });
-
-   function openCheckin(){
-     document.getElementById('loginView').classList.add('hidden');
-     document.getElementById('checkinView').classList.remove('hidden');
-     loadLiveList();
-     const boot = extractLTNCode(window.location.href);
-     if (boot) document.getElementById('codeInput').value = boot;
-     setTimeout(()=> document.getElementById('nameInput')?.focus(), 50);
-     startCamera().catch(()=>{});
-     updateClearDisabled();
-   }
-
-   // -------- Camera + scan engine --------
-   let codeReader;
-   let activeDeviceId = null;
-   let processing = false;
-   let lastSeenKey = null;
-   let lastSeenAt = 0;
-   const ignoreCodes = new Map();
-
-   const HAS_BD = 'BarcodeDetector' in window;
-   let bd;
-   let bdLoopCancel = null;
-
-   let currentStream = null;
-   let currentTrack = null;
-   let minZoom = 1, maxZoom = 1, curZoom = 1;
-
-   function isVideoActive() {
-     const video = document.getElementById('video');
-     const s = video.srcObject;
-     return !!(s && s.getVideoTracks().some(t => t.readyState === 'live'));
-   }
-
-   async function promptForPermissionOnce(constraints) {
-     const stream = await navigator.mediaDevices.getUserMedia(constraints);
-     for (const t of stream.getTracks()) t.stop();
-   }
-
-   async function listCameras() {
-     try {
-       const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-       return devices || [];
-     } catch { return []; }
-   }
-
-   function stopCamera(){
-     if (bdLoopCancel) { bdLoopCancel(); bdLoopCancel = null; }
-     if (codeReader) { try { codeReader.reset(); } catch {} }
-     const video = document.getElementById('video');
-     const s = video && video.srcObject;
-     if (s) { for (const t of s.getTracks()) t.stop(); video.srcObject = null; }
-     currentStream = null; currentTrack = null;
-   }
-
-   async function startCamera(ev){
-     const video = document.getElementById('video');
-
-     try {
-       stopCamera();
-
-       const enumerate = !!(ev && ev.shiftKey);
-       const baseConstraints = {
-         video: {
-           facingMode: { ideal: 'environment' },
-           width: { ideal: 1920 },
-           height:{ ideal: 1080 },
-           frameRate: { ideal: 60, max: 60 },
-           focusMode: 'continuous'
-         }
-       };
-
-       if (!navigator.mediaDevices?.getUserMedia) {
-         setChip('err','Camera API not supported');
-         alert('This browser does not support camera access.');
-         return;
-       }
-
-       try { await promptForPermissionOnce(baseConstraints); }
-       catch (e) {
-         const msg = String(e?.message || e);
-         if (/permission|denied/i.test(msg)) { setChip('err','Camera permission denied'); alert('Enable camera in Site Settings and try again.'); }
-         else if (/secure/i.test(msg)) { setChip('err','Needs HTTPS'); alert('Use https (or localhost) for camera.'); }
-         else { setChip('err','Camera init error'); alert('Could not access camera: ' + msg); }
-         return;
-       }
-
-       let deviceIdToUse = activeDeviceId;
-       const devices = await listCameras();
-
-       if (enumerate && devices.length) {
-         const list = devices.map((d, i) => `${i+1}. ${d.label || '(no label)'} — ${d.deviceId.slice(0,6)}…`).join('\n');
-         const pick = prompt(`Select camera (1-${devices.length}):\n\n${list}`) || '';
-         const idx = Math.max(1, Math.min(devices.length, parseInt(pick,10)||1)) - 1;
-         deviceIdToUse = devices[idx]?.deviceId || null;
-         activeDeviceId = deviceIdToUse;
-       }
-
-       const constraints = deviceIdToUse
-         ? { video: { deviceId: { exact: deviceIdToUse }, width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:60, max:60}, focusMode:'continuous' } }
-         : baseConstraints;
-
-       currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-       video.srcObject = currentStream;
-       await video.play();
-
-       currentTrack = currentStream.getVideoTracks()[0];
-
-       try {
-         const caps = currentTrack.getCapabilities?.();
-         if (caps && 'zoom' in caps) {
-           minZoom = caps.zoom.min || 1;
-           maxZoom = caps.zoom.max || 1;
-           curZoom = currentTrack.getSettings?.().zoom || 1;
-         } else { minZoom = maxZoom = curZoom = 1; }
-       } catch {}
-
-       try { await currentTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch {}
-
-       if (HAS_BD) {
-         try { bd = new BarcodeDetector({ formats: ['qr_code'] }); } catch {}
-       }
-
-       if (bd) {
-         setChip('ok','Camera ready (fast scan)');
-         startBDLoop(video);
-       } else {
-         setChip('ok','Camera ready (fallback)');
-         codeReader = new ZXing.BrowserMultiFormatReader(undefined, {
-           delayBetweenScanAttempts: 75,
-           delayBetweenScanSuccess: 250,
-           tryHarder: true
-         });
-         await codeReader.decodeFromVideoDevice(deviceIdToUse || null, 'video', zxingHandler);
-       }
-     } catch (e) {
-       console.error('startCamera error:', e);
-       const msg = String(e?.message||e);
-       if (/secure|https/i.test(msg)) { setChip('err','Needs HTTPS'); alert('Use https (or localhost) for camera.'); }
-       else if (/permission|not allowed|denied/i.test(msg)) { setChip('err','Camera permission denied'); alert('Allow camera and try again.'); }
-       else if (/no input devices|NotFoundError|Could not start video source/i.test(msg)) { setChip('err','No camera found'); alert('No camera found on this device.'); }
-       else { setChip('err','Camera error'); alert('Could not start camera: ' + msg); }
-     }
-   }
-
-   function startBDLoop(video){
-     const canvas = document.createElement('canvas');
-     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-     let rafId = 0, running = true;
-     bdLoopCancel = ()=>{ running = false; cancelAnimationFrame(rafId); };
-
-     const step = async () => {
-       if (!running || !isVideoActive()) return;
-
-       const vw = video.videoWidth || 1280;
-       const vh = video.videoHeight || 720;
-       const scale = Math.min(1, 1280 / vw);
-       canvas.width = Math.floor(vw * scale);
-       canvas.height= Math.floor(vh * scale);
-       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-       try {
-         const codes = await bd.detect(canvas);
-         if (codes && codes.length) {
-           const txt = (codes[0].rawValue || '').trim();
-           await onDecodedText(txt);
-         }
-       } catch {}
-
-       rafId = requestAnimationFrame(step);
-     };
-     rafId = requestAnimationFrame(step);
-   }
-
-   async function zxingHandler(result, err){
-     if (result && result.text) { await onDecodedText(result.text); }
-   }
-
-   function shouldIgnore(code){
-     const now = Date.now();
-     const exp = ignoreCodes.get(code);
-     if (exp && exp > now) return true;
-     for (const [k,v] of ignoreCodes) if (v <= now) ignoreCodes.delete(k);
-     return false;
-   }
-   function markIgnore(code, ms=4000){ ignoreCodes.set(code, Date.now()+ms); }
-
-   function restartCameraSoon(delay=200){
-     try { stopCamera(); } catch {}
-     setTimeout(()=>{ startCamera().catch(()=>{}); }, delay);
-   }
-
-   // STRICT: only LTN codes go into the input
-   async function onDecodedText(rawText){
-     if (!isVideoActive()) return;
-     if (processing) return;
-     processing = true;
-
-     try {
-       const raw = String(rawText || '').trim();
-       const code = extractLTNCode(raw);
-       const key = code || raw;
-       const now = Date.now();
-
-       if (key === lastSeenKey && (now - lastSeenAt) < 900) { return; }
-       lastSeenKey = key; lastSeenAt = now;
-
-       if (code && shouldIgnore(code)) return;
-
-       const codeInput = document.getElementById('codeInput');
-       if (code){
-         codeInput.value = code;
-         try { if (navigator.vibrate) navigator.vibrate(12); } catch {}
-         try { ding.currentTime = 0; ding.play(); } catch {}
-         const name = document.getElementById('nameInput').value.trim();
-         if (name) {
-           submitCheckin(true).catch(e=>{
-             showBanner(e?.message || 'Could not complete check-in.', 'err', 1800);
-             markIgnore(code, 3500);
-           });
-         } else {
-           showBanner('Code captured. Enter a name, then tap Submit.', 'ok', 1200);
-           markIgnore(code, 2200);
-           document.getElementById('nameInput')?.focus();
-         }
-         updateClearDisabled();
-       } else {
-         // *** THIS IS THE IMPORTANT CHANGE ***
-         // Do NOT shove random numbers/URLs into the field.
-         showBanner('Not a Light the Night code. Scan an LTN-2025-XXXX-XXXX.', 'err', 1350);
-         // short ignore so the same bad QR doesn't spam
-         markIgnore(raw, 2000);
-       }
-     } finally {
-       processing = false;
-     }
-   }
-
-   // ---- Tap-to-focus & pinch-to-zoom
-   (function enableCameraGestures(){
-     const wrap = document.getElementById('videoWrap');
-     const video = document.getElementById('video');
-     const ring  = document.getElementById('focusRing');
-
-     wrap.addEventListener('pointerdown', async (e)=>{
-       if (!currentTrack) return;
-       const rect = wrap.getBoundingClientRect();
-       const x = (e.clientX - rect.left) / rect.width;
-       const y = (e.clientY - rect.top) / rect.height;
-
-       ring.style.left = (x*100)+'%';
-       ring.style.top  = (y*100)+'%';
-       ring.style.display = 'block';
-       clearTimeout(ring._t);
-       ring._t = setTimeout(()=> ring.style.display='none', 600);
-
-       try {
-         await currentTrack.applyConstraints({ advanced: [{ pointsOfInterest: [{ x, y }] }] });
-         await currentTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-       } catch {}
-     });
-
-     let prevDist = 0;
-     wrap.addEventListener('touchstart', (e)=>{
-       if (e.touches.length === 2) {
-         prevDist = Math.hypot(
-           e.touches[0].clientX - e.touches[1].clientX,
-           e.touches[0].clientY - e.touches[1].clientY
-         );
-       }
-     }, { passive: true });
-
-     wrap.addEventListener('touchmove', (e)=>{
-       if (!currentTrack) return;
-       if (e.touches.length === 2) {
-         const dist = Math.hypot(
-           e.touches[0].clientX - e.touches[1].clientX,
-           e.touches[0].clientY - e.touches[1].clientY
-         );
-         const delta = dist - prevDist;
-         prevDist = dist;
-
-         if (maxZoom > minZoom) {
-           const step = (maxZoom - minZoom) / 50;
-           curZoom = Math.min(maxZoom, Math.max(minZoom, (curZoom || 1) + (delta>0 ? step : -step)));
-           try { currentTrack.applyConstraints({ advanced: [{ zoom: curZoom }] }); } catch {}
-         } else {
-           const cssScale = Math.max(1, Math.min(1.5, (video._scale || 1) + (delta>0 ? 0.02 : -0.02)));
-           video.style.transform = `scale(${cssScale})`;
-           video._scale = cssScale;
-         }
-       }
-     }, { passive: true });
-   })();
-
-   // -------- Create + assign code --------
-   async function createKidAndAssignCode({ name, code }){
-     const pvRef = db.collection('publicViews').doc(code);
-     const pvSnap = await pvRef.get();
-
-     if(!pvSnap.exists){
-       await pvRef.set({
-         name: name || 'Participant',
-         assigned: false,
-         createdAt: firebase.firestore.FieldValue.serverTimestamp()
-       }, { merge: true });
-     }else{
-       const pv = pvSnap.data() || {};
-       if (pv.assigned && pv.participantId){
-         const cfg = await db.collection('config').doc('config').get();
-         const correct = cfg.exists ? (cfg.data().signinPassword||'').trim() : null;
-         const input = prompt('Code already assigned. Enter sign-in password to override:') || '';
-         if (!correct || input.trim() !== String(correct)) throw new Error('Override denied');
-       }
-     }
-
-     const kidRef = db.collection('kids').doc();
-     await kidRef.set({
-       name,
-       code,
-       barcode: code,
-       scans: [],
-       startCheckIn: new Date().toISOString(),
-       timestamp: firebase.firestore.FieldValue.serverTimestamp()
-     }, { merge: true });
-
-     await pvRef.set({
-       assigned: true,
-       participantId: kidRef.id,
-       name,
-       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-     }, { merge: true });
-
-     db.collection('participants').add({
-       name,
-       barcode: code,
-       code,
-       timestamp: firebase.firestore.FieldValue.serverTimestamp()
-     }).catch(()=>{});
-
-     return kidRef.id;
-   }
-
-   async function submitCheckin(fromScan=false){
-     const name = document.getElementById('nameInput').value.trim();
-     const raw  = document.getElementById('codeInput').value.trim();
-     // normalize to upper in case someone typed in lowercase
-     const code = extractLTNCode(raw ? raw.toUpperCase() : raw);
-
-     if (!name){ showBanner('Please enter a name.', 'err', 1000); document.getElementById('nameInput')?.focus(); return; }
-     if (!code){ showBanner('Scan or paste a valid LTN-2025-XXXX-XXXX code.', 'err', 1200); document.getElementById('codeInput')?.focus(); return; }
-
-     try{
-       await createKidAndAssignCode({ name, code });
-
-       showBanner('Saved ✔', 'ok', 800);
-       markIgnore(code, 5000);
-
-       const openAfter = document.getElementById('openAfterToggle').checked;
-       if (openAfter){
-         window.location.href = `participant.html?code=${encodeURIComponent(code)}`;
-         return;
-       }
-
-       clearFields();
-       updateClearDisabled();
-       restartCameraSoon(150);
-
-     }catch(e){
-       showBanner(e?.message || 'Could not complete check-in.', 'err', 1600);
-       if (code) markIgnore(code, 4000);
-       throw e;
-     }
-   }
-
-   function clearFields(){
-     document.getElementById('nameInput').value = '';
-     document.getElementById('codeInput').value = '';
-     document.getElementById('nameInput')?.focus();
-   }
-
-   function clearAll(){
-     clearFields();
-     banner.style.display = 'none';
-     banner.classList.remove('ok');
-     banner.textContent = '';
-     lastSeenKey = null;
-     lastSeenAt = 0;
-     updateClearDisabled();
-   }
-
-   function updateClearDisabled(){
-     const nameVal = document.getElementById('nameInput').value.trim();
-     const codeVal = document.getElementById('codeInput').value.trim();
-     const btn = document.getElementById('clearBtn');
-     btn.disabled = !(nameVal || codeVal);
-   }
-
-   document.addEventListener('DOMContentLoaded', ()=>{
-     const nameEl = document.getElementById('nameInput');
-     const codeEl = document.getElementById('codeInput');
-
-     nameEl?.addEventListener('keydown', e => {
-       if (e.key === 'Enter') submitCheckin();
-       if (e.key === 'Escape') clearAll();
-     });
-     codeEl?.addEventListener('keydown', e => {
-       if (e.key === 'Enter') submitCheckin();
-       if (e.key === 'Escape') clearAll();
-     });
-
-     nameEl?.addEventListener('input', updateClearDisabled);
-     codeEl?.addEventListener('input', updateClearDisabled);
-     updateClearDisabled();
-   });
-
-   // -------- Walk-in visitor (no code) --------
-   function manualAddVisitor(){
-     const toast = document.getElementById('addedToast');
-     db.collection('participants').orderBy('number','desc').limit(1).get().then(snap=>{
-       let newNum = 1;
-       if(!snap.empty) newNum = (snap.docs[0].data().number || 0) + 1;
-       return db.collection('participants').add({
-         name: `Visitor #${newNum}`,
-         barcode: 'No Barcode',
-         code: null,
-         number: newNum,
-         timestamp: firebase.firestore.FieldValue.serverTimestamp()
-       });
-     }).then(()=>{
-       try { ding.currentTime = 0; ding.play(); } catch {}
-       toast.style.display = 'block';
-       setTimeout(()=>toast.style.display='none', 900);
-     }).catch(err=>{
-       console.error('manualAddVisitor error:', err);
-       showBanner('Could not add visitor.', 'err', 1400);
-     });
-   }
-
-   // -------- Live list --------
-   function loadLiveList(){
-     db.collection('kids').orderBy('timestamp','desc').onSnapshot(snap=>{
-       const list = document.getElementById('liveList');
-       const count = document.getElementById('totalCount');
-       list.innerHTML = '';
-       count.textContent = `Total Checked In: ${snap.size}`;
-       snap.forEach(doc=>{
-         const d = doc.data();
-         const label = d.name || '(no name)';
-         const c = d.code || d.barcode || '';
-         list.insertAdjacentHTML('beforeend', `<li>${label}${c?` — <small style="opacity:.85">${c}</small>`:''}</li>`);
-       });
-     }, err=>{
-       console.error('Live list listener error:', err);
-       setChip('err','Live list blocked');
-       showBanner('Live list blocked by rules/connection.', 'err', 1600);
-     });
-   }
-
-   // -------- Optional service worker --------
-   if ('serviceWorker' in navigator) {
-     navigator.serviceWorker.register('sw.js').catch(()=>{});
-   }
- </script>
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-brand">Light the Night</div>
+    <div class="topbar-chip" id="dbChip">
+      <span class="dot info"></span>
+      <span id="dbText">Connecting…</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="page">
+
+    <!-- LOGIN VIEW -->
+    <div class="card" id="loginView">
+      <div class="login-header">
+        <h1>Light the Night<br/>Check-In</h1>
+        <p>Staff sign-in required</p>
+      </div>
+      <label class="field-label" for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" placeholder="Enter sign-in password" autocomplete="current-password"/>
+      <button class="btn btn-red" id="loginBtn">▶ Sign In</button>
+      <div id="loginMessage" class="msg"></div>
+    </div>
+
+    <!-- CHECK-IN VIEW -->
+    <div class="card hidden" id="checkinView">
+      <div class="checkin-titlebar">
+        <h2>Check-In</h2>
+        <div class="count-chip">
+          <span class="dot ok"></span>
+          <span id="checkedInCountChip">0 in</span>
+        </div>
+      </div>
+
+      <div class="scan-area">
+        <div class="scan-ring-wrap">
+          <div class="scan-ring"><div class="scan-ring-inner"></div></div>
+        </div>
+        <div class="scan-title">Register<br/>Participant</div>
+      </div>
+
+      <label class="field-label" for="nameInput">Kid's Name</label>
+      <input type="text" id="nameInput" placeholder="Full name" autocapitalize="words" autocomplete="off"/>
+
+      <div id="codeDisplay" style="display:none;margin-top:16px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#333;margin-bottom:8px">Wristband Code — Write this on the band</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="generatedCode" style="font-size:48px;font-weight:800;letter-spacing:6px;color:#000;font-variant-numeric:tabular-nums;line-height:1"></div>
+          <button onclick="regenCode()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;background:#f5f5f5;cursor:pointer;font-size:12px;font-family:inherit;color:#333">↺ New</button>
+        </div>
+      </div>
+
+      <button class="btn btn-green" id="checkinBtn" onclick="doCheckin()">✓ Check In</button>
+      <div id="checkinMsg" class="msg"></div>
+
+      <div class="section-title">Recent Check-Ins</div>
+      <div id="totalCount" class="count-badge">Total: 0</div>
+      <ul id="liveList"></ul>
+    </div>
+
+  </div>
+
+  <audio id="dingSound" src="ding.mp3" preload="auto"></audio>
+
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+      authDomain: "light-the-night-2025.firebaseapp.com",
+      projectId: "light-the-night-2025",
+      storageBucket: "light-the-night-2025.appspot.com",
+      messagingSenderId: "563168577950",
+      appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f"
+    });
+    const db   = firebase.firestore();
+    const ding = document.getElementById('dingSound');
+
+    let codeLength = 6;
+
+    firebase.auth().signInAnonymously().then(()=>probe()).catch(()=>{
+      setChip('err','Auth failed');
+    });
+
+    function setChip(state, text){
+      document.getElementById('dbText').textContent = text || '';
+      document.getElementById('dbChip').querySelector('.dot').className = 'dot ' + state;
+    }
+
+    async function probe(){
+      try {
+        const snap = await db.collection('config').doc('config').get();
+        if (!snap.exists){ setChip('warn','Connected (config missing)'); return; }
+        const data = snap.data() || {};
+        if (!data.signinPassword) setChip('warn','signinPassword missing');
+        else                      setChip('ok','Connected');
+        if (data.codeLength >= 1) codeLength = data.codeLength;
+      } catch(e) {
+        setChip('err', /permission|insufficient/i.test(String(e)) ? 'Permission denied' : 'DB error');
+      }
+    }
+
+    async function doLogin(){
+      const msg     = document.getElementById('loginMessage');
+      const attempt = (document.getElementById('passwordInput').value || '').trim();
+      msg.textContent = 'Checking…'; msg.className = 'msg';
+      try {
+        const snap = await db.collection('config').doc('config').get();
+        if (!snap.exists){ msg.innerHTML = 'Missing config/config doc.'; return; }
+        const data    = snap.data() || {};
+        const correct = (data.signinPassword || '').trim();
+        if (data.codeLength >= 1) codeLength = data.codeLength;
+        if (!attempt)            { msg.textContent = 'Enter a password.'; return; }
+        if (attempt.toLowerCase() !== correct.toLowerCase()) { msg.textContent = 'Incorrect password.'; return; }
+        msg.textContent = 'Signed in!'; msg.className = 'msg ok';
+        setTimeout(openCheckin, 300);
+      } catch(e) {
+        msg.textContent = /permission|insufficient/i.test(String(e))
+          ? 'DB permission denied (check Firestore rules).'
+          : 'Error: ' + e.message;
+      }
+    }
+    document.getElementById('loginBtn').addEventListener('click', doLogin);
+    document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+
+    function randCode(){
+      return String(Math.floor(Math.random() * Math.pow(10, codeLength))).padStart(codeLength, '0');
+    }
+
+    let _usedCodes = new Set();
+    db.collection('kids').onSnapshot(snap => {
+      _usedCodes.clear();
+      snap.forEach(doc => {
+        const c = doc.data().code || doc.data().barcode;
+        if (c) _usedCodes.add(String(c));
+      });
+    }, () => {});
+
+    function freshCode(){
+      let c, tries = 0;
+      do { c = randCode(); tries++; } while (_usedCodes.has(c) && tries < 200);
+      return c;
+    }
+    function regenCode(){
+      document.getElementById('generatedCode').textContent = freshCode();
+    }
+
+    function openCheckin(){
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('checkinView').classList.remove('hidden');
+      loadLiveList();
+      document.getElementById('nameInput').focus();
+    }
+
+    async function doCheckin(){
+      const nameInput = document.getElementById('nameInput');
+      const msgEl     = document.getElementById('checkinMsg');
+      const btn       = document.getElementById('checkinBtn');
+
+      const name = nameInput.value.trim();
+      const code = document.getElementById('generatedCode').textContent.trim();
+
+      msgEl.className = 'msg';
+      if (!name){ msgEl.textContent = 'Enter a name.'; nameInput.focus(); return; }
+      if (!code){ msgEl.textContent = 'No code generated yet.'; return; }
+
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      try {
+        // Final check: if code was already taken (race condition between two tabs), get a fresh one
+        let finalCode = code;
+        if (_usedCodes.has(finalCode)) {
+          finalCode = freshCode();
+          document.getElementById('generatedCode').textContent = finalCode;
+        }
+        const code2use = finalCode;
+        const kidRef = await db.collection('kids').add({
+          name, code: code2use, barcode: code2use,
+          scans: [], startCheckIn: new Date().toISOString(),
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Assign ? box powerup stations based on current powerupMode
+        try{
+          const [cfgSnap, stSnap] = await Promise.all([
+            db.collection('config').doc('config').get(),
+            db.collection('stations').get()
+          ]);
+          const mode = cfgSnap.data()?.powerupMode || 'both';
+          if(mode !== 'none'){
+            const ids = [];
+            stSnap.forEach(d=>{ if(/^\d+$/.test(d.id) || d.id.startsWith('land_')) ids.push(d.id); });
+            if(ids.length > 0){
+              const shuffled = ids.sort(()=>Math.random()-0.5);
+              const upd = {};
+              if(mode==='both'||mode==='mushroom') upd.mushroomStation = shuffled[0];
+              if(mode==='both'||mode==='shell') upd.shellStation = (mode==='both'&&shuffled.length>1) ? shuffled[1] : shuffled[0];
+              if(mode==='random'){
+                // Each player randomly gets either a mushroom OR a shell, not both
+                if(Math.random() < 0.5) upd.mushroomStation = shuffled[0];
+                else upd.shellStation = shuffled[0];
+              }
+              await kidRef.update(upd);
+            }
+          }
+        }catch(_){}
+
+        try { ding.currentTime = 0; ding.play(); } catch {}
+        if (navigator.vibrate) try { navigator.vibrate(40); } catch {}
+
+        msgEl.textContent = `✓ ${name} — code ${code2use}`;
+        msgEl.className   = 'msg ok';
+        nameInput.value   = '';
+        document.getElementById('codeDisplay').style.display = 'none';
+        document.getElementById('generatedCode').textContent = '';
+        nameInput.focus();
+      } catch(e) {
+        msgEl.textContent = e?.message || 'Save failed.';
+      }
+      btn.disabled = false; btn.textContent = '✓ Check In';
+    }
+
+    document.getElementById('nameInput')?.addEventListener('input', e => {
+      const display = document.getElementById('codeDisplay');
+      const codeEl  = document.getElementById('generatedCode');
+      if (e.target.value.trim()) {
+        if (!codeEl.textContent) codeEl.textContent = freshCode();
+        display.style.display = '';
+      } else {
+        display.style.display = 'none';
+        codeEl.textContent = '';
+      }
+    });
+    document.getElementById('nameInput')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doCheckin();
+    });
+
+    function loadLiveList(){
+      db.collection('kids').orderBy('timestamp','desc').onSnapshot(snap => {
+        const list  = document.getElementById('liveList');
+        const count = document.getElementById('totalCount');
+        const chip  = document.getElementById('checkedInCountChip');
+        list.innerHTML = '';
+        count.textContent = 'Total checked in: ' + snap.size;
+        if (chip) chip.textContent = snap.size + ' in';
+        snap.forEach(doc => {
+          const d    = doc.data();
+          const name = d.name || '(no name)';
+          const code = d.code || d.barcode || '';
+          list.insertAdjacentHTML('beforeend',
+            `<li><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
+        });
+      }, () => setChip('err','Live list blocked'));
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+  </script>
 </body>
 </html>

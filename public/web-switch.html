@@ -182,7 +182,6 @@
 
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="outlets">⚡ Outlets</button>
-    <button class="tab-btn" data-tab="air">💨 Air</button>
     <button class="tab-btn" data-tab="automation">▶ Automation</button>
     <button class="tab-btn" data-tab="health">🩺 Health</button>
   </nav>
@@ -202,38 +201,6 @@
       </div>
       <div id="cards" class="grid"></div>
       <div id="err" class="status err" style="margin-top:12px"></div>
-    </div>
-  </div>
-
-  <!-- AIR TAB -->
-  <div id="tab-air" class="tab-panel">
-    <div class="wrap">
-
-      <!-- Add effect form -->
-      <div class="scard" style="margin-bottom:16px">
-        <h3>💨 Air Effects</h3>
-        <p style="margin-bottom:14px">Each effect maps a name to a Pi GPIO pin. Pressing Fire sends a PULSE to that pin via the queue — the relay triggers the solenoid valve.</p>
-        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-          <div>
-            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">Name</label>
-            <input type="text" id="airName" placeholder="e.g. Station 3 Blast" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:180px"/>
-          </div>
-          <div>
-            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">GPIO Pin (BCM)</label>
-            <input type="number" id="airPin" placeholder="18" min="2" max="27" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:90px"/>
-          </div>
-          <div>
-            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">Pulse (ms)</label>
-            <input type="number" id="airPulseMs" placeholder="500" min="50" max="5000" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:90px"/>
-          </div>
-          <button class="on" onclick="addAirEffect()">+ Add</button>
-        </div>
-        <div id="airAddStatus" class="status"></div>
-      </div>
-
-      <!-- Effect list -->
-      <div id="airEffectList" style="display:flex;flex-direction:column;gap:10px"></div>
-
     </div>
   </div>
 
@@ -778,83 +745,10 @@ window.startUiHeartbeatLoop = startUiHeartbeatLoop;
 })();
 
 /* ==== Tab switching ==== */
-/* ===== AIR EFFECTS ===== */
-const AIR_DOC = db.collection('webswitch').doc('airEffects');
-let _airUnsub = null;
-
-function startAirTab(){
-  if(_airUnsub) return;
-  _airUnsub = AIR_DOC.onSnapshot(snap=>{
-    const effects = snap.exists ? (snap.data().effects || []) : [];
-    renderAirEffects(effects);
-  });
-}
-
-function renderAirEffects(effects){
-  const el = document.getElementById('airEffectList');
-  if(!el) return;
-  if(!effects.length){
-    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">No air effects configured yet. Add one above.</div>';
-    return;
-  }
-  el.innerHTML = effects.map((e,i)=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 var(--ink);flex-wrap:wrap">
-      <div style="flex:1;min-width:140px">
-        <div style="font-weight:700;font-size:14px">${escSafe(e.name||'Effect')}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">GPIO pin ${e.pin} · ${e.pulseMs||500} ms pulse</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="on" style="background:#248a26" onclick="fireAirEffect(${e.pin},${e.pulseMs||500},'${escSafe(e.name||'')}')">💨 Fire</button>
-        <button class="off" onclick="deleteAirEffect(${i})">Delete</button>
-      </div>
-    </div>`).join('');
-}
-
-async function addAirEffect(){
-  const name    = (document.getElementById('airName').value||'').trim();
-  const pin     = parseInt(document.getElementById('airPin').value,10);
-  const pulseMs = parseInt(document.getElementById('airPulseMs').value,10)||500;
-  const st      = document.getElementById('airAddStatus');
-  if(!name||!pin||pin<2||pin>27){ st.textContent='Name and a valid BCM pin (2–27) are required.'; return; }
-  const snap = await AIR_DOC.get();
-  const existing = snap.exists ? (snap.data().effects||[]) : [];
-  existing.push({ name, pin, pulseMs });
-  await AIR_DOC.set({ effects: existing },{merge:true});
-  document.getElementById('airName').value='';
-  document.getElementById('airPin').value='';
-  document.getElementById('airPulseMs').value='';
-  st.textContent='✅ Added "'+name+'"';
-  setTimeout(()=>st.textContent='',2500);
-}
-
-async function deleteAirEffect(index){
-  if(!confirm('Delete this air effect?')) return;
-  const snap = await AIR_DOC.get();
-  const effects = snap.exists ? (snap.data().effects||[]) : [];
-  effects.splice(index,1);
-  await AIR_DOC.set({ effects },{merge:true});
-}
-
-async function fireAirEffect(pin, pulseMs, name){
-  try{
-    await QUEUE_COL.add({
-      type:'gpio', gpioPin:pin, gpioState:'PULSE', gpioPulseMs:pulseMs,
-      processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(),
-      uid:'air:pin'+pin
-    });
-    const btns = document.querySelectorAll('#airEffectList button.on');
-    btns.forEach(b=>{ if(b.textContent.includes('Fire')&&b.onclick?.toString().includes('pin:'+pin)) b.textContent='✅ Fired'; });
-    console.log('Air fired: pin',pin,pulseMs+'ms');
-  }catch(e){ alert('Queue error: '+e.message); }
-}
-
-function escSafe(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
   if(name==='health') setTimeout(()=>{ try{ drawHealth(); }catch{} }, 60);
-  if(name==='air') startAirTab();
 }
 document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
 
@@ -1058,66 +952,6 @@ async function saveAIRules(){
     }
   }catch{}
 })();
-
-/* ==== Air Tab — Rescue Stations ==== */
-(function(){
-  const listEl = document.getElementById('airRescueList');
-  const stEl   = document.getElementById('airRescueStatus');
-
-  db.collection('rescueStations').onSnapshot(snap=>{
-    if(!listEl) return;
-    if(snap.empty){ listEl.innerHTML='<div style="color:var(--muted);font-size:12px">No rescue stations configured. Add them in Admin → Rescue Stations.</div>'; return; }
-    listEl.innerHTML='';
-    snap.forEach(doc=>{
-      const d = doc.data();
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.style.cssText = d.rescued ? 'border-left-color:var(--green);background:#f2fdf3' : '';
-      card.innerHTML = `
-        <div class="card-top">
-          <div>
-            <div class="card-num">${doc.id}</div>
-            <div class="card-name">${escapeHtml(d.name||doc.id)}</div>
-          </div>
-          <div class="card-state">
-            <span class="state-dot ${d.rescued?'state-on':'state-off'}"></span>
-            <span class="state-label">${d.rescued?'RESCUED':'LOCKED'}</span>
-          </div>
-        </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${d.pointCost||0} pts &nbsp;·&nbsp; Outlet ${d.outlet||'—'}${d.rescued&&d.rescuedByName?' &nbsp;·&nbsp; by '+escapeHtml(d.rescuedByName):''}</div>
-        <div class="card-btns">
-          <button class="btn-on" onclick="fireRescue('${doc.id}',${d.outlet||1})">🔩 Fire</button>
-          <button class="btn-off" onclick="resetRescue('${doc.id}')">🔒 Reset</button>
-        </div>
-        <div class="card-status" id="air-st-${doc.id}"></div>`;
-      listEl.appendChild(card);
-    });
-  });
-
-  window.fireRescue = async function(id, outlet){
-    const st = document.getElementById('air-st-'+id);
-    if(st) st.textContent='Firing…';
-    try{
-      await QUEUE_COL.add({type:'air',outlet:Number(outlet),state:'pulse',processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual:'+id});
-      if(st) st.textContent='✅ Pulse sent ('+new Date().toLocaleTimeString()+')';
-    }catch(e){ if(st) st.textContent='❌ '+e.message; }
-  };
-
-  window.resetRescue = async function(id){
-    await db.collection('rescueStations').doc(id).update({rescued:false,rescuedBy:null,rescuedByName:null,rescuedAt:null});
-  };
-})();
-
-async function fireSolenoidPulse(){
-  const outlet  = Number(document.getElementById('airOutletSel').value);
-  const ms      = Number(document.getElementById('airPulseMs').value)||500;
-  const stEl    = document.getElementById('airPulseStatus');
-  stEl.textContent = 'Sending…';
-  try{
-    await QUEUE_COL.add({type:'air',outlet,state:'pulse',pulseMs:ms,processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'});
-    stEl.textContent = '✅ Pulse sent to outlet '+outlet+' ('+ms+'ms)';
-  }catch(e){ stEl.textContent = '❌ '+e.message; }
-}
 
 /* ==== AI Quick Sequence ==== */
 let _parsedQuickSeq = null;

@@ -110,6 +110,14 @@
     color: #231207; flex: 1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .im-powerups {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .im-powerups img {
+    height: clamp(20px, 2.8vw, 38px); width: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.4));
+  }
   .im-coins {
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(10px, 1.6vw, 20px);
@@ -255,10 +263,19 @@ function render() {
   </div>`;
 
   const rows = inMaze.map(k => {
-    const startMs = k.mazeStartTime.toMillis(); // guaranteed by filter above
+    const startMs = k.mazeStartTime.toMillis();
+    const hasMushroom = k.mushroomStation && !k.usedMushroom;
+    const hasShell    = k.shellStation    && !k.usedShell;
+    const savedPeach  = !!k.savedPeach;
+    const powerups = [
+      hasMushroom ? `<img src="icons/mushroom.png"        alt="Mushroom" title="Has Mushroom">` : '',
+      hasShell    ? `<img src="icons/red_shell.webp"      alt="Red Shell" title="Has Red Shell">` : '',
+      savedPeach  ? `<img src="icons/princess_peach.png"  alt="Saved Peach" title="Rescued Princess Peach">` : '',
+    ].join('');
     return `<div class="im-row" data-start="${startMs}">
       <div class="im-dot"></div>
       <div class="im-name">${escHtml(k.name || '?')}</div>
+      ${powerups ? `<div class="im-powerups">${powerups}</div>` : ''}
       <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
       <div class="im-elapsed">${fmtTime(Date.now() - startMs)}</div>
     </div>`;

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 18" shape-rendering="crispEdges">
+  <!-- black outline -->
+  <ellipse cx="10" cy="9" rx="9.5" ry="8.5" fill="#231207"/>
+  <!-- white spine/underside -->
+  <ellipse cx="10" cy="15.5" rx="7.5" ry="2.5" fill="#e8e0c8"/>
+  <!-- red shell body -->
+  <ellipse cx="10" cy="8.5" rx="8" ry="7" fill="#e52521"/>
+  <!-- white dividing cross -->
+  <rect x="9" y="2" width="2" height="13" fill="#fff"/>
+  <rect x="2" y="7.5" width="16" height="2" fill="#fff"/>
+  <!-- shell segment shading (darker red in lower half) -->
+  <ellipse cx="6"  cy="11" rx="2.8" ry="1.8" fill="#b81a18"/>
+  <ellipse cx="14" cy="11" rx="2.8" ry="1.8" fill="#b81a18"/>
+  <!-- top highlight -->
+  <ellipse cx="10" cy="5" rx="3" ry="1.5" fill="#ff4a42" opacity="0.6"/>
+</svg>

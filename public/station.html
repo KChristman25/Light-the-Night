@@ -2,661 +2,3306 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>📱 Stations</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Light the Night — Station</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/>
   <link rel="icon" href="data:,">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
   <!-- Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <!-- NoSleep (KIOSK) -->
+  <!-- NoSleep -->
   <script src="https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js"></script>
+  <!-- Firebase Auth -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <!-- Firebase Storage -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
   <style>
-    :root{
-      --bg:#000014; --panel:#0c1226; --ink:#e8f7ff; --muted:#9fb6c9; --accent:#22d3ee;
-      --line:#1b2a56;
-      --radius:16px;
-      --pad: clamp(14px, 2.2vw, 22px);
-      --font-base: clamp(16px, 1.8vw, 20px);
-      --font-lg: clamp(18px, 2.2vw, 24px);
-      --font-xl: clamp(20px, 2.8vw, 32px);
-      --touch: clamp(48px, 7.2vw, 64px);
+    :root {
+      --bg:        #5c94fc;
+      --bg-card:   #ffffff;
+      --bg-input:  #ffffff;
+      --border:    #231207;
+      --mario-red: #e52521;
+      --mario-gold:#e8a000;
+      --mario-dark:#231207;
+      --blue:      #e52521;
+      --blue-dim:  rgba(232,160,0,.12);
+      --blue-glow: rgba(232,160,0,.3);
+      --text:      #231207;
+      --muted:     #4a3728;
+      --muted-lt:  #7a5c44;
+      --ok:        #248a26;
+      --err:       #e52521;
+      --radius:    4px;
+      --pad:       clamp(14px,2.2vw,22px);
+      --font-base: clamp(13px,1.6vw,15px);
+      --font-lg:   clamp(14px,1.8vw,17px);
+      --font-xl:   clamp(12px,1.4vw,14px);
+      --touch:     clamp(48px,7.2vw,64px);
     }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{
-      margin:0;padding:0;background:var(--bg);color:var(--ink);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      font-size:var(--font-base);
-      overflow-x:hidden;
-    }
-
-    /* ⭐ Starfield canvas behind everything */
-    #bgStars{
-      position:fixed; inset:0; z-index:0; pointer-events:none; display:block;
-    }
-
-    .wrap{max-width:min(900px,92vw); margin:0 auto; padding: env(safe-area-inset-top) var(--pad) calc(env(safe-area-inset-bottom) + var(--pad)); position:relative; z-index:1;}
-    header{position:sticky; top:0; z-index:2; background:linear-gradient(180deg,#050a1a 0%, rgba(5,10,26,0.6) 100%); backdrop-filter: blur(6px); border-bottom:1px solid #0e1a3a; box-shadow:0 6px 18px rgba(0,0,0,.35);}
-    header .h{display:flex; align-items:center; justify-content:center; gap:12px; padding: clamp(14px,2.4vw,22px) var(--pad); font-weight:800; font-size: var(--font-xl);}
-
-    .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);margin-top:var(--pad)}
-    .center{text-align:center}
-
-    .inp{width:100%; padding: calc(var(--pad)*.8) var(--pad); border-radius:12px;border:1px solid var(--line);background:#0a1430;color:var(--ink); font-size:var(--font-lg);}
-    .btn{width:100%; margin-top:12px; padding: calc(var(--pad)*.8) var(--pad); border-radius:12px;border:1px solid #16445a;background:#0b2238;color:#bfefff; font-weight:800; font-size:var(--font-lg); cursor:pointer; min-height: var(--touch);}
-    .btn:active{transform: translateY(1px)}
-    .err{color:#ff8b8b;font-weight:800;margin-top:8px;text-align:center;min-height:20px}
-    .hide{display:none}
-
-    .list{margin-top:var(--pad)}
-    .bar{display:flex; align-items:center; justify-content:space-between; gap:12px; background:rgba(12,18,38,.45);border:1px solid var(--line);border-radius:var(--radius); padding: clamp(14px,2.2vw,18px) var(--pad); margin:12px 0; cursor:pointer; min-height: var(--touch);}
-    .bar:active{background:rgba(12,18,38,.75)}
-    .id{font-weight:900;font-size:var(--font-lg);color:var(--accent);min-width:64px}
-    .name{font-size:var(--font-lg);font-weight:700;flex:1}
-    .go{font-weight:800;opacity:.9}
-    .muted{color:var(--muted);font-size: clamp(14px,1.6vw,16px); text-align:center;margin-top:10px}
-
-    /* Control view */
-    .bigRedWrap{
-      display:flex;
-      justify-content:center;
-      margin-top:0.2rem;
-    }
-    .bigRedBtn{
-      width:min(360px,78vw);
-      aspect-ratio:1/1;
-      border-radius:999px;
-      background:radial-gradient(circle at 30% 30%, #ffb1b1, #ff0000 65%, #7a0000 100%);
-      border:6px solid rgba(255,230,230,.35);
-      box-shadow:0 0 25px rgba(255,0,0,.45), 0 0 60px rgba(255,0,0,.25) inset;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:.3rem;
-      font-size:clamp(1.35rem,4.2vw,2.3rem);
-      font-weight:800;
-      text-transform:uppercase;
-      letter-spacing:.12em;
-      color:#ffe8e8;
-      cursor:pointer;
-      user-select:none;
-      touch-action:manipulation;
-    }
-    .bigRedBtn:active{
-      filter:brightness(1.08);
-      transform:translateY(1px) scale(.996);
-      box-shadow:0 0 18px rgba(255,0,0,.55);
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0;
+      background-color: #5c94fc;
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: var(--font-base);
+      overflow-x: hidden;
+      /* Fill the full viewport on iOS without needing fullscreen API */
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
     }
 
-    .lcd-row{display:flex;justify-content:center;gap: clamp(8px,1.8vw,14px); margin: clamp(14px,2vw,16px) 0 0.5rem;}
-    .lcd{background:#022f02;color:#b9ffb9; font-family: ui-monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-weight:900;font-size: clamp(18px, 3.2vw, 28px); padding: .55rem 1rem;border-radius:10px;border:1px solid #0a5f0a; text-shadow:0 0 1px #b9ffb9;min-width:88px;text-align:center}
+    .wrap {
+      max-width: min(860px, 92vw);
+      margin: 0 auto;
+      padding: env(safe-area-inset-top) var(--pad) calc(env(safe-area-inset-bottom) + 72px);
+      position: relative;
+      z-index: 2;
+    }
 
-    /* little sci-fi buttons */
-    .button-grid{display:grid; grid-template-columns: repeat(4, minmax(72px, 1fr)); gap: clamp(12px, 2.2vw, 20px); padding: 1rem .2rem 0;}
-    .btnSquare{width: clamp(72px, 14vw, 100px); height: clamp(72px, 14vw, 100px); border-radius:14px; box-shadow:0 0 10px currentColor; opacity:.6; cursor:pointer}
-    @keyframes flashOdd{0%,100%{opacity:.55}50%{opacity:1}}
-    @keyframes flashEven{0%,100%{opacity:1}50%{opacity:.55}}
-    .btnSquare:nth-child(odd){animation:flashOdd 1.8s infinite ease-in-out}
-    .btnSquare:nth-child(even){animation:flashEven 1.8s infinite ease-in-out}
-    .red{background:#e74c3c;color:#e74c3c}
-    .blue{background:#3498db;color:#3498db}
-    .green{background:#2ecc71;color:#2ecc71}
-    .yellow{background:#f1c40f;color:#f1c40f}
-    .purple{background:#9b59b6;color:#9b59b6}
-    .orange{background:#e67e22;color:#e67e22}
-    .teal{background:#1abc9c;color:#1abc9c}
-    .pink{background:#fd79a8;color:#fd79a8}
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 2;
+      background: #e52521;
+      border-bottom: 3px solid #231207;
+    }
+    header .h {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: clamp(14px,2.4vw,20px) var(--pad);
+      font-family: 'Press Start 2P', monospace;
+      font-size: var(--font-xl);
+      color: #ffffff;
+      letter-spacing: .02em;
+      text-shadow: 2px 2px 0 #231207;
+    }
 
-    /* status: hidden by default, only shown when we set text */
-    #statusMsg{
-      margin-top:10px;
-      text-align:center;
-      font-weight:800;
-      font-size: clamp(14px,1.8vw,18px);
-      color:#e8f7ff;
-      padding:10px 14px;
-      border:1px solid rgba(32,48,79,.8);
-      background:rgba(10,22,40,.75);
-      border-radius:12px;
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .card {
+      background: #ffffff;
+      border: 3px solid #231207;
+      border-radius: var(--radius);
+      box-shadow: 5px 5px 0 #231207;
+      padding: var(--pad);
+      margin-top: var(--pad);
+    }
+    .center { text-align: center; }
+
+    .inp {
+      width: 100%; padding: calc(var(--pad)*.75) var(--pad);
+      border-radius: 4px; border: 2px solid #231207;
+      background: #fff; color: #231207;
+      font-size: var(--font-lg); font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .inp:focus { border-color: #e52521; box-shadow: 2px 2px 0 #e52521; }
+
+    .btn {
+      width: 100%; margin-top: 10px;
+      padding: calc(var(--pad)*.75) var(--pad);
+      border-radius: 4px;
+      border: 3px solid #231207;
+      background: #e52521;
+      color: #ffffff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      cursor: pointer; min-height: var(--touch);
+      box-shadow: 3px 3px 0 #231207;
+      transition: box-shadow .1s, transform .1s;
+    }
+    .btn:hover { background: #c41f1c; }
+    .btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #231207; }
+
+    .err { color: #e52521; font-weight: 600; margin-top: 8px; text-align: center; min-height: 20px; font-size: 12px; font-family: 'Inter', sans-serif; }
+    .hide { display: none; }
+
+    /* ── Station list ────────────────────────────────────────────────────── */
+    .list { margin-top: var(--pad); }
+    .bar {
+      display: flex; align-items: center; gap: 14px;
+      background: #ffffff;
+      border: 3px solid #231207;
+      border-radius: 4px;
+      box-shadow: 3px 3px 0 #231207;
+      padding: clamp(14px,2vw,18px) var(--pad);
+      margin: 10px 0; cursor: pointer; min-height: var(--touch);
+      transition: box-shadow .12s, transform .12s;
+    }
+    .bar:hover  { box-shadow: 5px 5px 0 #231207; transform: translate(-1px,-1px); }
+    .bar:active { box-shadow: 1px 1px 0 #231207; transform: translate(1px,1px); }
+    .id   { font-family: 'Press Start 2P', monospace; font-size: 12px; color: #e52521; min-width: 52px; }
+    .name { font-family: 'Inter', sans-serif; font-size: var(--font-lg); font-weight: 600; color: #231207; flex: 1; }
+    .go   { color: #e8a000; font-size: 18px; content: '▶'; }
+    .muted-text { color: #4a3728; font-family: 'Inter', sans-serif; font-size: 13px; text-align: center; margin-top: 10px; }
+
+    /* ── Control view ────────────────────────────────────────────────────── */
+
+    /* ── Keypad display ──────────────────────────────────────────────────── */
+    .keypad-display {
+      display: flex;
+      justify-content: center;
+      gap: clamp(5px,1.2vw,9px);
+      margin: 18px 0 14px;
+    }
+    .digit-slot {
+      width: clamp(36px,8.5vw,52px);
+      height: clamp(44px,10.5vw,58px);
+      background: #0a110a;
+      border: 2px solid #231207;
+      border-radius: 4px;
+      box-shadow: 3px 3px 0 #231207;
+      display: flex; align-items: center; justify-content: center;
+      font-family: ui-monospace, 'Courier New', monospace;
+      font-size: clamp(18px,3.5vw,26px);
+      font-weight: 900;
+      color: #2a3a2a;
+      user-select: none;
+    }
+    .digit-slot.filled {
+      color: #e8a000;
+      text-shadow: 0 0 6px rgba(232,160,0,.5);
+    }
+
+    /* ── Keypad ──────────────────────────────────────────────────────────── */
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(7px,1.8vw,12px);
+      padding: 0 .25rem .25rem;
+    }
+    .key-btn {
+      padding: clamp(12px,2.8vw,20px) 8px;
+      border-radius: 4px;
+      border: 3px solid #231207;
+      background: #ffffff;
+      color: #231207;
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(14px,2.4vw,18px);
+      cursor: pointer;
+      box-shadow: 4px 4px 0 #231207;
+      transition: box-shadow .08s, transform .08s;
+      min-height: clamp(52px,9vw,68px);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .key-btn:hover { background: #f0e8d4; }
+    .key-btn:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 #231207; }
+    .key-clear { background: #fde8d4; color: #e52521; }
+    .key-enter { background: #248a26; color: #ffffff; }
+    .key-enter:hover { background: #1a6b1c; }
+
+    #statusMsg {
+      margin-top: 10px; text-align: center;
+      font-size: 14px; font-weight: 700; color: #248a26;
+      padding: 12px 14px;
+      border: 2px solid #248a26;
+      background: rgba(36,138,38,.08);
+      border-radius: 4px; display: none;
+      letter-spacing: .01em;
+      word-break: break-word; overflow-wrap: break-word;
+    }
+
+
+    /* ── Hot corners ─────────────────────────────────────────────────────── */
+    .hot { position: absolute; width: 25vw; height: 25vh; z-index: 4; }
+    .hot.tl{left:0;top:0} .hot.tr{right:0;top:0}
+    .hot.br{right:0;bottom:0} .hot.bl{left:0;bottom:0}
+
+    /* ── Admin overlay ───────────────────────────────────────────────────── */
+    #adminOverlay {
+      position: fixed; inset: 0; z-index: 5000;
+      background: rgba(35,18,7,.92);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+      padding-top: max(64px, env(safe-area-inset-top) + 64px);
+    }
+    #adminOverlay.open { display: flex; }
+    .admin-card {
+      width: min(380px, 94vw);
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      background: #231207;
+      border: 3px solid #e8a000;
+      border-radius: 4px;
+      padding: 24px 22px 20px;
+      box-shadow: 6px 6px 0 #e8a000;
+    }
+    .admin-card h2 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px; color: #e8a000;
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px;
+    }
+    .admin-card .admin-sub {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 12px; color: #ffffff; margin-bottom: 20px;
+    }
+    .admin-menu-btn {
+      display: flex; align-items: center; gap: 14px;
+      width: 100%; padding: 14px 16px; margin-bottom: 10px;
+      background: #3a1f0a; border: 2px solid #e8a000;
+      border-radius: 4px; color: #ffffff;
+      font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-align: left;
+      transition: background .15s, border-color .15s;
+    }
+    .admin-menu-btn:hover { background: #4d2a0d; border-color: #ffc107; }
+    .admin-menu-btn:active { transform: translateY(1px); }
+    .admin-menu-btn .ico { font-size: 22px; }
+    .admin-menu-btn .lbl { flex: 1; }
+    .admin-menu-btn .desc { font-size: 12px; font-weight: 400; color: #c4956a; display: block; margin-top: 2px; }
+    .admin-close {
+      width: 100%; margin-top: 6px; padding: 10px;
+      background: none; border: 2px solid #5a3a1a; border-radius: 4px;
+      color: #c4956a; font-size: 13px; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: color .15s, border-color .15s;
+    }
+    .admin-close:hover { color: #ffffff; border-color: #e8a000; }
+
+    /* Health view */
+    .health-back {
+      background: none; border: none; color: #e8a000;
+      font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; padding: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 5px;
+    }
+    .health-back:hover { color: #ffc107; }
+    .health-stat {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid #3a1f0a;
+      font-size: 13px;
+    }
+    .health-stat:last-of-type { border-bottom: none; }
+    .health-stat .label { color: #c4956a; font-family: 'Inter', sans-serif; }
+    .health-stat .value { font-weight: 600; color: #ffffff; font-family: 'Inter', sans-serif; }
+    .health-scan-row {
+      display: flex; justify-content: space-between;
+      padding: 7px 0; border-bottom: 1px solid #3a1f0a;
+      font-size: 13px;
+    }
+    .health-scan-row:last-child { border-bottom: none; }
+    .health-section { font-family: 'Press Start 2P', monospace; font-size: 9px; font-weight: 700; color: #e8a000; text-transform: uppercase; letter-spacing: .07em; margin: 14px 0 8px; }
+    #healthContent { max-height: 55vh; overflow-y: auto; }
+
+    /* ── Mario Mini-Game ─────────────────────────────────────────────── */
+    #marioGame {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; overflow: hidden;
+      touch-action: none; user-select: none;
+    }
+    #marioGame.active { display: block; }
+    #marioCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+    #gameTapHint {
+      position: absolute; bottom: 110px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Press Start 2P', monospace; font-size: clamp(10px,2vw,14px);
+      color: #fff; text-shadow: 2px 2px 0 #000;
+      animation: tapBlink 0.7s step-end infinite;
+      z-index: 10; white-space: nowrap; pointer-events: none;
+    }
+    @keyframes tapBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    #gameResult {
+      position: absolute; inset: 0; z-index: 20;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.72);
+    }
+    #gameResult.hide { display: none !important; }
+    #gameResultBox {
+      background: #231207; border: 4px solid #e8a000;
+      box-shadow: 6px 6px 0 #e8a000; border-radius: 4px;
+      padding: clamp(20px,4vw,40px) clamp(24px,5vw,48px);
+      text-align: center; font-family: 'Press Start 2P', monospace;
+      min-width: min(300px,86vw); max-width: 92vw;
+    }
+    .result-icon { font-size: clamp(48px,10vw,72px); margin-bottom: 12px; display: block; animation: iconPop 0.45s cubic-bezier(.17,.89,.32,1.28); }
+    .result-amount { font-size: clamp(20px,5vw,32px); color: #e8a000; margin: 6px 0; }
+    .result-multiplier { font-size: clamp(28px,7vw,48px); color: #e52521; margin: 6px 0; display: none; animation: iconPop 0.4s ease-out; }
+    .result-final { font-size: clamp(36px,9vw,64px); color: #fff; margin-top: 4px; letter-spacing:.02em; }
+    .result-plus  { display:inline-block; transform:rotate(-6deg); background:#e8a000; color:#231207; padding:3px 12px; border-radius:4px; border:3px solid #9a6000; font-size:clamp(14px,3.5vw,22px); margin-bottom:4px; }
+    .result-label { font-size: clamp(8px,1.8vw,11px); color: #c4956a; margin-top: 14px; line-height: 2; }
+    @keyframes iconPop { 0%{transform:scale(0) rotate(-20deg)} 100%{transform:scale(1) rotate(0)} }
+
+    #gameBalance {
+      position: absolute; top: 16px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(10px,2.5vw,14px); color: #ffd700;
+      text-shadow: 2px 2px 0 #000; z-index: 12;
+      white-space: nowrap; pointer-events: none;
+      display: none; transition: font-size 0.5s ease;
+    }
+    #marioGame.active #gameBalance { display: block; }
+
+    #gamePlayerName {
+      position: absolute; top: 16px; right: 16px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(8px,1.8vw,11px); color: #fff;
+      text-shadow: 2px 2px 0 #000; z-index: 12;
+      white-space: nowrap; pointer-events: none;
+      display: none;
+    }
+    #marioGame.active #gamePlayerName { display: block; }
+
+    #powerupTimer {
+      position: absolute; top: 48px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(11px,2.5vw,16px); color: #fff;
+      text-shadow: 2px 2px 0 #000; z-index: 15;
+      white-space: nowrap; pointer-events: none;
+      display: none;
+    }
+
+
+    /* ── Rotate overlay: shown in portrait on all sizes ─────────────── */
+    #rotateHint {
+      display: none;
+      position: fixed; inset: 0; z-index: 99999;
+      background: #231207;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 20px; text-align: center;
+    }
+    @media (orientation: portrait) {
+      #rotateHint { display: flex; }
+      /* Phones handle portrait via native code entry — no rotate hint */
+      body.phone-device #rotateHint { display: none; }
+    }
+
+    /* ── Portrait code entry (phones in kiosk mode) ── */
+    #portraitCodeEntry {
+      display: none;
+      position: fixed; inset: 0; z-index: 9000;
+      background: #231207;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 20px; padding: 32px 24px; text-align: center;
+    }
+    @media (orientation: portrait) {
+      body.phone-device.kiosk #portraitCodeEntry { display: flex; }
+    }
+    #portraitCodeInput {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 36px; letter-spacing: 0.2em;
+      background: #3a1f0a; color: #fff;
+      border: 3px solid #e8a000; border-radius: 4px;
+      padding: 16px 20px; width: 100%; max-width: 320px;
+      text-align: center; outline: none;
+      box-shadow: 4px 4px 0 #e8a000;
+    }
+    #portraitCodeInput::placeholder { color: #7a5c44; }
+    #portraitSubmitBtn {
+      font-family: 'Press Start 2P', monospace; font-size: 16px;
+      background: #248a26; color: #fff;
+      border: 3px solid #80ff80; border-radius: 4px;
+      padding: 16px 32px; cursor: pointer; width: 100%; max-width: 320px;
+      box-shadow: 4px 4px 0 #80ff80;
+    }
+    #portraitStatus {
+      font-family: 'Press Start 2P', monospace; font-size: 11px;
+      color: #e52521; min-height: 20px;
+    }
+
+    /* ── Landscape: all devices (phones, tablets, desktop) ─────────── */
+    @media screen and (orientation: landscape) {
+      /* svh = "small viewport height" — always excludes browser chrome (iOS tab bar, etc.) */
+      html, body { height: 100svh; overflow: hidden; }
+      body { display: flex; flex-direction: column; }
+      header { position: static; flex-shrink: 0; }
+      #broadcastBanner { flex-shrink: 0; }
+
+      header .h {
+        padding: clamp(2px, 0.8svh, 8px) var(--pad);
+        font-size: clamp(8px, 1.6svh, 13px);
+      }
+
+      .wrap {
+        flex: 1; min-height: 0; max-width: min(720px, 92vw); margin: 0 auto;
+        overflow-y: auto;
+        padding: 0 clamp(6px,1.2vw,18px) clamp(4px,0.6svh,8px);
+      }
+
+      /* Kiosk (station selected) — full-height centred keypad */
+      body.kiosk .wrap { max-width: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0; }
+      body.kiosk #view-control { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+      body.kiosk #view-control .card {
+        flex: 1; min-height: 0;
+        background: transparent; border: none; box-shadow: none; border-radius: 0;
+        display: flex; align-items: center; justify-content: center;
+        padding: clamp(2px,0.6svh,12px) clamp(8px,1.5vw,24px);
+        margin-top: 0;
+      }
+
+      body.kiosk #view-control .keypad-section {
+        flex: 0 0 auto;
+        width: clamp(220px, 38vw, 380px);
+        min-height: 0; max-height: 100%;
+        display: flex; flex-direction: column;
+        background: #231207;
+        border: 2px solid #e8a000; border-radius: 4px;
+        box-shadow: 3px 3px 0 #e8a000;
+        padding: clamp(4px, 0.8svh, 12px) clamp(8px, 1.4vw, 18px);
+        position: relative; z-index: 2;
+        overflow: hidden;
+      }
+
+      .keypad-display { margin: clamp(2px,0.4svh,6px) 0 clamp(2px,0.3svh,5px); flex-shrink: 0; }
+
+      .digit-slot {
+        width: clamp(22px, 5vw, 54px);
+        height: clamp(26px, 5svh, 56px);
+        font-size: clamp(12px, 2.4svh, 26px);
+        box-shadow: 2px 2px 0 #231207;
+      }
+
+      body.kiosk .keypad {
+        flex: 1; min-height: 0;
+        grid-template-rows: repeat(4, 1fr);
+        gap: clamp(3px, 0.6svh, 8px);
+      }
+
+      body.kiosk .key-btn {
+        min-height: 0;
+        padding: 0;
+        font-size: clamp(16px, 3.2svh, 24px);
+        background: #3a1f0a; color: #fff; border-color: #e8a000;
+        border-width: 2px;
+        box-shadow: 2px 2px 0 #e8a000;
+      }
+      body.kiosk .key-clear { background: #4a1212; color: #ff8080; border-color: #e52521; }
+      body.kiosk .key-enter { background: #1a4a1a; color: #80ff80; border-color: #248a26; }
+
+      #statusMsg { margin-top: 2px; font-size: clamp(9px,1.4svh,13px); padding: 3px 8px; flex-shrink: 0; }
+    }
+
+    /* ── Tablet / desktop landscape: more breathing room ───────────── */
+    @media screen and (orientation: landscape) and (min-height: 500px) {
+      header .h { padding: clamp(6px,1.2svh,12px) var(--pad); font-size: clamp(9px,1.1vw,13px); }
+      body.kiosk #view-control .keypad-section {
+        width: clamp(280px, 40vw, 420px);
+        padding: clamp(10px,1.6svh,20px) clamp(14px,2vw,22px);
+        border-width: 3px; box-shadow: 5px 5px 0 #e8a000;
+      }
+      .digit-slot { width: clamp(30px,5.5vw,58px); height: clamp(36px,6svh,58px); font-size: clamp(14px,2.8svh,26px); box-shadow: 3px 3px 0 #231207; }
+      body.kiosk .key-btn { font-size: clamp(16px,2.8svh,26px); border-width: 3px; box-shadow: 4px 4px 0 #e8a000; padding: clamp(4px,0.8svh,12px) 4px; }
+      body.kiosk .keypad { gap: clamp(5px,0.8svh,10px); }
+      #statusMsg { font-size: 13px; padding: 6px 10px; }
+    }
+
+    /* ── Desktop landscape (≥1100 px wide) ─────────────────────────── */
+    @media screen and (orientation: landscape) and (min-width: 1100px) {
+      header .h { font-size: 15px; padding: 14px var(--pad); }
+      .wrap { max-width: min(780px, 65vw); }
+      .bar { padding: 20px var(--pad); }
+      body.kiosk #view-control .keypad-section { width: clamp(340px,32vw,440px); }
+      .digit-slot { width: clamp(42px,5vw,62px); height: clamp(48px,6svh,68px); font-size: clamp(20px,3svh,30px); }
+      body.kiosk .key-btn { font-size: clamp(18px,2.8svh,28px); }
+    }
+
+    /* ── Background canvas (sky + SMB clouds + ground) ─────────────── */
+    #bgCanvas {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 0;
+      image-rendering: pixelated;
+    }
+
+    /* ── Auth + list: dark game style ── */
+    #view-auth {
+      background: #231207;
+      border-color: #e8a000;
+      box-shadow: 5px 5px 0 #e8a000;
+      max-width: 420px;
+      margin: 40px auto 0;
+    }
+    #view-auth .center { color: #e8a000 !important; text-shadow: 2px 2px 0 #000; }
+    #view-auth .inp {
+      background: #3a1f0a; color: #ffffff;
+      border-color: #e8a000;
+    }
+    #view-auth .inp::placeholder { color: #c4956a; }
+    #view-auth .inp:focus { border-color: #ffd700; box-shadow: 2px 2px 0 #e8a000; }
+    #view-auth .btn { background: #e52521; color: #fff; border-color: #e8a000; box-shadow: 3px 3px 0 #e8a000; }
+    #view-auth .err { color: #ff8080; }
+
+    #view-list { padding-top: clamp(16px, 3svh, 36px); }
+    #view-list .bar {
+      background: #231207;
+      border-color: #e8a000;
+      box-shadow: 3px 3px 0 #e8a000;
+      color: #fff;
+    }
+    #view-list .bar:hover  { box-shadow: 5px 5px 0 #e8a000; }
+    #view-list .bar:active { box-shadow: 1px 1px 0 #e8a000; }
+    #view-list .id   { color: #e8a000; }
+    #view-list .name { color: #ffffff; }
+    #view-list .go   { color: #e8a000; }
+    #view-list .muted-text { color: #c4956a; }
+
+    /* ── Code-entry: centre the keypad, card is transparent wrapper ── */
+    #view-control .card {
+      background: transparent;
+      border: none; box-shadow: none;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 0; margin-top: var(--pad);
+    }
+    #view-control .keypad-section {
+      width: min(380px, 94vw);
+      background: #231207;
+      border: 3px solid #e8a000; border-radius: 4px;
+      box-shadow: 6px 6px 0 #e8a000;
+      padding: clamp(16px,2.5vh,28px) clamp(16px,3vw,28px);
+    }
+    #view-control .key-btn {
+      background: #3a1f0a;
+      color: #ffffff;
+      border-color: #e8a000;
+    }
+    #view-control .key-clear { background: #4a1212; color: #ff8080; border-color: #e52521; }
+    #view-control .key-enter { background: #1a4a1a; color: #80ff80; border-color: #248a26; }
+    #view-control .ready-label { color: #e8a000; }
+    #view-control #statusMsg { color: #4cff50; border-color: #248a26; background: rgba(36,138,38,.12); }
+    #view-control #hintBox { background: #3a2005; border-color: #e8a000; }
+    #view-control #hintBox div:first-child { color: #e8a000; }
+    #view-control #hintText { color: #fff; }
+
+    /* ── Station Hub ─────────────────────────────────────── */
+    #view-hub, #view-rescue, #view-lands {
+      position: fixed; inset: 0; z-index: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: clamp(8px,1.5svh,16px) clamp(16px,4vw,48px) clamp(12px,2svh,24px);
+    }
+    #view-hub.hide, #view-rescue.hide, #view-lands.hide { display: none; }
+    .hub-grid {
+      display: flex; flex-direction: column; gap: clamp(6px,0.8svh,10px); width: 100%; max-width: 680px;
+    }
+    .hub-btn {
+      display: flex; flex-direction: row; align-items: center;
+      gap: 16px; padding: clamp(10px,1.6svh,16px) clamp(16px,2.5vw,28px);
+      border: 3px solid; border-radius: 4px;
+      cursor: pointer; text-align: left; width: 100%; background: none;
+    }
+    .hub-btn:active { transform: translate(2px,2px); }
+    .hub-icon { font-size: clamp(28px,4vw,40px); line-height: 1; flex-shrink: 0; }
+    .hub-text { display:flex; flex-direction:column; gap:3px; flex:1; }
+    .hub-label { font-family:'Press Start 2P',monospace; font-size:clamp(9px,1.4vw,13px); color:#fff; text-shadow:1px 1px 0 #000; line-height:1.5; }
+    .hub-desc  { font-family:'Inter',sans-serif; font-size:clamp(11px,1.3vw,14px); color:rgba(255,255,255,.7); }
+    .hub-arrow { font-size: clamp(18px,2.5vw,24px); color:rgba(255,255,255,.5); flex-shrink:0; }
+    .hub-btn.hub-coin    { background:#3d2600; border-color:#e8a000; box-shadow:4px 4px 0 #e8a000; }
+    .hub-btn.hub-coin:active    { box-shadow:1px 1px 0 #e8a000; }
+    .hub-btn.hub-shell   { background:#3d0000; border-color:#e52521; box-shadow:4px 4px 0 #e52521; }
+    .hub-btn.hub-shell:active   { box-shadow:1px 1px 0 #e52521; }
+    .hub-btn.hub-mushroom{ background:#3d1700; border-color:#ff8800; box-shadow:4px 4px 0 #ff8800; }
+    .hub-btn.hub-mushroom:active{ box-shadow:1px 1px 0 #ff8800; }
+    .hub-btn.hub-rescue  { background:#2e0e24; border-color:#ff80cc; box-shadow:4px 4px 0 #ff80cc; }
+    .hub-btn.hub-rescue:active  { box-shadow:1px 1px 0 #ff80cc; }
+    .hub-btn.hub-bowser  { background:#0e2608; border-color:#60c820; box-shadow:4px 4px 0 #60c820; }
+    .hub-btn.hub-bowser:active  { box-shadow:1px 1px 0 #60c820; }
+    .hub-btn.hub-lands   { background:#0a1a2a; border-color:#66aadd; box-shadow:4px 4px 0 #66aadd; }
+    .hub-btn.hub-lands:active   { box-shadow:1px 1px 0 #66aadd; }
+    .hub-btn.hub-ice     { background:#0a1e30; border-color:#88d8ff; box-shadow:4px 4px 0 #88d8ff; }
+    .hub-btn.hub-ice:active     { box-shadow:1px 1px 0 #88d8ff; }
+    .hub-btn.hub-water   { background:#001033; border-color:#3366cc; box-shadow:4px 4px 0 #3366cc; }
+    .hub-btn.hub-water:active   { box-shadow:1px 1px 0 #3366cc; }
+    .hub-btn.hub-fire    { background:#2a0800; border-color:#ff4400; box-shadow:4px 4px 0 #ff4400; }
+    .hub-btn.hub-fire:active    { box-shadow:1px 1px 0 #ff4400; }
+    .hub-btn.hub-lava    { background:#2a1000; border-color:#ff8800; box-shadow:4px 4px 0 #ff8800; }
+    .hub-btn.hub-lava:active    { box-shadow:1px 1px 0 #ff8800; }
+    .hub-btn.hub-start   { background:#003314; border-color:#22c55e; box-shadow:4px 4px 0 #22c55e; }
+    .hub-btn.hub-start:active   { box-shadow:1px 1px 0 #22c55e; }
+    .hub-back { font-family:'Press Start 2P',monospace; font-size:9px; background:#3a1f0a; color:#e8a000; border:2px solid #e8a000; border-radius:4px; padding:10px 18px; cursor:pointer; margin-bottom:10px; }
+
+    /* ── Start station countdown overlay ─────────────────────────────────── */
+    #startCountdown {
+      position:fixed; inset:0; z-index:9998;
+      background: transparent;
       display:none;
     }
+    .sc-name {
+      position:absolute; bottom:10%; left:50%; transform:translateX(-50%);
+      font-family:'Press Start 2P',monospace; font-size:clamp(14px,3vw,26px);
+      color:#e8a000; letter-spacing:.06em; text-align:center; white-space:nowrap;
+      text-shadow: 2px 2px 0 #231207, 0 0 24px rgba(232,160,0,.7);
+      z-index:1;
+    }
+    #scCanvas {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      width:max(100vw, calc(100vh * 16 / 9));
+      height:max(100vh, calc(100vw * 9 / 16));
+      display:block;
+    }
 
-    /* Secret hot corners */
-    .hot{position:absolute;width:25vw;height:25vh;z-index:4}
-    .hot.tl{left:0;top:0}.hot.tr{right:0;top:0}.hot.br{right:0;bottom:0}.hot.bl{left:0;bottom:0}
+    /* ── Start station entry screen ──────────────────────────────────────── */
+    #view-start {
+      position:fixed; inset:0; z-index:90;
+      background:transparent;
+      display:none; flex-direction:column; align-items:center; justify-content:center; gap:clamp(10px,1.8svh,20px);
+      padding:16px;
+    }
+    #view-start.show { display:flex; }
+    .sv-back { position:absolute; top:16px; left:16px; font-family:'Press Start 2P',monospace; font-size:9px; background:#231207; color:#e8a000; border:2px solid #e8a000; border-radius:4px; padding:7px 14px; cursor:pointer; box-shadow:2px 2px 0 #231207; }
+    .sv-back:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #231207; }
+    .sv-hero { text-align:center; }
+    .sv-title { font-family:'Press Start 2P',monospace; font-size:clamp(14px,3.5vw,26px); color:#e8a000; text-shadow:2px 2px 0 #231207, 0 0 24px rgba(232,160,0,.5); line-height:1.8; margin-top:8px; }
+    .sv-sub   { font-family:'Press Start 2P',monospace; font-size:clamp(7px,1.6vw,12px); color:#fff; line-height:2; text-shadow:1px 1px 0 #231207; }
+    .sv-card {
+      background:#231207; border:3px solid #e8a000; border-radius:4px;
+      box-shadow:6px 6px 0 #e8a000; padding:clamp(12px,2svh,22px) clamp(14px,3vw,28px);
+      display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.2svh,14px);
+      width:clamp(260px,min(90vw,55svh),440px);
+    }
+    .sv-display { display:flex; gap:clamp(8px,1.5vw,14px); justify-content:center; }
+    .sv-digit {
+      width:clamp(52px,10svh,76px); height:clamp(52px,10svh,76px);
+      border:3px solid #e8a000; border-radius:4px; background:#0a110a;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'Press Start 2P',monospace; font-size:clamp(24px,5svh,40px); color:#2a3a2a;
+      box-shadow:3px 3px 0 #231207; transition:background .1s, color .1s;
+    }
+    .sv-digit.filled { background:#1a2a00; color:#e8a000; box-shadow:3px 3px 0 #e8a000, 0 0 10px rgba(232,160,0,.3); text-shadow:0 0 6px rgba(232,160,0,.5); }
+    .sv-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(5px,0.9svh,10px); width:100%; }
+    .sv-key {
+      font-family:'Press Start 2P',monospace; font-size:clamp(16px,3.2svh,28px);
+      background:#3a1f0a; color:#fff; border:2px solid #e8a000; border-radius:4px;
+      padding:clamp(8px,1.4svh,16px) 4px; cursor:pointer;
+      box-shadow:3px 3px 0 #e8a000; transition:background .08s;
+    }
+    .sv-key:active { transform:translate(2px,2px); box-shadow:1px 1px 0 #e8a000; background:#4d2a0d; }
+    #startStatus { font-family:'Press Start 2P',monospace; font-size:9px; color:#f87171; min-height:16px; text-align:center; }
 
-    /* Rotate overlay (KIOSK) */
-    #rotateOverlay{position:fixed; inset:0; background:rgba(0,0,0,.92); color:#e8f7ff; display:none; align-items:center; justify-content:center; text-align:center; z-index:9999; padding:2rem; font-weight:800; letter-spacing:.3px;}
-    #rotateOverlay .box{border:2px dashed #22d3ee; border-radius:14px; padding:1.2rem 1.4rem; max-width:480px;}
-    #rotateOverlay .hint{ color:#9fb6c9; font-weight:700; margin-top:.6rem; font-size:.95rem; }
+    /* Special station header tinting */
+    body.station-shell    header { background:#7a0000; }
+    body.station-mushroom header { background:#7a3300; }
+    body.station-rescue   header { background:#4a1a3a; }
+    body.station-bowser   header { background:#1a3a10; }
+    body.station-shell   #view-control .keypad-section { border-color:#e52521 !important; box-shadow:6px 6px 0 #e52521 !important; }
+    body.station-mushroom #view-control .keypad-section { border-color:#ff8800 !important; box-shadow:6px 6px 0 #ff8800 !important; }
+    body.station-rescue  #view-control .keypad-section { border-color:#ff80cc !important; box-shadow:6px 6px 0 #ff80cc !important; }
+    body.station-bowser  #view-control .keypad-section { border-color:#60c820 !important; box-shadow:6px 6px 0 #60c820 !important; }
+
+    /* ── Land station background overlay ── */
+    #landBg { position:fixed; inset:0; z-index:1; display:none; pointer-events:none; }
+    body.station-ice    #landBg { display:block; background:linear-gradient(160deg,#a8d8f0 0%,#3a90d0 50%,#1a5090 100%); }
+    body.station-water  #landBg { display:block; background:linear-gradient(180deg,#002266 0%,#001144 60%,#000a22 100%); }
+    body.station-fire   #landBg { display:block; background:linear-gradient(180deg,#cc2200 0%,#880000 60%,#330000 100%); }
+    body.station-lava   #landBg { display:block; background:linear-gradient(180deg,#cc5500 0%,#882200 60%,#331100 100%); }
+
+    /* Land station keypad theming */
+    body.station-ice  header { background:#1a6090 !important; }
+    body.station-water header { background:#001a66 !important; }
+    body.station-fire  header { background:#880000 !important; }
+    body.station-lava  header { background:#882200 !important; }
+
+    body.station-ice  #view-control .keypad-section { background:#071a2a !important; border-color:#88d8ff !important; box-shadow:6px 6px 0 #88d8ff !important; }
+    body.station-water #view-control .keypad-section { background:#000d2a !important; border-color:#3366cc !important; box-shadow:6px 6px 0 #3366cc !important; }
+    body.station-fire  #view-control .keypad-section { background:#1a0000 !important; border-color:#ff4400 !important; box-shadow:6px 6px 0 #ff4400 !important; }
+    body.station-lava  #view-control .keypad-section { background:#1a0800 !important; border-color:#ff8800 !important; box-shadow:6px 6px 0 #ff8800 !important; }
+
+    body.station-ice  .kiosk .key-btn  { background:#0d3050 !important; border-color:#66aadd !important; }
+    body.station-water .kiosk .key-btn { background:#001040 !important; border-color:#2255bb !important; }
+    body.station-fire  .kiosk .key-btn { background:#330800 !important; border-color:#cc3300 !important; }
+    body.station-lava  .kiosk .key-btn { background:#331000 !important; border-color:#cc6600 !important; }
+
+    body.station-ice  .digit-slot.filled { color:#88d8ff !important; text-shadow:0 0 8px rgba(136,216,255,.6) !important; }
+    body.station-water .digit-slot.filled { color:#6699ff !important; text-shadow:0 0 8px rgba(102,153,255,.6) !important; }
+    body.station-fire  .digit-slot.filled { color:#ff6644 !important; text-shadow:0 0 8px rgba(255,102,68,.6) !important; }
+    body.station-lava  .digit-slot.filled { color:#ffaa44 !important; text-shadow:0 0 8px rgba(255,170,68,.6) !important; }
+
+    /* Land icon above keypad */
+    #landIcon { display:none; font-size:clamp(36px,7svh,64px); line-height:1; text-align:center; margin-bottom:clamp(2px,0.6svh,8px); animation:landPulse 2s ease-in-out infinite; }
+    body.station-ice    #landIcon,
+    body.station-water  #landIcon,
+    body.station-fire   #landIcon,
+    body.station-lava   #landIcon { display:block; }
+    @keyframes landPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+
+    /* ── Special result overlay ─────────────────────────── */
+    #specialResult {
+      display:none; position:fixed; inset:0; z-index:300;
+      background:rgba(0,0,0,.88);
+      flex-direction:column; align-items:center; justify-content:center;
+      gap:12px; text-align:center; padding:32px 24px;
+    }
+    #spIcon    { font-size:clamp(48px,10vw,80px); line-height:1; animation:iconPop .45s cubic-bezier(.17,.89,.32,1.28); }
+    #spTitle   { font-family:'Press Start 2P',monospace; font-size:clamp(14px,3vw,22px); color:#e8a000; text-shadow:2px 2px 0 #000; line-height:1.8; }
+    #spSub     { font-family:'Press Start 2P',monospace; font-size:clamp(10px,2vw,15px); color:#fff; line-height:1.8; }
+    #spDetail  { font-family:'Inter',sans-serif; font-size:clamp(12px,1.8vw,16px); color:#c4956a; margin-top:8px; line-height:1.6; }
+
+    /* ── Bowser fire overlay ────────────────────────────── */
+    #bowserOverlay {
+      display:none; position:fixed; inset:0; z-index:250;
+      background: radial-gradient(ellipse at 50% 110%, #cc2200 0%, #550000 45%, #0a0005 100%);
+      flex-direction:column; align-items:center; justify-content:center;
+      gap:clamp(8px,1.4svh,18px); text-align:center;
+      padding:clamp(16px,3vw,32px); overflow:hidden;
+    }
+    #bowserOverlay::after {
+      content:''; position:absolute; bottom:0; left:0; right:0;
+      height:28%; pointer-events:none;
+      background:linear-gradient(0deg,#ff3300 0%,#ff6600 35%,rgba(255,80,0,.1) 75%,transparent 100%);
+      animation:bowserFlicker .28s ease-in-out infinite alternate;
+      filter:blur(4px); z-index:0;
+    }
+    @keyframes bowserFlicker {
+      from { opacity:.45; transform:scaleY(1); }
+      to   { opacity:1;   transform:scaleY(1.08); }
+    }
+    #bowserTitle {
+      font-family:'Press Start 2P',monospace; font-size:clamp(11px,2vw,20px);
+      color:#ff6600; text-shadow:0 0 20px rgba(255,100,0,.8), 2px 2px 0 #000;
+      letter-spacing:.08em; z-index:1; position:relative;
+      animation:titleGlow 1.4s ease-in-out infinite alternate;
+    }
+    @keyframes titleGlow {
+      from { text-shadow:0 0 12px rgba(255,100,0,.6), 2px 2px 0 #000; }
+      to   { text-shadow:0 0 32px rgba(255,160,0,1),  2px 2px 0 #000; }
+    }
+    #bowserPlayerName {
+      font-family:'Press Start 2P',monospace; font-size:clamp(13px,2.4vw,24px);
+      color:#ffe0c0; text-shadow:2px 2px 0 #000, 0 0 20px rgba(255,120,0,.5);
+      z-index:1; position:relative; line-height:1.6;
+    }
+    /* Ammo row: remaining dots above the button */
+    #bowserFireDots {
+      display:flex; gap:clamp(8px,1.8vw,20px); justify-content:center;
+      z-index:1; position:relative;
+    }
+    .fire-dot {
+      font-size:clamp(32px,5.5vw,60px); line-height:1;
+      filter:drop-shadow(0 0 10px rgba(255,120,0,.9));
+      transition:opacity .3s, filter .3s, transform .15s;
+    }
+    .fire-dot.used {
+      opacity:.1; filter:grayscale(1) brightness(.25);
+      transform:scale(.8);
+    }
+    /* Remaining count text above button */
+    #bowserFireCount {
+      font-family:'Press Start 2P',monospace; font-size:clamp(11px,1.6vw,16px);
+      color:#ffaa60; text-shadow:1px 1px 0 #000;
+      z-index:1; position:relative; letter-spacing:.04em;
+      min-height:1.6em;
+    }
+    /* Big round fire button */
+    #bowserFireBtn {
+      width:clamp(160px,28vw,240px); height:clamp(160px,28vw,240px);
+      border-radius:50%;
+      background:radial-gradient(circle at 38% 32%, #ff7700, #cc1100 60%, #770000);
+      color:#fff; border:5px solid #ff9900;
+      cursor:pointer;
+      box-shadow:0 0 48px rgba(255,80,0,.7), 0 8px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3);
+      animation:bigFirePulse .85s ease-in-out infinite;
+      z-index:1; position:relative;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    }
+    #bowserFireBtn .bf-icon { font-size:clamp(48px,9vw,88px); line-height:1; pointer-events:none; }
+    #bowserFireBtn .bf-label {
+      font-family:'Press Start 2P',monospace; font-size:clamp(12px,2.2vw,20px);
+      color:#fff; text-shadow:0 2px 0 rgba(0,0,0,.5); letter-spacing:.06em;
+      pointer-events:none; line-height:1;
+    }
+    #bowserFireBtn:active {
+      transform:scale(.93) translateY(4px);
+      box-shadow:0 0 16px rgba(255,80,0,.3), 0 2px 0 #550000, inset 0 -2px 0 rgba(0,0,0,.3);
+      animation:none;
+    }
+    #bowserFireBtn:disabled { opacity:.1; cursor:default; animation:none; }
+    @keyframes bigFirePulse {
+      0%,100% { box-shadow:0 0 36px rgba(255,80,0,.6), 0 8px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3); transform:scale(1); }
+      50%      { box-shadow:0 0 72px rgba(255,140,0,1), 0 10px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3); transform:scale(1.04); }
+    }
+    #bowserDefeatedBtn {
+      font-family:'Press Start 2P',monospace; font-size:clamp(16px,2.8vw,30px);
+      background:radial-gradient(circle at 40% 35%,#70e030,#1a5a04);
+      color:#fff; border:4px solid #90ff50; border-radius:12px;
+      padding:clamp(20px,4svh,48px) clamp(32px,8vw,90px);
+      cursor:pointer;
+      box-shadow:0 0 48px rgba(96,200,32,.8), 0 8px 0 #0d3002;
+      animation:defeatedPulse .65s ease-in-out infinite;
+      z-index:1; position:relative; display:none;
+      letter-spacing:.04em;
+    }
+    #bowserDefeatedBtn:active { transform:scale(.95) translateY(4px); box-shadow:0 0 16px rgba(96,200,32,.4),0 2px 0 #0d3002; animation:none; }
+    @keyframes defeatedPulse {
+      0%,100% { box-shadow:0 0 36px rgba(96,200,32,.65), 0 8px 0 #0d3002; transform:scale(1); }
+      50%      { box-shadow:0 0 72px rgba(140,255,60,1),  0 10px 0 #0d3002; transform:scale(1.04); }
+    }
+    /* ── Bowser lobby panel (inline above keypad) ── */
+    #bowserLobbyPanel {
+      display:none; margin-bottom:clamp(8px,1.2svh,16px);
+      padding:clamp(8px,1.2svh,14px) clamp(10px,1.5vw,16px) clamp(10px,1.4svh,16px);
+      background:rgba(5,18,2,.92); border:2px solid #60c820; border-radius:6px;
+      box-shadow:0 0 14px rgba(96,200,32,.25);
+    }
+    #bowserLobbyPanel .bl-header {
+      font-family:'Press Start 2P',monospace; font-size:clamp(8px,1.4vw,12px);
+      color:#60c820; text-shadow:0 0 8px rgba(96,200,32,.6);
+      text-align:center; margin-bottom:3px; line-height:1.6;
+    }
+    #bowserLobbyPanel .bl-sub {
+      font-family:'Inter',sans-serif; font-size:clamp(10px,1.1vw,12px);
+      color:rgba(255,255,255,.4); text-align:center; margin-bottom:7px;
+    }
+    #bowserPlayerList {
+      display:flex; flex-direction:column; gap:4px;
+      max-height:clamp(70px,16svh,120px); overflow-y:auto; margin-bottom:8px;
+    }
+    .lobby-player-row {
+      font-family:'Press Start 2P',monospace; font-size:clamp(8px,1.1vw,11px);
+      color:#fff; background:rgba(96,200,32,.08); border:1px solid rgba(96,200,32,.35);
+      border-radius:4px; padding:6px 10px; text-align:left;
+    }
+    #bowserStartBtn {
+      width:100%; font-family:'Press Start 2P',monospace; font-size:clamp(9px,1.4vw,13px);
+      background:#1a4a0a; color:#80ff40; border:2px solid #60c820;
+      border-radius:4px; padding:clamp(8px,1.2svh,13px); cursor:pointer;
+      box-shadow:3px 3px 0 #0a2a04; margin-bottom:5px;
+      transition:background .12s;
+    }
+    #bowserStartBtn:not(:disabled) { animation:startBtnPulse 1.3s ease-in-out infinite; }
+    @keyframes startBtnPulse {
+      0%,100% { box-shadow:3px 3px 0 #0a2a04; }
+      50%      { box-shadow:3px 3px 0 #0a2a04,0 0 14px rgba(96,200,32,.5); }
+    }
+    #bowserStartBtn:disabled { opacity:.28; cursor:default; animation:none; }
+    #bowserCancelLobbyBtn {
+      width:100%; background:none; border:1px solid rgba(255,255,255,.1);
+      border-radius:4px; color:rgba(255,255,255,.28); font-size:10px;
+      font-family:'Inter',sans-serif; padding:5px; cursor:pointer;
+    }
+
+    /* ── Shell flash overlay ── */
+    #shellFlash {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(229,37,33,.92);
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; gap: 16px; pointer-events: none;
+    }
+    #shellFlash.show { display: flex; animation: shellFlashIn .15s ease-out; }
+    @keyframes shellFlashIn { from{opacity:0} to{opacity:1} }
+    .flash-title { font-family:'Press Start 2P',monospace; font-size:clamp(28px,7vw,56px); color:#fff; text-shadow:3px 3px 0 #900; line-height:1.5; }
+    .flash-sub   { font-family:'Press Start 2P',monospace; font-size:clamp(16px,4vw,30px); color:#ffd0d0; }
   </style>
+  <script src="/pw.js"></script>
 </head>
 <body>
-  <!-- ⭐ Starfield background -->
-  <canvas id="bgStars"></canvas>
 
-  <header><div class="h" id="title">📱 Stations</div></header>
+<!-- Background canvas: SMB sky, clouds, and ground tile art -->
+<canvas id="bgCanvas"></canvas>
 
-  <!-- Rotate overlay (KIOSK) -->
-  <div id="rotateOverlay" role="alert" aria-live="assertive">
-    <div class="box">
-      <div style="font-size:1.25rem">Please rotate your device</div>
-      <div class="hint">This screen works best in portrait.</div>
-    </div>
+<!-- Land station themed background (shown over canvas when land mode active) -->
+<div id="landBg"></div>
+
+<!-- Rotate-device overlay: shown when portrait -->
+<div id="rotateHint">
+  <div style="font-size:72px;line-height:1;animation:spinSlow 3s linear infinite">📱</div>
+  <div style="font-family:'Press Start 2P',monospace;font-size:clamp(11px,3vw,16px);color:#e8a000;line-height:2.2;text-shadow:2px 2px 0 #000">ROTATE DEVICE</div>
+  <div style="font-family:'Inter',sans-serif;font-size:clamp(13px,2.5vw,16px);color:#c4956a">Turn your device sideways to play</div>
+</div>
+
+<div id="portraitCodeEntry">
+  <div id="portraitStationName" style="font-family:'Press Start 2P',monospace;font-size:13px;color:#e8a000;text-shadow:2px 2px 0 #000;line-height:1.8"></div>
+  <div style="font-family:'Press Start 2P',monospace;font-size:12px;color:#fff;line-height:2">ENTER YOUR CODE</div>
+  <input id="portraitCodeInput" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="●●●">
+  <button id="portraitSubmitBtn">▶ SUBMIT</button>
+  <div id="portraitStatus"></div>
+  <div style="font-family:'Inter',sans-serif;font-size:12px;color:#7a5c44;margin-top:8px">Rotate phone sideways after submitting for the game</div>
+</div>
+<style>
+  @keyframes spinSlow {
+    0%   { transform: rotate(0deg); }
+    40%  { transform: rotate(0deg); }
+    60%  { transform: rotate(90deg); }
+    100% { transform: rotate(90deg); }
+  }
+</style>
+
+<!-- Shell flash overlay -->
+<div id="shellFlash">
+  <div class="flash-title"><img src="icons/red_shell.webp" style="height:.9em;width:auto;vertical-align:middle"> RED SHELL!</div>
+  <div class="flash-sub" id="shellFlashPenalty">−10 POINTS FOR ALL PLAYERS</div>
+</div>
+
+  <header><div class="h" id="title">Stations</div></header>
+
+
+  <!-- Broadcast banner (shown when admin sends a message) -->
+  <div id="broadcastBanner" style="display:none;margin:14px auto;max-width:min(860px,92vw);background:#e8a000;border:3px solid #231207;border-radius:4px;box-shadow:4px 4px 0 #231207;padding:14px 20px;text-align:center">
+    <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#231207;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📢 Admin Message</div>
+    <div id="broadcastText" style="font-size:clamp(14px,2.2vw,18px);font-weight:700;color:#231207;font-family:'Inter',sans-serif;line-height:1.4"></div>
   </div>
 
   <div class="wrap">
-    <!-- VIEW: Password -->
-    <section id="view-auth" class="card">
-      <div class="center">Enter password to view stations</div>
-      <form id="unlock-form" action="#" onsubmit="return false;">
-        <input id="pw" type="password" class="inp" placeholder="Password"
-               autocomplete="current-password" inputmode="text" autocapitalize="off" enterkeyhint="go"/>
-        <button id="unlockBtn" type="submit" class="btn">Unlock</button>
-      </form>
-      <div id="authErr" class="err"></div>
-      <div class="muted">Checks <code>config/config.stationPassword</code></div>
-    </section>
-
-    <!-- VIEW: Station list -->
+    <!-- List -->
     <section id="view-list" class="hide">
+      <button class="hub-back" onclick="startHub()">← Back</button>
       <div id="list" class="list"></div>
-      <div id="empty" class="muted hide">No stations yet.</div>
+      <div id="empty" class="muted-text hide">No stations configured yet.</div>
     </section>
 
-    <!-- VIEW: Control -->
+    <!-- Control -->
     <section id="view-control" class="hide">
-      <!-- Secret exits (keep) -->
       <div class="hot tl" data-k="TL"></div>
       <div class="hot tr" data-k="TR"></div>
       <div class="hot br" data-k="BR"></div>
       <div class="hot bl" data-k="BL"></div>
 
       <div class="card" style="margin-top:0">
-        <div class="bigRedWrap">
-          <div id="fireBtn" class="bigRedBtn">
-            ACTIVATE
+        <div class="keypad-section">
+          <!-- Bowser lobby panel — shown inline above keypad so codes can still be typed -->
+          <div id="bowserLobbyPanel">
+            <div class="bl-header">⚔ BOWSER BATTLE</div>
+            <div class="bl-sub">Type each player's code, then hit START</div>
+            <div id="bowserPlayerList"></div>
+            <button id="bowserStartBtn" onclick="startBowserBattle()" disabled>⚔ START BATTLE</button>
+            <button id="bowserCancelLobbyBtn" onclick="cancelBowserLobby()">Cancel</button>
+          </div>
+          <div id="landIcon"></div>
+          <div class="keypad-display" id="keypadDisplay">
+            <div class="digit-slot" id="ds0">_</div>
+            <div class="digit-slot" id="ds1">_</div>
+            <div class="digit-slot" id="ds2">_</div>
+          </div>
+
+          <div class="keypad" id="keypad">
+            <button class="key-btn" data-key="1">1</button>
+            <button class="key-btn" data-key="2">2</button>
+            <button class="key-btn" data-key="3">3</button>
+            <button class="key-btn" data-key="4">4</button>
+            <button class="key-btn" data-key="5">5</button>
+            <button class="key-btn" data-key="6">6</button>
+            <button class="key-btn" data-key="7">7</button>
+            <button class="key-btn" data-key="8">8</button>
+            <button class="key-btn" data-key="9">9</button>
+            <div></div>
+            <button class="key-btn" data-key="0">0</button>
+            <div></div>
+          </div>
+
+          <div id="statusMsg"></div>
+          <div id="hintBox" style="display:none;padding:clamp(8px,1.2dvh,16px) clamp(10px,2vw,18px);background:#fff9e6;border:3px solid #e8a000;border-radius:4px;box-shadow:3px 3px 0 #231207;text-align:center">
+            <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#e8a000;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;text-shadow:1px 1px 0 #231207">Next Hint</div>
+            <div id="hintText" style="font-size:clamp(13px,2dvh,18px);font-weight:600;color:#231207;font-family:'Inter',sans-serif;line-height:1.4;word-break:break-word;overflow-wrap:break-word"></div>
           </div>
         </div>
-
-        <!-- move LCDs BELOW the button -->
-        <div class="lcd-row">
-          <div class="lcd" id="lcd1">0000</div>
-          <div class="lcd" id="lcd2">0000</div>
-          <div class="lcd" id="lcd3">0000</div>
-        </div>
-
-        <!-- add little sci-fi buttons back -->
-        <div class="button-grid" id="comboGrid">
-          <div class="btnSquare red"    data-color="red"></div>
-          <div class="btnSquare blue"   data-color="blue"></div>
-          <div class="btnSquare green"  data-color="green"></div>
-          <div class="btnSquare yellow" data-color="yellow"></div>
-          <div class="btnSquare purple" data-color="purple"></div>
-          <div class="btnSquare orange" data-color="orange"></div>
-          <div class="btnSquare teal"   data-color="teal"></div>
-          <div class="btnSquare pink"   data-color="pink"></div>
-        </div>
-
-        <!-- status only if error/info -->
-        <div id="statusMsg"></div>
       </div>
     </section>
+
+  </div><!-- end .wrap -->
+
+  <!-- Hub: station type picker (fixed, centered) -->
+  <section id="view-hub" class="hide">
+    <div id="micPermBanner" style="display:none;width:100%;max-width:680px;margin-bottom:clamp(6px,0.8svh,10px)">
+      <button onclick="requestMicFromBanner()" style="width:100%;display:flex;align-items:center;gap:14px;padding:clamp(10px,1.6svh,16px) clamp(16px,2.5vw,28px);background:#1a1a2e;border:3px solid #e8a000;border-radius:4px;box-shadow:4px 4px 0 #e8a000;color:#fff;font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.2vw,11px);cursor:pointer;text-align:left">
+        <span style="font-size:clamp(24px,3.5vw,36px)">🎤</span>
+        <span style="flex:1;line-height:1.8">TAP TO ENABLE MICROPHONE<span style="display:block;font-family:'Inter',sans-serif;font-size:clamp(10px,1.2vw,13px);font-weight:400;color:rgba(255,255,255,.6);margin-top:3px">Required for station audio broadcast</span></span>
+        <span style="color:#e8a000;font-size:clamp(16px,2vw,22px)">▶</span>
+      </button>
+    </div>
+    <div class="hub-grid">
+      <button class="hub-btn hub-coin" onclick="showCoinList()">
+        <span class="hub-icon"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"></span>
+        <span class="hub-text"><span class="hub-label">COIN STATIONS</span><span class="hub-desc">Regular earn stations</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-rescue" onclick="show('rescue')">
+        <span class="hub-icon">⭐</span>
+        <span class="hub-text"><span class="hub-label">CHARACTER RESCUE</span><span class="hub-desc">Save a character</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-bowser" onclick="pickSpecialStation('bowser')">
+        <span class="hub-icon">🔥</span>
+        <span class="hub-text"><span class="hub-label">FIGHT BOWSER</span><span class="hub-desc">Fire at Bowser!</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-lands" onclick="show('lands')">
+        <span class="hub-icon">🌍</span>
+        <span class="hub-text"><span class="hub-label">LAND STATIONS</span><span class="hub-desc">Ice · Water · Fire · Lava</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-start" onclick="pickSpecialStation('start')">
+        <span class="hub-icon">🏁</span>
+        <span class="hub-text"><span class="hub-label">START LINE</span><span class="hub-desc">Maze entrance countdown</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Character rescue sub-menu (fixed, centered) -->
+  <section id="view-rescue" class="hide">
+    <button class="hub-back" onclick="show('hub')">← Back</button>
+    <div class="hub-grid">
+      <button class="hub-btn hub-rescue" onclick="pickSpecialStation('rescue_peach')">
+        <span class="hub-icon"><img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>
+        <span class="hub-text"><span class="hub-label">PRINCESS PEACH</span><span class="hub-desc">Rescue from Bowser's castle</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Land stations sub-menu (fixed, centered) -->
+  <section id="view-lands" class="hide">
+    <button class="hub-back" onclick="show('hub')">← Back</button>
+    <div class="hub-grid">
+      <button class="hub-btn hub-ice" onclick="pickLandStation('ice')">
+        <span class="hub-icon">🧊</span>
+        <span class="hub-text"><span class="hub-label">ICE LAND</span><span class="hub-desc">Coins + powerups</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-water" onclick="pickLandStation('water')">
+        <span class="hub-icon">🌊</span>
+        <span class="hub-text"><span class="hub-label">WATER LAND</span><span class="hub-desc">Coins + powerups</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-fire" onclick="pickLandStation('fire')">
+        <span class="hub-icon">🔥</span>
+        <span class="hub-text"><span class="hub-label">FIRE LAND</span><span class="hub-desc">Coins + powerups</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+      <button class="hub-btn hub-lava" onclick="pickLandStation('lava')">
+        <span class="hub-icon">🌋</span>
+        <span class="hub-text"><span class="hub-label">LAVA LAND</span><span class="hub-desc">Coins + powerups</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Special result overlay (shell, mushroom, rescue, bowser) -->
+  <div id="specialResult">
+    <div id="spIcon"></div>
+    <div id="spTitle"></div>
+    <div id="spSub"></div>
+    <div id="spDetail"></div>
   </div>
 
-  <audio id="ding" src="ding.mp3" preload="auto"></audio>
+  <!-- Start station: transparent overlay — countdown plays over the sky -->
+  <section id="view-start">
+    <div class="sv-hero">
+      <div class="sv-sub">Enter code here</div>
+    </div>
+    <div class="sv-card">
+      <div class="sv-display" id="startDisplay">
+        <div class="sv-digit" id="sds0">_</div>
+        <div class="sv-digit" id="sds1">_</div>
+        <div class="sv-digit" id="sds2">_</div>
+      </div>
+      <div class="sv-keypad" id="startKeypad">
+        <button class="sv-key" data-key="1">1</button>
+        <button class="sv-key" data-key="2">2</button>
+        <button class="sv-key" data-key="3">3</button>
+        <button class="sv-key" data-key="4">4</button>
+        <button class="sv-key" data-key="5">5</button>
+        <button class="sv-key" data-key="6">6</button>
+        <button class="sv-key" data-key="7">7</button>
+        <button class="sv-key" data-key="8">8</button>
+        <button class="sv-key" data-key="9">9</button>
+        <div></div>
+        <button class="sv-key" data-key="0">0</button>
+        <div></div>
+      </div>
+      <div id="startStatus" style="font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.4vw,11px);color:#4cff50;min-height:1.4em;text-align:center"></div>
+    </div>
+  </section>
+
+  <!-- Start line countdown overlay -->
+  <div id="startCountdown">
+    <div class="sc-name" id="scName"></div>
+    <canvas id="scCanvas" width="960" height="540"></canvas>
+  </div>
+  <!-- Video lives OUTSIDE the display:none overlay so Safari can prime/play it before the overlay opens -->
+  <video id="scVid" src="/countdown.mp4" playsinline webkit-playsinline preload="auto" style="visibility:hidden;position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;"></video>
+
+  <!-- Bowser fire overlay -->
+  <div id="bowserOverlay">
+    <div id="bowserTitle">⚔ FIGHT BOWSER! ⚔</div>
+    <div id="bowserPlayerName"></div>
+    <div id="bowserFireDots"></div>
+    <div id="bowserFireCount">Tap to launch a fireball!</div>
+    <button id="bowserFireBtn" onclick="fireBowserBall()">
+      <span class="bf-icon">🔥</span>
+      <span class="bf-label">FIRE!</span>
+    </button>
+    <button id="bowserDefeatedBtn" onclick="completeBowserBattle()">⭐ BOWSER DEFEATED!</button>
+  </div>
+
+  <!-- Admin overlay -->
+  <div id="adminOverlay">
+    <!-- Main menu -->
+    <div class="admin-card" id="adminMenuView">
+      <div id="adminOverlayLabel" style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#e8a000;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">Admin</div>
+      <div class="admin-sub" id="adminOverlayTitle">Station</div>
+
+      <button class="admin-menu-btn" onclick="showStationHealth()">
+        <span class="ico">📊</span>
+        <span class="lbl">Station Health &amp; History<span class="desc">Recent check-ins, check-in count</span></span>
+        <span style="color:var(--muted)">›</span>
+      </button>
+
+      <button class="admin-menu-btn" onclick="showUndoView()">
+        <span class="ico">↩</span>
+        <span class="lbl">Undo Last Scan<span class="desc" id="undoBtnDesc">Remove the last new scan from this station</span></span>
+        <span style="color:var(--muted)">›</span>
+      </button>
+
+      <button class="admin-menu-btn" onclick="adminChangeStation()">
+        <span class="ico">🔄</span>
+        <span class="lbl">Change Station<span class="desc">Go back to the station picker</span></span>
+        <span style="color:var(--muted)">›</span>
+      </button>
+
+      <button class="admin-close" onclick="closeAdminOverlay()">✕ Close</button>
+    </div>
+
+    <!-- Undo confirmation view -->
+    <div class="admin-card" id="adminUndoView" style="display:none">
+      <button class="health-back" onclick="showAdminMenu()">‹ Back</button>
+      <div class="admin-sub">Undo Last Scan</div>
+      <div id="undoContent"></div>
+      <div id="undoActions" style="display:flex;gap:10px;margin-top:18px"></div>
+      <button class="admin-close" style="margin-top:10px" onclick="closeAdminOverlay()">✕ Close</button>
+    </div>
+
+    <!-- Health / history view -->
+    <div class="admin-card" id="adminHealthView" style="display:none">
+      <button class="health-back" onclick="showAdminMenu()">‹ Back</button>
+      <div class="admin-sub" id="healthTitle">Station Health</div>
+      <div id="healthContent"><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+      <button class="admin-close" style="margin-top:14px" onclick="closeAdminOverlay()">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- Mario Mini-Game Overlay -->
+  <div id="marioGame">
+    <canvas id="marioCanvas"></canvas>
+    <div id="gameBalance"></div>
+    <div id="gamePlayerName"></div>
+    <div id="gameTapHint">TAP SCREEN TO JUMP</div>
+    <div id="powerupTimer"></div>
+    <div id="gameResult" class="hide">
+      <div id="gameResultBox">
+        <span class="result-icon" id="resultIcon"></span>
+        <div class="result-amount" id="resultAmount"></div>
+        <div class="result-multiplier" id="resultMultiplier">×2</div>
+        <div class="result-final" id="resultFinal"></div>
+        <div class="result-label" id="resultLabel"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <audio id="yahoo" src="yahoo.mp3" preload="auto"></audio>
 
 <script>
-/* ================= Firebase ================= */
+// Lock to landscape wherever the API is supported
+(function(){
+  function lockLandscape(){
+    if(screen.orientation&&screen.orientation.lock){
+      screen.orientation.lock('landscape').catch(()=>{});
+    }
+  }
+  lockLandscape();
+  window.addEventListener('orientationchange', lockLandscape);
+})();
+
+// Detect phones — block iPhones, give Android phones portrait code entry
+(function(){
+  const ua=navigator.userAgent;
+  const isPhone=/iPhone|iPod/.test(ua)||(/Android/i.test(ua)&&/Mobile/i.test(ua));
+  if(!isPhone) return;
+
+  document.body.classList.add('phone-device');
+
+  const inp=document.getElementById('portraitCodeInput');
+  const btn=document.getElementById('portraitSubmitBtn');
+  const status=document.getElementById('portraitStatus');
+
+  function doSubmit(){
+    const code=(inp.value||'').replace(/\D/g,'');
+    if(code.length!==codeLength){
+      status.textContent='Need '+codeLength+' digits';
+      return;
+    }
+    status.textContent='';
+    inp.value='';
+    inp.blur();
+    // Show the rotate hint until they turn the phone
+    const hint=document.getElementById('rotateHint');
+    if(hint) hint.style.display='flex';
+    window.matchMedia('(orientation:landscape)').addEventListener('change',function hide(e){
+      if(e.matches){ if(hint) hint.style.display=''; this.removeEventListener('change',hide); }
+    });
+    // Try to lock landscape, then start the game
+    if(screen.orientation&&screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+    submitStationCode(code);
+  }
+
+  btn.addEventListener('click', doSubmit);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') doSubmit(); });
+  // Auto-focus input when portrait entry becomes visible
+  new MutationObserver(()=>{
+    if(document.body.classList.contains('kiosk') && window.matchMedia('(orientation:portrait)').matches){
+      setTimeout(()=>inp.focus(),100);
+    }
+  }).observe(document.body,{attributes:true,attributeFilter:['class']});
+  window.matchMedia('(orientation:portrait)').addEventListener('change',e=>{
+    if(e.matches && document.body.classList.contains('kiosk')) setTimeout(()=>inp.focus(),200);
+  });
+})();
+
 if (!firebase.apps.length) {
   firebase.initializeApp({
-    apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
-    authDomain:"light-the-night-2025.firebaseapp.com",
-    projectId: "light-the-night-2025"
+    apiKey:        "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+    authDomain:    "light-the-night-2025.firebaseapp.com",
+    projectId:     "light-the-night-2025",
+    storageBucket: "light-the-night-2025.appspot.com"
   });
 }
 const db  = firebase.firestore();
 const FSV = firebase.firestore.FieldValue;
 
-/* ================= Webswitch interop ================= */
-const CONTROL_DOC      = db.collection("webswitch").doc("control");
-const PHONE_RULES_DOC  = db.collection("webswitch").doc("phoneRules");
+const CONTROL_DOC     = db.collection("webswitch").doc("control");
+const QUEUE_COL       = db.collection("webswitch").doc("queueRoot").collection("queue");
+const PHONE_RULES_DOC = db.collection("webswitch").doc("phoneRules");
 let PHONE_RULES = [];
-PHONE_RULES_DOC.onSnapshot((snap)=>{
-  const d = snap.data() || {};
-  PHONE_RULES = Array.isArray(d.rules) ? d.rules : [];
+let _qlabCues = {};
+
+// Sign in anonymously, then start all Firestore listeners
+firebase.auth().signInAnonymously().catch(e=>console.error('anon auth failed',e));
+let _authReady = false;
+firebase.auth().onAuthStateChanged(user=>{
+  if(!user) return;
+  _authReady = true;
+  loadQlabCues().catch(()=>{});
+  initCamera().catch(()=>{});
+
+  // Broadcast banner listener
+  db.collection('config').doc('broadcast').onSnapshot(doc=>{
+    const d=doc.exists?doc.data():{};
+    const banner=document.getElementById('broadcastBanner');
+    const text=document.getElementById('broadcastText');
+    if(!banner) return;
+    if(d.active&&d.message){ banner.style.display='block'; text.textContent=d.message; }
+    else { banner.style.display='none'; text.textContent=''; }
+  });
+
+  // Shell flash listener
+  let _lastShellTs=null;
+  db.collection('config').doc('shellBroadcast').onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d=snap.data()||{};
+    const ts=d.triggeredAt?d.triggeredAt.toMillis():null;
+    if(!ts||ts===_lastShellTs) return;
+    _lastShellTs=ts;
+    if(Date.now()-ts>120_000) return;
+    if(currentStationMode==='shell') return; // don't flash the iPad that fired the shell
+    const flash=document.getElementById('shellFlash');
+    const pen=document.getElementById('shellFlashPenalty');
+    if(pen) pen.textContent='−'+(d.penalty||10)+' POINTS FOR ALL PLAYERS';
+    if(flash){ flash.classList.add('show'); setTimeout(()=>flash.classList.remove('show'),3000); }
+  });
+
+  // Phone rules listener
+  PHONE_RULES_DOC.onSnapshot((snap)=>{
+    const d = snap.data() || {};
+    PHONE_RULES = Array.isArray(d.rules) ? d.rules : [];
+  });
 });
 
-/* =============== DOM + state =============== */
 function $(id){ return document.getElementById(id); }
-const viewAuth = $('view-auth'), viewList = $('view-list'), viewControl = $('view-control');
-const unlockBtn = $('unlockBtn'), pwEl = $('pw'), authErr = $('authErr');
-const listEl = $('list'), emptyEl = $('empty');
-const statusMsg = $('statusMsg');
-const fireBtn = $('fireBtn');
-const lcd1=$('lcd1'), lcd2=$('lcd2'), lcd3=$('lcd3');
-const titleEl = $('title');
-const ding = $('ding');
 
-const UNLOCK_KEY = 'ltngi_unlocked';
-let currentStationId = null;
-let listUnsub = null;
-let stationDocUnsub = null;
-let heartbeatInterval = null;
-let currentStationCfg = null;
-let totalStations = 6;
+/* ── Camera snapshots ───────────────────────────────────────────────────── */
+async function initCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'user'},width:{ideal:640},height:{ideal:480}},audio:false
+    });
+    _camStream=stream;
+    const v=document.getElementById('_camVideo');
+    if(v){v.srcObject=stream;}
+  }catch(e){console.warn('Camera unavailable:',e.message);}
+}
 
-/* =============== KIOSK helpers =============== */
-let wakeLockObj = null, noSleep = null, DESIRED_ORIENTATION='portrait';
-async function kioskEnter() {
-  try {
-    const el = document.documentElement;
-    if (!document.fullscreenElement) {
-      if (el.requestFullscreen) await el.requestFullscreen();
-      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+async function initMic(){
+  if(_audioMicStream) return; // already have it
+  try{
+    _audioMicStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  }catch(e){console.warn('Mic permission unavailable:',e.message);}
+}
+
+async function captureSnapshot(){
+  if(!_camStream||!currentStationId) return;
+  try{
+    const v=document.getElementById('_camVideo');
+    const c=document.getElementById('_camCanvas');
+    if(!v||!c||!v.videoWidth) return;
+    c.width=Math.min(v.videoWidth,640); c.height=Math.min(v.videoHeight,480);
+    c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+    const dataUrl=c.toDataURL('image/jpeg',0.5);
+    await db.collection('snapshots').doc('station_'+currentStationId).set({
+      dataUrl, stationId:currentStationId, updatedAt:firebase.firestore.Timestamp.now()
+    });
+  }catch(e){console.warn('captureSnapshot failed:',e.message);}
+}
+/* ── Audio broadcast (WebRTC) ────────────────────────────────────────── */
+const AUDIO_ICE_SERVERS=[{urls:'stun:stun.l.google.com:19302'}];
+
+async function startAudioBroadcast(stationId){
+  stopAudioBroadcast();
+  _audioBroadcastId=String(stationId);
+  if(!_audioMicStream&&!_camStream){console.warn('No media streams available for broadcast');_audioBroadcastId=null;return;}
+  const docRef=db.collection('webrtcAudio').doc(_audioBroadcastId);
+  const cleanSub=name=>docRef.collection(name).get().then(snap=>{
+    if(snap.empty)return;const b=db.batch();snap.forEach(d=>b.delete(d.ref));return b.commit();
+  }).catch(()=>{});
+  await Promise.all([cleanSub('offerCandidates'),cleanSub('answerCandidates')]);
+  _audioPc=new RTCPeerConnection({iceServers:AUDIO_ICE_SERVERS});
+  // Combine audio + video into one stream for the broadcast
+  const _broadcastStream=new MediaStream();
+  (_audioMicStream||_camStream)&&(_audioMicStream||_camStream).getAudioTracks().forEach(t=>_broadcastStream.addTrack(t));
+  if(_camStream) _camStream.getVideoTracks().forEach(t=>_broadcastStream.addTrack(t));
+  _broadcastStream.getTracks().forEach(t=>_audioPc.addTrack(t,_broadcastStream));
+  _audioPc.onicecandidate=({candidate})=>{
+    if(candidate)docRef.collection('offerCandidates').add(candidate.toJSON()).catch(()=>{});
+  };
+  _audioPc.onconnectionstatechange=()=>{
+    const st=_audioPc?_audioPc.connectionState:null;
+    const dot=document.getElementById('micDot');
+    if(dot)dot.style.background=(st==='connected')?'#22c55e':'#e8a000';
+    if((st==='failed'||st==='disconnected')&&_audioBroadcastId===String(stationId)){
+      setTimeout(()=>{if(_audioBroadcastId===String(stationId))startAudioBroadcast(stationId);},4000);
     }
-  } catch(_){}
-  try {
-    if ('wakeLock' in navigator && navigator.wakeLock && navigator.wakeLock.request) {
-      wakeLockObj = await navigator.wakeLock.request('screen');
-      if (wakeLockObj && wakeLockObj.addEventListener){
-        wakeLockObj.addEventListener('release', function(){ wakeLockObj = null; });
-      }
-    } else {
-      if (!noSleep) noSleep = new NoSleep();
-      if (noSleep && noSleep.enable) noSleep.enable();
-    }
-  } catch(_) {
-    try { if (!noSleep) noSleep = new NoSleep(); if (noSleep && noSleep.enable) noSleep.enable(); } catch(_){}
-  }
-  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(DESIRED_ORIENTATION); } catch(_){}
-  paintRotateOverlay();
-  addEventListener('orientationchange', paintRotateOverlay);
-  addEventListener('resize', paintRotateOverlay);
-  document.addEventListener('visibilitychange', async function(){
-    if (document.visibilityState === 'visible') {
-      try {
-        if ('wakeLock' in navigator && navigator.wakeLock && navigator.wakeLock.request && !wakeLockObj) {
-          wakeLockObj = await navigator.wakeLock.request('screen');
-          if (wakeLockObj && wakeLockObj.addEventListener){
-            wakeLockObj.addEventListener('release', function(){ wakeLockObj = null; });
-          }
-        } else { if (noSleep && noSleep.enable) noSleep.enable(); }
-      } catch(_){}
+  };
+  const offer=await _audioPc.createOffer();
+  await _audioPc.setLocalDescription(offer);
+  await docRef.set({
+    broadcasting:true,stationId:_audioBroadcastId,
+    offer:{type:offer.type,sdp:offer.sdp},
+    updatedAt:firebase.firestore.Timestamp.now()
+  });
+  _audioUnsub1=docRef.onSnapshot(async snap=>{
+    const d=snap.data()||{};
+    if(!_audioPc||_audioPc.currentRemoteDescription)return;
+    if(d.answer){
+      await _audioPc.setRemoteDescription(new RTCSessionDescription(d.answer)).catch(e=>console.warn('SRD:',e));
     }
   });
+  _audioUnsub2=docRef.collection('answerCandidates').onSnapshot(snap=>{
+    snap.docChanges().forEach(ch=>{
+      if(ch.type==='added'&&_audioPc)
+        _audioPc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
+    });
+  });
+  const dot=document.getElementById('micDot');
+  if(dot){dot.style.display='block';dot.style.background='#e8a000';}
 }
-async function kioskExit() {
-  try { if (wakeLockObj && wakeLockObj.release) await wakeLockObj.release(); wakeLockObj = null; } catch(_){}
-  try { if (noSleep && noSleep.disable) noSleep.disable(); } catch(_){}
-  try {
-    if (document.fullscreenElement) {
-      if (document.exitFullscreen) await document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-    }
-  } catch(_){}
-  hideRotateOverlay();
-}
-function isPortraitViewport(){ return innerHeight >= innerWidth; }
-function paintRotateOverlay(){
-  const inPortrait = isPortraitViewport();
-  $('rotateOverlay').style.display = (DESIRED_ORIENTATION === 'portrait' && !inPortrait) ? 'flex' : 'none';
-}
-function hideRotateOverlay(){ $('rotateOverlay').style.display = 'none'; }
 
-/* =============== UI helpers =============== */
+function stopAudioBroadcast(){
+  if(_audioUnsub1){_audioUnsub1();_audioUnsub1=null;}
+  if(_audioUnsub2){_audioUnsub2();_audioUnsub2=null;}
+  if(_audioPc){_audioPc.close();_audioPc=null;}
+  // keep _audioMicStream alive so permission isn't re-requested
+  if(_audioBroadcastId){
+    db.collection('webrtcAudio').doc(_audioBroadcastId)
+      .set({broadcasting:false,updatedAt:firebase.firestore.Timestamp.now()},{merge:true}).catch(()=>{});
+    _audioBroadcastId=null;
+  }
+  const dot=document.getElementById('micDot');
+  if(dot)dot.style.display='none';
+}
+
+const viewList=$('view-list'), viewControl=$('view-control');
+const listEl=$('list'), emptyEl=$('empty');
+const statusMsg=$('statusMsg');
+const fireBtn=$('fireBtn');
+const titleEl=$('title');
+const ding=null; // no longer used
+
+let currentStationId=null, listUnsub=null, stationDocUnsub=null;
+let heartbeatInterval=null, currentStationCfg=null, totalStations=6;
+let _lastBeatFn=null; // stored so visibility-resume can restart it
+let _snapshotInterval=null, _camStream=null;
+let _audioPc=null, _audioMicStream=null, _audioBroadcastId=null, _audioUnsub1=null, _audioUnsub2=null;
+let prevScanTs=null;
+let lastNewScanKidId='', lastNewScanName='';
+
+let wakeLockObj=null, noSleep=null;
+async function kioskEnter(){
+  try{const el=document.documentElement;if(!document.fullscreenElement){if(el.requestFullscreen)await el.requestFullscreen();else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();}if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(_){}
+  try{if('wakeLock'in navigator&&navigator.wakeLock&&navigator.wakeLock.request){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj&&wakeLockObj.addEventListener){wakeLockObj.addEventListener('release',function(){wakeLockObj=null;});}}else{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}}catch(_){try{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}}
+document.addEventListener('visibilitychange',async function(){if(document.visibilityState==='visible'){try{if('wakeLock'in navigator&&navigator.wakeLock&&navigator.wakeLock.request&&!wakeLockObj){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj&&wakeLockObj.addEventListener){wakeLockObj.addEventListener('release',function(){wakeLockObj=null;});}}else{if(noSleep&&noSleep.enable)noSleep.enable();}}catch(_){}}});
+}
+async function kioskExit(){
+  try{if(wakeLockObj&&wakeLockObj.release)await wakeLockObj.release();wakeLockObj=null;}catch(_){}
+  try{if(noSleep&&noSleep.disable)noSleep.disable();}catch(_){}
+  try{if(document.fullscreenElement){if(document.exitFullscreen)await document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}}catch(_){}
+}
+
+const SPECIAL_NAMES={shell:'RED SHELL',mushroom:'MUSHROOM',rescue_peach:'RESCUE: PRINCESS PEACH',bowser:'FIGHT BOWSER',start:'START LINE'};
+let currentStationMode='coin'; // 'coin'|'shell'|'mushroom'|'rescue_peach'|'bowser'
+
 function show(which){
-  viewAuth.classList.toggle('hide', which !== 'auth');
-  viewList.classList.toggle('hide', which !== 'list');
-  viewControl.classList.toggle('hide', which !== 'control');
-  if (which !== 'control') {
-    titleEl.textContent = '📱 Stations';
+  viewList.classList.toggle('hide',which!=='list');
+  viewControl.classList.toggle('hide',which!=='control');
+  $('view-hub').classList.toggle('hide',which!=='hub');
+  $('view-rescue').classList.toggle('hide',which!=='rescue');
+  $('view-lands').classList.toggle('hide',which!=='lands');
+  const svEl=$('view-start'); if(svEl) svEl.classList.toggle('show',which==='start');
+  document.body.classList.toggle('kiosk',which==='control');
+  ['coin','shell','mushroom','rescue','bowser','ice','water','fire','lava'].forEach(m=>document.body.classList.remove('station-'+m));
+  if(which==='control'){
+    const m=currentStationMode==='rescue_peach'?'rescue':
+            currentStationMode.startsWith('land_')?currentStationMode.slice(5):currentStationMode;
+    document.body.classList.add('station-'+m);
+  }
+  if(which!=='control'){
+    titleEl.textContent='Light the Night';
+    const li=$('landIcon'); if(li) li.textContent='';
   }
 }
 function setStatus(msg){
-  if (!msg){
-    statusMsg.style.display = 'none';
-    statusMsg.textContent = '';
-  } else {
-    statusMsg.style.display = 'block';
-    statusMsg.textContent = msg;
-  }
+  if(!msg){statusMsg.style.display='none';statusMsg.textContent='';}
+  else{statusMsg.style.display='block';statusMsg.textContent=msg;}
+  const ss=document.getElementById('startStatus');
+  if(ss) ss.textContent=msg||'';
 }
-function primeAudio(){
-  try { ding.volume = 1.0; ding.muted = false; ding.play().then(()=>{ ding.pause(); ding.currentTime = 0; }).catch(()=>{}); } catch(_){}
-}
-function beep(){
-  try{ ding.currentTime = 0; ding.play().catch(()=>{}); }catch(_){}
-}
+function primeAudio(){ try{const y=$('yahoo');if(y){y.volume=1.0;y.muted=false;y.play().then(()=>{y.pause();y.currentTime=0;}).catch(()=>{});}}catch(_){} }
+function beep(){ /* silent */ }
+function playYahoo(){ try{const y=$('yahoo');if(y){y.currentTime=0;y.play().catch(()=>{});}}catch(_){} }
 
-/* =============== Auth =============== */
-function safeGet(obj, pathArr) { var cur = obj; for (var i=0;i<pathArr.length;i++){ if (!cur || typeof cur!=='object') return; cur = cur[pathArr[i]]; } return cur; }
-let expectedPasswordCache = null;
-function getExpectedPassword() {
-  return new Promise(function(resolve){
-    if (expectedPasswordCache !== null) return resolve(expectedPasswordCache);
-    var settled = false;
-    var to = setTimeout(function(){ if (!settled){ settled=true; resolve(null); } }, 4000);
-    db.collection('config').doc('config').get()
-      .then(function(snap){
-        if (settled) return; clearTimeout(to);
-        var data = snap && snap.exists ? (snap.data ? snap.data() : {}) : {};
-        var passA = data ? data.stationPassword : null;
-        var passB = safeGet(data,['passwords','station']);
-        expectedPasswordCache = passA || passB || null;
-        if (data && Number.isInteger(data.totalStations) && data.totalStations > 0) totalStations = data.totalStations;
-        settled = true; resolve(expectedPasswordCache);
-      })
-      .catch(function(){ if (settled) return; clearTimeout(to); settled = true; resolve(null); });
+function safeGet(obj,pathArr){var cur=obj;for(var i=0;i<pathArr.length;i++){if(!cur||typeof cur!=='object')return;cur=cur[pathArr[i]];}return cur;}
+function waitForAuth(){
+  return new Promise(resolve=>{
+    if(_authReady) return resolve();
+    const unsub=firebase.auth().onAuthStateChanged(user=>{if(user){unsub();resolve();}});
   });
 }
-async function checkPassword(pw){
-  try{
-    const expected = await getExpectedPassword();
-    if (expected === null || expected === '') return true;
-    return pw && String(pw) === String(expected);
-  }catch(_){ return false; }
-}
-function unlockUI(){ try { sessionStorage.setItem(UNLOCK_KEY,'1'); } catch(_){ } startList(); }
-function denyUI(){ try { authErr.textContent = 'Incorrect password'; pwEl.value = ''; pwEl.focus(); } catch(_){} }
 
-/* =============== Station list =============== */
-function isNumericId(id){ return /^\d{1,3}$/.test(id); }
-function startList(){
+function startHub(){
   kioskExit();
-  if (stationDocUnsub) { stationDocUnsub(); stationDocUnsub=null; }
-  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
-  show('list');
-  if (listUnsub) listUnsub();
-  listUnsub = db.collection('stations')
-    .orderBy(firebase.firestore.FieldPath.documentId())
-    .onSnapshot((snap)=>{
-      const items = [];
-      snap.forEach((doc)=>{
-        const id = doc.id; if (!isNumericId(id)) return;
-        const d = doc.data() || {};
-        items.push({ id:Number(id), label: d.label || ('Station ' + id) });
-      });
-      items.sort((a,b)=>a.id-b.id);
-      listEl.innerHTML = items.map((row)=>(
-        `<div class="bar" onclick="pick(${row.id})"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">Open ›</div></div>`
-      )).join('');
-      emptyEl.classList.toggle('hide', items.length>0);
-    });
+  if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  stopAudioBroadcast();
+  // Cancel any in-progress Bowser battle so it doesn't auto-complete players after station change
+  clearTimeout(window._bowserAutoClose);
+  closeBowserOverlay();
+  currentStationMode='coin';
+  show('hub');
+  checkMicPermission();
 }
-window.pick = function(id){ currentStationId = String(id); startControlForStation(); };
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-/* =============== Control view (big red button) =============== */
-async function startControlForStation(){
-  if (!sessionStorage.getItem(UNLOCK_KEY)) { show('auth'); return; }
+async function checkMicPermission(){
+  const banner=document.getElementById('micPermBanner');
+  if(!banner||_audioMicStream) return;
+  try{
+    if(navigator.permissions){
+      const status=await navigator.permissions.query({name:'microphone'});
+      if(status.state==='granted'){
+        await initMic();
+        banner.style.display='none';
+      } else {
+        banner.style.display='block';
+      }
+    } else {
+      banner.style.display='block';
+    }
+  }catch(_){banner.style.display='block';}
+}
+
+async function requestMicFromBanner(){
+  await initMic();
+  const banner=document.getElementById('micPermBanner');
+  if(banner) banner.style.display='none';
+}
+function showCoinList(){
+  clearTimeout(window._bowserAutoClose);
+  closeBowserOverlay();
+  currentStationMode='coin';
+  startList();
+}
+async function pickSpecialStation(mode){
+  clearTimeout(window._bowserAutoClose);
+  if(mode!=='bowser') closeBowserOverlay();
+  primeAudio();
+  // Prime countdown video inside the gesture so Safari allows future unmuted playback
+  if(mode==='start'){
+    const scv=document.getElementById('scVid');
+    if(scv){scv.muted=true;scv.play().then(()=>{scv.pause();scv.currentTime=0;scv.muted=false;}).catch(()=>{});}
+  }
+  currentStationMode=mode;
+  currentStationId=mode;
+  show(mode==='start'?'start':'control');
+  await kioskEnter();
+  if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  prevScanTs=null;
+  const label=SPECIAL_NAMES[mode]||mode;
+  titleEl.textContent=label;
+  const pn=document.getElementById('portraitStationName');
+  if(pn) pn.textContent=label;
+  const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now(),label},{merge:true}).catch(()=>{});
+  _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,10000);
+  startAudioBroadcast(currentStationId);
+  codeBuffer='';updateDisplay();setStatus('');
+}
+async function pickLandStation(theme){
+  clearTimeout(window._bowserAutoClose);
+  closeBowserOverlay();
+  primeAudio();
+  const LAND_NAMES={ice:'ICE LAND',water:'WATER LAND',fire:'FIRE LAND',lava:'LAVA LAND'};
+  const LAND_ICONS={ice:'🧊',water:'🌊',fire:'🔥',lava:'🌋'};
+  currentStationMode='land_'+theme;
+  currentStationId='land_'+theme;
   show('control');
   await kioskEnter();
+  if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  prevScanTs=null;
+  const label=LAND_NAMES[theme]||theme.toUpperCase();
+  titleEl.textContent=label;
+  const pn=document.getElementById('portraitStationName');
+  if(pn) pn.textContent=label;
+  const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
+  const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now(),label},{merge:true}).catch(()=>{});
+  _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,10000);
+  startAudioBroadcast(currentStationId);
+  codeBuffer='';updateDisplay();setStatus('');
+}
 
-  if (stationDocUnsub) stationDocUnsub();
-  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+function isNumericId(id){return /^\d{1,3}$/.test(id);}
+function startList(){
+  kioskExit();
+  if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  show('list');
+  if(listUnsub)listUnsub();
+  const startSnap=()=>{
+    listUnsub=db.collection('stations').orderBy(firebase.firestore.FieldPath.documentId()).onSnapshot((snap)=>{
+      const items=[];
+      snap.forEach((doc)=>{const id=doc.id;if(!isNumericId(id))return;const d=doc.data()||{};items.push({id:Number(id),label:d.label||('Station '+id)});});
+      items.sort((a,b)=>a.id-b.id);
+      listEl.innerHTML=items.map((row)=>`<div class="bar" onclick="pick(${row.id})"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">▶</div></div>`).join('');
+      emptyEl.classList.toggle('hide',items.length>0);
+    },(err)=>{console.warn('stations listen err',err.code);if(err.code==='permission-denied'){waitForAuth().then(startSnap);}});
+  };
+  waitForAuth().then(startSnap);
+}
+window.pick=function(id){primeAudio();currentStationId=String(id);startControlForStation();};
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
-  stationDocUnsub = db.collection('stations').doc(currentStationId).onSnapshot((doc)=>{
-    const d = doc.data()||{};
-    const label = d.label ? d.label : ('Station #' + currentStationId);
-    // show ONLY in header
-    titleEl.textContent = label;
-    currentStationCfg = {
-      outlet: (d.outlet != null ? d.outlet : null),
-      onState: (d.onState || 'ON'),
-      pulseMs: (typeof d.pulseMs === 'number' ? d.pulseMs : null)
+async function startControlForStation(){
+  show('control');
+  await kioskEnter();
+  if(stationDocUnsub)stationDocUnsub();
+  if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  prevScanTs=null;
+  stationDocUnsub=db.collection('stations').doc(currentStationId).onSnapshot((doc)=>{
+    const d=doc.data()||{};
+    const stLabel=d.label?d.label:('Station #'+currentStationId);
+    titleEl.textContent=stLabel;
+    const pn=document.getElementById('portraitStationName');
+    if(pn) pn.textContent=stLabel;
+    currentStationCfg={outlet:(d.outlet!=null?d.outlet:null),onState:(d.onState||'ON'),pulseMs:(typeof d.pulseMs==='number'?d.pulseMs:null)};
+    // Offline banner
+    let offBanner=document.getElementById('_stationOfflineBanner');
+    if(d.active===false){
+      if(!offBanner){
+        offBanner=document.createElement('div');
+        offBanner.id='_stationOfflineBanner';
+        offBanner.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(35,18,7,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px';
+        offBanner.innerHTML='<div style="font-family:\'Press Start 2P\',monospace;font-size:clamp(18px,4vw,36px);color:#f87171;text-align:center;line-height:1.6">STATION OFFLINE</div><div style="font-family:\'Inter\',sans-serif;font-size:16px;color:rgba(255,255,255,.6);text-align:center">This station has been disabled by admin.<br>Please stand by.</div>';
+        document.body.appendChild(offBanner);
+      }
+    } else {
+      if(offBanner) offBanner.remove();
+      // Station just came back online — fire a heartbeat immediately
+      if(_lastBeatFn) _lastBeatFn();
+    }
+  });
+  const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now()},{merge:true}).catch(()=>{});
+  _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,10000);
+  captureSnapshot().catch(()=>{});
+  if(_snapshotInterval)clearInterval(_snapshotInterval);
+  _snapshotInterval=setInterval(()=>captureSnapshot().catch(()=>{}),5*60*1000);
+  startAudioBroadcast(currentStationId);
+  codeBuffer='';updateDisplay();setStatus('');
+}
+
+
+// ── Keypad state ─────────────────────────────────────────────────────
+let codeBuffer='';
+let codeLength=3;
+let _adminSecretPhase=0; // 0=idle, 1=waiting for second half
+let _adminSecretFull=''; // which code we're mid-sequence on
+
+// Built-in admin codes keyed by digit length: first-entry → second-entry triggers hub
+const ADMIN_CODES_BY_LEN = { 3: '828942', 4: '11223344' };
+
+function checkAdminSecret(typed){
+  if(_adminSecretPhase===0){
+    // Collect candidates: Firestore-configured code (if its half matches codeLength) + built-in
+    const candidates=[];
+    const configured=window._cfgAdminCode;
+    if(configured){const h=Math.floor(configured.length/2);if(h===codeLength)candidates.push(configured);}
+    if(ADMIN_CODES_BY_LEN[codeLength])candidates.push(ADMIN_CODES_BY_LEN[codeLength]);
+    for(const full of candidates){
+      const p1=full.slice(0,Math.floor(full.length/2));
+      if(typed===p1){_adminSecretPhase=1;_adminSecretFull=full;return true;}
+    }
+  } else {
+    const full=_adminSecretFull;
+    _adminSecretPhase=0;_adminSecretFull='';
+    const p2=full.slice(Math.floor(full.length/2));
+    if(typed===p2){startHub();return true;}
+    // wrong second half — fall through to normal submit
+  }
+  return false;
+}
+
+function rebuildSlots(len){
+  codeLength=len; codeBuffer='';
+  const disp=document.getElementById('keypadDisplay');
+  if(disp){
+    disp.innerHTML='';
+    for(let i=0;i<codeLength;i++){
+      const s=document.createElement('div');
+      s.className='digit-slot'; s.id='ds'+i; s.textContent='_';
+      disp.appendChild(s);
+    }
+  }
+  const sDisp=document.getElementById('startDisplay');
+  if(sDisp){
+    sDisp.innerHTML='';
+    for(let i=0;i<codeLength;i++){
+      const s=document.createElement('div');
+      s.className='sv-digit'; s.id='sds'+i; s.textContent='_';
+      sDisp.appendChild(s);
+    }
+  }
+  updateDisplay();
+}
+
+// Read code length from Firestore and rebuild slots whenever it changes.
+// Must wait for auth or Firestore rejects with permission-denied.
+(function startConfigSnap(){
+  waitForAuth().then(()=>{
+    db.collection('config').doc('config').onSnapshot(doc=>{
+      const d=doc.exists?doc.data():{};
+      const newLen=Number.isInteger(d.codeLength)&&d.codeLength>=1?d.codeLength:3;
+      if(newLen!==codeLength) rebuildSlots(newLen);
+    },(err)=>{
+      console.warn('config snap err',err.code);
+      if(err.code==='permission-denied') setTimeout(startConfigSnap, 2000);
+    });
+  });
+})();
+
+function shakeDisplay(){
+  const targets=[document.getElementById('keypadDisplay'),document.getElementById('startDisplay')];
+  targets.forEach(disp=>{
+    if(!disp)return;
+    disp.style.transition='transform .05s';
+    const shake=[6,-6,5,-5,3,-3,0];let i=0;
+    const next=()=>{if(i<shake.length){disp.style.transform=`translateX(${shake[i++]}px)`;setTimeout(next,50);}else{disp.style.transform='';disp.style.transition='';}};
+    next();
+  });
+}
+function updateDisplay(){
+  for(let i=0;i<codeLength;i++){
+    const slot=document.getElementById('ds'+i);
+    if(!slot)continue;
+    if(i<codeBuffer.length){slot.textContent=codeBuffer[i];slot.classList.add('filled');}
+    else{slot.textContent='_';slot.classList.remove('filled');}
+  }
+  for(let i=0;i<codeLength;i++){
+    const slot=document.getElementById('sds'+i);
+    if(!slot)continue;
+    if(i<codeBuffer.length){slot.textContent=codeBuffer[i];slot.classList.add('filled');}
+    else{slot.textContent='_';slot.classList.remove('filled');}
+  }
+}
+
+function _handleKeyInput(key){
+  if(/^\d$/.test(key)&&codeBuffer.length<codeLength){
+    codeBuffer+=key;updateDisplay();
+    if(codeBuffer.length===codeLength){const code=codeBuffer;setTimeout(()=>{codeBuffer='';updateDisplay();if(!checkAdminSecret(code))submitStationCode(code);},180);}
+  }
+}
+
+document.getElementById('keypad')?.addEventListener('click',(e)=>{
+  const btn=e.target.closest('.key-btn');if(!btn)return;
+  SFX.key(); _handleKeyInput(btn.dataset.key);
+});
+
+document.getElementById('startKeypad')?.addEventListener('click',(e)=>{
+  const btn=e.target.closest('.sv-key');if(!btn)return;
+  SFX.key(); _handleKeyInput(btn.dataset.key);
+});
+
+document.addEventListener('keydown',(e)=>{
+  const startVisible=$('view-start')?.classList.contains('show');
+  if(viewControl.classList.contains('hide')&&!startVisible)return;
+  _handleKeyInput(e.key);
+});
+
+async function submitStationCode(code){
+  if(!currentStationId)return;
+  let docRef=null,kidData=null;
+  try{
+    const [q1,q2]=await Promise.all([
+      db.collection('kids').where('barcode','==',code).limit(1).get(),
+      db.collection('kids').where('code','==',code).limit(1).get()
+    ]);
+    const hit=(!q1.empty&&q1)||(!q2.empty&&q2)||null;
+    if(hit){docRef=hit.docs[0].ref;kidData=hit.docs[0].data();}
+  }catch(_){}
+  if(!docRef){codeBuffer='';updateDisplay();shakeDisplay();setStatus('Code not found');setTimeout(()=>setStatus(''),2500);return;}
+  const name=kidData.name||kidData.displayName||'Participant';
+
+  // Block completed players except at the start station (where they can re-run)
+  if((kidData.completed===true||kidData.mazeEndTime) && currentStationMode!=='start'){
+    showScanMsg(name+' already finished!','#88d8ff','#88d8ff','rgba(136,216,255,.12)','',3000);
+    return;
+  }
+
+  // Block duplicate scans (start station always blocks regardless of allowMultiScan)
+  if(!allowMultiScan || currentStationMode==='start'){
+    const existingScans=Array.isArray(kidData.scans)?kidData.scans:[];
+    const already=existingScans.some(s=>String(s)===String(currentStationId));
+    if(already){showScanMsg('Already started! '+name,'#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}
+  }
+
+  // Start station sets its own mazeStartTime during the countdown
+  if(currentStationMode==='start')          return handleStartStation(docRef,kidData);
+
+  // Silently record maze start time on first ever scan
+  if(!kidData.mazeStartTime){
+    docRef.update({mazeStartTime:firebase.firestore.Timestamp.now()}).catch(()=>{});
+    sendConfiguredOsc('maze_start').catch(()=>{});
+  }
+
+  captureSnapshot().catch(()=>{});
+
+  // ── Special station modes ──────────────────────────────
+  if(currentStationMode==='shell')          return handleShellStation(docRef,kidData);
+  if(currentStationMode==='mushroom')       return handleMushroomStation(docRef,kidData);
+  if(currentStationMode==='rescue_peach')   return handleRescueStation(docRef,kidData,'peach','Princess Peach');
+  if(currentStationMode==='bowser')         return handleBowserStation(docRef,kidData);
+  // land_ modes fall through to coin game below — fire their OSC now
+  if(currentStationMode.startsWith('land_')){
+    sendConfiguredOsc(currentStationMode).catch(()=>{}); // 'land_ice', 'land_water', etc.
+  } else {
+    sendConfiguredOsc('station_'+currentStationId).catch(()=>{}); // 'station_1', 'station_2', etc.
+  }
+
+  // ── Coin game (default) ────────────────────────────────
+  // Check if this station has a ? box powerup for this kid
+  let _powerupType = null;
+  const _stId = String(currentStationId);
+  if(!kidData.frozen){
+    if(kidData.mushroomStation && String(kidData.mushroomStation)===_stId && !kidData.usedMushroom)
+      _powerupType = 'mushroom';
+    else if(kidData.shellStation && String(kidData.shellStation)===_stId && !kidData.usedShell)
+      _powerupType = 'shell';
+
+  }
+
+  if(kidData.frozen){
+    beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    window.startMarioGame(docRef,kidData,false,true,null); return;
+  }
+  const now=new Date();
+  if(kidData.superMarioActive && kidData.superMarioExpiry && kidData.superMarioExpiry.toDate()>now){
+    try{await docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
+    beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    window.startMarioGame(docRef,kidData,true,false,_powerupType); return;
+  }
+  if(kidData.superMarioActive){
+    try{docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
+  }
+  beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+  window.startMarioGame(docRef,kidData,false,false,_powerupType);
+}
+
+// ── Start station: 3-2-1-GO countdown ─────────────────────────
+function runStartCountdown(name, onComplete){
+  const overlay  = document.getElementById('startCountdown');
+  const vid      = document.getElementById('scVid');
+  const canvas   = document.getElementById('scCanvas');
+  const ctx      = canvas.getContext('2d', { willReadFrequently: true });
+  const nameEl   = document.getElementById('scName');
+
+  nameEl.textContent = name;
+  overlay.style.display = 'flex';
+
+  // Hide the keypad card so only the sky + countdown shows
+  const svCard = document.querySelector('#view-start .sv-card');
+  if(svCard) svCard.style.visibility = 'hidden';
+
+  let goFired = false, rafId = null, goTimer = null, dismissTimer = null;
+
+  function cleanup(){
+    clearTimeout(goTimer);
+    clearTimeout(dismissTimer);
+    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    ctx.clearRect(0, 0, 960, 540);
+    overlay.style.display = 'none';
+    // Restore the keypad for the next player
+    if(svCard) svCard.style.visibility = '';
+  }
+
+  function fireGo(){
+    if(goFired) return;
+    goFired = true;
+    onComplete();
+  }
+
+  // Fire onComplete at GO! moment even if video never starts (gesture-chain / autoplay blocked)
+  goTimer = setTimeout(fireGo, 3400);
+  // Dismiss overlay when the video should have finished (keeps it from getting stuck as a black screen)
+  dismissTimer = setTimeout(cleanup, 5700);
+
+  function processFrame(){
+    if(vid.paused || vid.ended) return;
+    ctx.clearRect(0, 0, 960, 540);
+    ctx.drawImage(vid, 0, 0, 960, 540);
+    const frame = ctx.getImageData(0, 0, 960, 540);
+    const d = frame.data;
+    for(let i = 0; i < d.length; i += 4){
+      const r = d[i], g = d[i+1], b = d[i+2];
+      // How much does green dominate over the stronger of red/blue?
+      const greenness = g - Math.max(r, b);
+      if(greenness > 20){
+        // Smooth falloff: starts fading at greenness=20, fully transparent at greenness=90
+        const t = Math.min(1, (greenness - 20) / 70);
+        d[i+3] = Math.round((1 - t) * 255);
+      }
+    }
+    ctx.putImageData(frame, 0, 0);
+    if(vid.currentTime >= 3.35){ fireGo(); }
+    rafId = requestAnimationFrame(processFrame);
+  }
+
+  function onPlay(){ processFrame(); }
+  function onEnded(){
+    cleanup();
+    fireGo();
+    vid.removeEventListener('play', onPlay);
+  }
+
+  vid.addEventListener('play', onPlay, { once: true });
+  vid.addEventListener('ended', onEnded, { once: true });
+  vid.currentTime = 0;
+  vid.muted = false;
+  const p = vid.play();
+  if(p) p.catch(()=>{ vid.muted = true; vid.play().catch(()=>{}); });
+}
+
+async function handleStartStation(docRef, kidData){
+  const name=kidData.name||kidData.displayName||'Participant';
+  const startCoins=CFG.startCoins||10;
+
+  // Re-run: save best-ever data then wipe game state so they start fresh
+  if(kidData.completed===true||kidData.mazeEndTime){
+    const prevCoins  = kidData.coins||0;
+    const prevDurMs  = typeof kidData.durationMs==='number' ? kidData.durationMs : null;
+    const prevEnd    = kidData.mazeEndTime||null;
+    const curBestDur = typeof kidData.bestDurationMs==='number' ? kidData.bestDurationMs : null;
+    const newBest    = prevDurMs!==null && (curBestDur===null || prevDurMs<curBestDur);
+    await docRef.set({
+      bestCoins:       Math.max(kidData.bestCoins||0, prevCoins),
+      bestDurationMs:  newBest ? prevDurMs : (curBestDur!==null ? curBestDur : prevDurMs),
+      bestMazeEndTime: newBest ? prevEnd   : (kidData.bestMazeEndTime||prevEnd),
+      coins: 0, scans: [], completed: false, frozen: false,
+      mazeStartTime:   FSV.delete(), mazeEndTime:  FSV.delete(),
+      completionTime:  FSV.delete(), durationMs:   FSV.delete(),
+      completedBy:     FSV.delete(), shellShield:  FSV.delete(),
+      superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete()
+    },{merge:true});
+  }
+
+  beep();
+  const doStart = async ()=>{
+    const now=firebase.firestore.Timestamp.now();
+    await docRef.update({
+      scans:FSV.arrayUnion('start'),
+      mazeStartTime:now,
+      coins:FSV.increment(startCoins)
+    }).catch(()=>{});
+    await db.collection('scans').add({
+      kidId:docRef.id, name, station:'start',
+      coins:startCoins, gameType:'start',
+      timestamp:now
+    }).catch(()=>{});
+    sendConfiguredOsc('maze_start').catch(()=>{});
+    codeBuffer=''; updateDisplay(); setStatus('');
+  };
+  if(window._countdownEnabled !== false){
+    runStartCountdown(name, doStart);
+  } else {
+    doStart();
+  }
+}
+
+// ── Special result overlay ─────────────────────────────────────
+function showSpecialResult(icon,title,sub,detail,autoCloseSecs=5){
+  const el=$('specialResult');
+  if(!el)return;
+  $('spIcon').innerHTML=icon;
+  $('spTitle').innerHTML=title.replace(/\n/g,'<br>');
+  $('spSub').textContent=sub;
+  $('spDetail').textContent=detail;
+  el.style.display='flex';
+  // Hide the keypad section so it doesn't show through the dark overlay
+  const keypad=$('view-control');
+  if(keypad) keypad.style.visibility='hidden';
+  setTimeout(()=>{
+    el.style.display='none';
+    if(keypad) keypad.style.visibility='';
+    codeBuffer='';updateDisplay();setStatus('');
+  },autoCloseSecs*1000);
+}
+
+// ── Red Shell Station ──────────────────────────────────────────
+async function handleShellStation(docRef,kidData){
+  const name=kidData.name||kidData.displayName||'Participant';
+  const penalty=CFG.shellPenalty||10;
+  const finderCoins=CFG.shellStationCoins||0;
+  setStatus('Firing shell…');
+  try{
+    const updates={scans:FSV.arrayUnion(currentStationId),usedShell:true};
+    if(finderCoins>0) updates.coins=FSV.increment(finderCoins);
+    await docRef.update(updates);
+    let affected=0,shielded=0;
+    const allKids=await db.collection('kids').get();
+    const batch=db.batch();
+    allKids.forEach(doc=>{
+      if(doc.id===docRef.id)return;
+      const d=doc.data()||{};
+      if(d.completed||!d.mazeStartTime)return; // skip finished or not-yet-started players
+      if(d.shellShield||d.frozen)return shielded++;
+      batch.update(doc.ref,{coins:FSV.increment(-penalty),frozen:true});
+      affected++;
+    });
+    await batch.commit();
+    await db.collection('scans').add({kidId:docRef.id,name,station:'shell',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now()});
+    sendConfiguredOsc('shell_fired').catch(()=>{});
+    setStatus('');
+    showSpecialResult('<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">','SHELL FIRED!',name+' launched a Red Shell!',
+      (finderCoins>0?`+${finderCoins} coins for finder · `:'')+`${affected} players hit · ${shielded} shielded`);
+  }catch(e){console.error(e);setStatus('Error — try again');}
+}
+
+// ── Mushroom Station ───────────────────────────────────────────
+async function handleMushroomStation(docRef,kidData){
+  const name=kidData.name||kidData.displayName||'Participant';
+  const coins=CFG.mushroomCoins||0;
+  const secs=CFG.mushroomSeconds||60;
+  setStatus('Granting mushroom…');
+  try{
+    const expiry=new Date(Date.now()+secs*1000);
+    const updates={scans:FSV.arrayUnion(currentStationId),usedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
+    if(coins>0) updates.coins=FSV.increment(coins);
+    await docRef.update(updates);
+    await db.collection('scans').add({kidId:docRef.id,name,station:'mushroom',coins,gameType:'mushroom',timestamp:firebase.firestore.Timestamp.now()});
+    sendConfiguredOsc('mushroom_used').catch(()=>{});
+    setStatus('');
+    showSpecialResult('<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">','MUSHROOM!',name+' got a Mushroom!',
+      `Shell immunity for ${secs}s`+(coins>0?` · +${coins} coins`:''));
+  }catch(e){console.error(e);setStatus('Error — try again');}
+}
+
+// ── Character Rescue Station ───────────────────────────────────
+async function handleRescueStation(docRef,kidData,character,characterName){
+  const name=kidData.name||kidData.displayName||'Participant';
+  const bonus=50;
+  setStatus('Saving '+characterName+'…');
+  try{
+    await docRef.update({scans:FSV.arrayUnion(currentStationId), coins:FSV.increment(bonus), savedPeach:true});
+    await db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,coins:bonus,gameType:'rescue',timestamp:firebase.firestore.Timestamp.now()});
+    sendConfiguredOsc('peach_rescue').catch(()=>{});
+    setStatus('');
+    showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','Rescued '+characterName+'! +'+bonus+' bonus coins!',8);
+  }catch(e){console.error(e);setStatus('Error — try again');}
+}
+
+// ── Bowser Station ─────────────────────────────────────────────
+let _bowserFiresLeft=5;
+let _bowserLobby=[]; // [{docRef, kidData, name}]
+let _bowserMazeEndTime=null; // set on last fireball, reused by completeBowserBattle
+
+async function handleBowserStation(docRef,kidData){
+  const name=kidData.name||kidData.displayName||'Participant';
+  if(_bowserLobby.some(p=>p.docRef.id===docRef.id)){
+    showScanMsg(name+' already in lobby!','#e8a000','#e8a000','rgba(232,160,0,.12)','',2500);
+    return;
+  }
+
+  // Write completion immediately on scan so the maze always finishes
+  // even if the battle never runs (device offline, no operator, etc.)
+  const now=firebase.firestore.Timestamp.now();
+  const startTime=kidData.mazeStartTime||now;
+  const durationMs=kidData.mazeStartTime?(now.toMillis()-kidData.mazeStartTime.toMillis()):0;
+  const curBestDur=typeof kidData.bestDurationMs==='number'?kidData.bestDurationMs:null;
+  const newBestRun=curBestDur===null||durationMs<curBestDur;
+  docRef.update({
+    scans:FSV.arrayUnion(currentStationId),
+    completed:true, mazeEndTime:now, completionTime:now, mazeStartTime:startTime, durationMs,
+    bestCoins:      Math.max(kidData.bestCoins||0, kidData.coins||0),
+    bestDurationMs: newBestRun ? durationMs : curBestDur,
+    bestMazeEndTime:newBestRun ? now        : (kidData.bestMazeEndTime||now)
+  }).catch(()=>{});
+  db.collection('scans').add({kidId:docRef.id,name,station:'bowser',coins:0,gameType:'bowser',timestamp:now}).catch(()=>{});
+
+  _bowserLobby.push({docRef,kidData,name});
+  renderBowserLobby();
+  $('bowserLobbyPanel').style.display='block';
+  showScanMsg('+ '+name+' joined!','#4cff50','#248a26','rgba(36,138,38,.12)','',2000);
+}
+
+function renderBowserLobby(){
+  const list=$('bowserPlayerList');
+  list.innerHTML=_bowserLobby.map(p=>`<div class="lobby-player-row">⚔ ${escapeHtml(p.name)}</div>`).join('');
+  $('bowserStartBtn').disabled=_bowserLobby.length===0;
+}
+
+async function startBowserBattle(){
+  $('bowserLobbyPanel').style.display='none';
+  setStatus('Starting battle…');
+  sendConfiguredOsc('bowser_start').catch(()=>{});
+  setStatus('');
+  _bowserFiresLeft=5;
+  const names=_bowserLobby.map(p=>p.name).join(' + ');
+  $('bowserPlayerName').textContent=names+' vs. Bowser!';
+  // Render fireball dots
+  const dots=$('bowserFireDots');
+  if(dots) dots.innerHTML=Array.from({length:5},(_,i)=>`<span class="fire-dot" id="fdot${i}">🔥</span>`).join('');
+  $('bowserFireCount').textContent='Tap to launch a fireball!';
+  $('bowserFireBtn').disabled=false; $('bowserFireBtn').style.opacity='1'; $('bowserFireBtn').style.display='';
+  $('bowserDefeatedBtn').style.display='none';
+  $('bowserOverlay').style.display='flex';
+}
+
+function cancelBowserLobby(){
+  _bowserLobby=[];
+  $('bowserLobbyPanel').style.display='none';
+  codeBuffer='';updateDisplay();setStatus('');
+}
+
+function fireBowserBall(){
+  if(_bowserFiresLeft<=0)return;
+  _bowserFiresLeft--;
+  sendConfiguredOsc('bowser_fire').catch(()=>{});
+  if(typeof SFX!=='undefined'&&SFX.stomp) SFX.stomp();
+  // Update fireball dots — dim from the right as fires are used
+  for(let i=0;i<5;i++){
+    const d=$('fdot'+i);
+    if(d) d.classList.toggle('used', i>=_bowserFiresLeft);
+  }
+  const cnt=$('bowserFireCount');
+  if(_bowserFiresLeft>0){
+    if(cnt) cnt.textContent=_bowserFiresLeft+' fireball'+(_bowserFiresLeft===1?'':'s')+' left!';
+  } else {
+    if(cnt) cnt.textContent='';
+    const btn=$('bowserFireBtn');
+    if(btn){btn.disabled=true;btn.style.opacity='.15';btn.style.display='none';}
+    const def=$('bowserDefeatedBtn');
+    if(def) def.style.display='';
+    sendConfiguredOsc('bowser_defeated').catch(()=>{});
+    // Write to currentFinisher once, right now — completeBowserBattle will NOT re-write it
+    _bowserMazeEndTime=firebase.firestore.Timestamp.now();
+    const _cachedNow=_bowserLobby.map(({kidData,name})=>({
+      name:kidData.name||name,coins:kidData.coins||0,
+      mazeStartTime:kidData.mazeStartTime||_bowserMazeEndTime,mazeEndTime:_bowserMazeEndTime,
+      savedPeach:!!(kidData.savedPeach||kidData.rescuedPeach),
+      usedMushroom:!!kidData.usedMushroom,usedShell:!!kidData.usedShell
+    }));
+    if(_cachedNow.length) db.collection('config').doc('currentFinisher').set({players:_cachedNow,updatedAt:_bowserMazeEndTime}).catch(()=>{});
+    // Auto-complete after 10 seconds
+    window._bowserAutoClose = setTimeout(completeBowserBattle, 10000);
+  }
+}
+
+async function completeBowserBattle(){
+  clearTimeout(window._bowserAutoClose);
+  // currentFinisher was already written on the last fireball — don't write again
+  const mazeEndTime=_bowserMazeEndTime||firebase.firestore.Timestamp.now();
+  _bowserMazeEndTime=null;
+
+  // Mark each player as completed
+  for(const {docRef} of _bowserLobby){
+    docRef.get().then(snap=>{
+      const d=snap.data()||{};
+      const startTime=d.mazeStartTime||mazeEndTime;
+      const durMs=d.mazeStartTime?(mazeEndTime.toMillis()-d.mazeStartTime.toMillis()):0;
+      const curBestDur=typeof d.bestDurationMs==='number'?d.bestDurationMs:null;
+      const newBest=curBestDur===null||durMs<curBestDur;
+      docRef.update({
+        mazeEndTime, mazeStartTime:startTime, completed:true, completionTime:mazeEndTime,
+        durationMs:durMs,
+        bestCoins:      Math.max(d.bestCoins||0, d.coins||0),
+        bestDurationMs: newBest ? durMs         : curBestDur,
+        bestMazeEndTime:newBest ? mazeEndTime   : (d.bestMazeEndTime||mazeEndTime)
+      }).catch(()=>{});
+    }).catch(()=>{});
+  }
+
+  _bowserLobby=[];
+  closeBowserOverlay();
+}
+
+function closeBowserOverlay(){
+  $('bowserOverlay').style.display='none';
+  $('bowserFireBtn').disabled=false; $('bowserFireBtn').style.opacity='1'; $('bowserFireBtn').style.display='';
+  $('bowserDefeatedBtn').style.display='none';
+  $('bowserLobbyPanel').style.display='none';
+  _bowserLobby=[];
+  codeBuffer='';updateDisplay();setStatus('');
+}
+
+async function sendSwitchCommand(outlet,state){
+  await QUEUE_COL.add({type:'power',outlet:Number(outlet),state:String(state).toLowerCase(),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')});
+}
+async function sendOscQueueCommand(address){
+  await QUEUE_COL.add({type:'osc',address:String(address),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')});
+}
+async function loadQlabCues(){
+  const snap = await db.collection('webswitch').doc('config').get();
+  if(!snap.exists) return;
+  const d = snap.data()||{};
+  const computers = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
+  const cues = d.stationOscCues || {};
+  _qlabCues = {};
+  Object.entries(cues).forEach(([key, cfg])=>{
+    if(!cfg) return;
+    const comp = computers.find(c=>c.id===cfg.computerId);
+    _qlabCues[key] = {
+      cue:cfg.cue||'', qlabIp:comp?comp.ip:null, qlabPort:comp?(comp.port||53000):53000,
+      gpioPin:cfg.arduinoPin||null, gpioState:cfg.arduinoState||null, gpioPulseMs:cfg.arduinoPulseMs||500
     };
   });
-
-  const beat = ()=>db.collection("stations").doc(currentStationId).set({ heartbeat: firebase.firestore.Timestamp.now() }, { merge:true }).catch(()=>{});
-  beat(); heartbeatInterval = setInterval(beat, 10000);
-
-  startLCDTicker();
-  setStatus(''); // no "Ready"
+  // Simple bowserGpio shortcut — overrides stationOscCues.bowser_defeated if set
+  const bg = d.bowserGpio||{};
+  if(bg.pin){
+    _qlabCues['bowser_defeated'] = {
+      cue:'', qlabIp:null, qlabPort:53000,
+      gpioPin:Number(bg.pin), gpioState:(bg.state||'PULSE').toUpperCase(), gpioPulseMs:Number(bg.pulseMs||5000)
+    };
+  }
 }
-
-/* =============== LCD ticker =============== */
-let lcdTimer = null, lcdHoldUntil = 0;
-const LCD_PERIOD_MS = 1800;
-function rand4(){ return String(Math.floor(Math.random()*10000)).padStart(4,'0'); }
-function paintLCDTriplet(a,b,c){ lcd1.textContent=a; lcd2.textContent=b; lcd3.textContent=c; }
-function startLCDTicker(){
-  stopLCDTicker();
-  paintLCDTriplet(rand4(), rand4(), rand4());
-  lcdTimer = setInterval(()=>{ if (Date.now() < lcdHoldUntil) return; paintLCDTriplet(rand4(), rand4(), rand4()); }, LCD_PERIOD_MS);
+async function sendConfiguredOsc(key){
+  const cfg = _qlabCues[key];
+  if(!cfg) return;
+  const base = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
+  // Fire OSC to QLab if configured
+  if(cfg.cue){
+    const payload = {...base, type:'osc', address:cfg.cue};
+    if(cfg.qlabIp){ payload.qlabIp=cfg.qlabIp; payload.qlabPort=cfg.qlabPort||53000; }
+    await QUEUE_COL.add(payload);
+  }
+  // Fire GPIO command if configured
+  if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
+    await QUEUE_COL.add({...base, type:'gpio', pin:cfg.gpioPin, state:cfg.gpioState, pulseMs:cfg.gpioPulseMs||500});
+  }
 }
-function stopLCDTicker(){ if (lcdTimer) { clearInterval(lcdTimer); lcdTimer = null; } }
-function holdLCDFor(text, ms=1600){
-  const s = (String(text||'').replace(/[^\w-]/g,'') || 'FIRED').toUpperCase();
-  const chunk = s.slice(-12).padStart(12,' ');
-  paintLCDTriplet(chunk.slice(0,4), chunk.slice(4,8), chunk.slice(8,12));
-  lcdHoldUntil = Date.now() + ms;
-}
-
-/* =============== Webswitch + rules =============== */
-async function sendSwitchCommand(outlet, state){
-  const payload = {
-    outlet:Number(outlet),
-    state:String(state).toLowerCase(),
-    nonce:Math.random().toString(36).slice(2),
-    ts:FSV.serverTimestamp(),
-    uid:'station:'+(currentStationId||'?'),
-    reqId: Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)
-  };
-  await CONTROL_DOC.set(payload, { merge: true });
-}
-async function runPhoneRuleForStation(stationNum){
-  const rule = PHONE_RULES.find(r=>Number(r.station)===Number(stationNum));
-  if (!rule || !rule.steps || !rule.steps.length) return false;
-  const steps = [].concat(rule.steps).filter(s=>s && s.type==='power' && Number.isFinite(s.tMs)).sort((a,b)=>a.tMs - b.tMs);
-  let elapsed = 0; const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
-  for (let i=0;i<steps.length;i++){
-    const s = steps[i];
-    const waitMs = clamp((s.tMs - elapsed), 0, 60000);
-    if (waitMs > 0) await new Promise(r=>setTimeout(r, waitMs));
-    elapsed = s.tMs;
-    await sendSwitchCommand(Number(s.outlet), String(s.state));
+async function runPhoneRuleForStation(stationNum,timing){
+  const matchingRules=PHONE_RULES.filter(r=>
+    Number(r.station)===Number(stationNum)&&
+    (r.when===timing||r.when==='always'||(!r.when&&timing==='game_end'))
+  );
+  if(!matchingRules.length)return false;
+  const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+  for(const rule of matchingRules){
+    const steps=[].concat(rule.steps).filter(s=>s&&(s.type==='power'||s.type==='osc')&&Number.isFinite(s.tMs)).sort((a,b)=>a.tMs-b.tMs);
+    let elapsed=0;
+    for(let i=0;i<steps.length;i++){
+      const s=steps[i];const waitMs=clamp((s.tMs-elapsed),0,60000);
+      if(waitMs>0)await new Promise(r=>setTimeout(r,waitMs));
+      elapsed=s.tMs;
+      if(s.type==='osc'){await sendOscQueueCommand(s.address||'/go');}
+      else{await sendSwitchCommand(Number(s.outlet),String(s.state));}
+    }
   }
   return true;
 }
-async function maybeTriggerWebSwitch(){
-  const hasRule = PHONE_RULES.some(r=>Number(r.station)===Number(currentStationId));
-  if (hasRule) {
-    await runPhoneRuleForStation(Number(currentStationId));
-    return;
-  }
-  const cfg = currentStationCfg || {};
-  if (cfg.outlet == null) { return; }
-  const desired = (cfg.onState || 'ON').toUpperCase();
-  await sendSwitchCommand(cfg.outlet, desired === 'OFF' ? 'off' : 'on');
-  if (typeof cfg.pulseMs === 'number' && cfg.pulseMs > 0){
-    await new Promise(r=>setTimeout(r, cfg.pulseMs));
-    await sendSwitchCommand(cfg.outlet, desired === 'OFF' ? 'on' : 'off');
+async function maybeTriggerWebSwitch(timing='game_end'){
+  const hasRule=PHONE_RULES.some(r=>
+    Number(r.station)===Number(currentStationId)&&
+    (r.when===timing||r.when==='always'||(!r.when&&timing==='game_end'))
+  );
+  if(hasRule){await runPhoneRuleForStation(Number(currentStationId),timing);return;}
+  if(timing!=='game_end')return;
+  const cfg=currentStationCfg||{};if(cfg.outlet==null){return;}
+  const desired=(cfg.onState||'ON').toUpperCase();
+  await sendSwitchCommand(cfg.outlet,desired==='OFF'?'off':'on');
+  if(typeof cfg.pulseMs==='number'&&cfg.pulseMs>0){await new Promise(r=>setTimeout(r,cfg.pulseMs));await sendSwitchCommand(cfg.outlet,desired==='OFF'?'on':'off');}
+}
+
+function openAdminOverlay(){
+  $('adminOverlayLabel').textContent = 'Admin';
+  $('adminOverlayTitle').textContent = currentStationId ? 'Station #'+currentStationId : 'Station';
+  showAdminMenu();
+  $('adminOverlay').classList.add('open');
+}
+function closeAdminOverlay(){
+  $('adminOverlay').classList.remove('open');
+}
+function showAdminMenu(){
+  $('adminMenuView').style.display = 'block';
+  $('adminHealthView').style.display = 'none';
+  $('adminUndoView').style.display = 'none';
+  // Update undo button description
+  if(lastNewScanKidId){
+    $('undoBtnDesc').textContent = 'Undo ' + lastNewScanName + '\'s scan at this station';
+  } else {
+    $('undoBtnDesc').textContent = 'Remove the last new scan from this station';
   }
 }
 
-/* =============== Button handler =============== */
-fireBtn.addEventListener('click', async ()=>{
-  if (!currentStationId) return;
-  primeAudio(); beep();
-  holdLCDFor('FIRED', 1700);
-  // don't show "Ready", only show on error
+function showUndoView(){
+  $('adminMenuView').style.display = 'none';
+  $('adminUndoView').style.display = 'block';
+  const content = $('undoContent');
+  const actions = $('undoActions');
+  if(lastNewScanKidId){
+    content.innerHTML = `<p style="font-size:15px;color:var(--text)">Remove <strong>${escapeHtml(lastNewScanName)}</strong>'s scan at Station #${currentStationId}?</p><p style="color:var(--muted);font-size:13px;margin-top:8px">This removes this station from their completed list.</p>`;
+    actions.innerHTML = `<button class="btn" onclick="confirmUndo()" style="background:#3b1212;border-color:#dc2626;color:#fca5a5">Yes, Undo</button><button class="btn" onclick="showAdminMenu()">Cancel</button>`;
+  } else {
+    content.innerHTML = `<p style="color:var(--muted);font-size:14px">No recent check-in to undo.</p>`;
+    actions.innerHTML = '';
+  }
+}
+
+async function confirmUndo(){
+  if(!lastNewScanKidId){closeAdminOverlay();return;}
+  const name=lastNewScanName, kid=lastNewScanKidId;
   try{
-    await maybeTriggerWebSwitch();
-    try{ confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } }); }catch(_){}
+    await db.collection('kids').doc(kid).update({scans:FSV.arrayRemove(currentStationId)});
+    lastNewScanKidId=''; lastNewScanName='';
+    closeAdminOverlay();
+    showScanMsg('↩ Undid '+name+'\'s scan','var(--muted)','rgba(100,116,139,.3)','rgba(100,116,139,.07)','',4000);
   }catch(e){
-    console.error(e);
-    setStatus('Failed to send signal ❌');
+    $('undoContent').insertAdjacentHTML('beforeend',`<p style="color:var(--err);margin-top:10px">Error: ${e.message}</p>`);
   }
-});
-
-/* =============== Secret exits (color buttons) =============== */
-(function initSecrets(){
-  // bring back combo to exit
-  const SECRET_SEQUENCE = ['red','blue','yellow','green']; let comboProgress = [];
-  $('comboGrid').addEventListener('click', (e)=>{
-    const el = e.target.closest?.('.btnSquare'); if (!el) return;
-    const color = el.getAttribute('data-color');
-    comboProgress.push(color);
-    if (comboProgress.length > SECRET_SEQUENCE.length) comboProgress = comboProgress.slice(-SECRET_SEQUENCE.length);
-    const ok = SECRET_SEQUENCE.every((c,i)=>comboProgress[i]===c);
-    if (ok && comboProgress.length===SECRET_SEQUENCE.length){
-      comboProgress=[];
-      startList();
-      kioskExit();
-    }
-    clearTimeout(window.__comboTO); window.__comboTO = setTimeout(()=>{ comboProgress=[]; }, 5000);
-  });
-
-  const seq = ['TL','TR','BR','BL']; let progress=[];
-  document.querySelectorAll('.hot').forEach((hot)=>{
-    hot.addEventListener('click', function(){
-      progress.push(this.dataset.k);
-      if (progress.length>seq.length) progress = progress.slice(-seq.length);
-      const ok2 = seq.every((k,i)=>progress[i]===k);
-      if (ok2 && progress.length===seq.length){ progress=[]; startList(); kioskExit(); }
-      clearTimeout(window.__secretTO); window.__secretTO = setTimeout(()=>{ progress=[]; }, 4000);
-    });
-  });
-})();
-
-/* =============== Starfield =============== */
-function startStarfield(){
-  const c = $('bgStars');
-  const ctx = c.getContext('2d', { alpha: false });
-
-  const DPR = Math.max(1, window.devicePixelRatio || 1);
-  let W = 0, H = 0;
-
-  function resize(){
-    W = (innerWidth|0);
-    H = (innerHeight|0);
-    c.width  = W * DPR;
-    c.height = H * DPR;
-    c.style.width  = W + 'px';
-    c.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  resize();
-  addEventListener('resize', resize);
-
-  const BASE_STARS = 420;
-  const stars = new Array(BASE_STARS);
-  for (let i=0;i<BASE_STARS;i++){
-    stars[i] = {
-      x: (Math.random() - 0.5),
-      y: (Math.random() - 0.5),
-      z: Math.random(),
-      r: Math.random() * 1.5 + 0.4
-    };
-  }
-
-  const meteors = [];
-  let nextMeteorAt = performance.now() + 1200 + Math.random()*2200;
-
-  function spawnMeteor(){
-    const fromTop = Math.random() < 0.5;
-    const startX = fromTop ? Math.random() * W*0.7 : -40;
-    const startY = fromTop ? -20 : Math.random() * H*0.4;
-    const vx = (3 + Math.random()*3);
-    const vy = (fromTop ? (2.2 + Math.random()*2.2) : (1.4 + Math.random()*1.6));
-    meteors.push({
-      x:startX, y:startY, vx, vy,
-      life: 900 + Math.random()*700,
-      age: 0
-    });
-  }
-
-  let last = performance.now();
-  function draw(now){
-    const dt = Math.min(48, now - last);
-    last = now;
-
-    ctx.fillStyle = '#000014';
-    ctx.fillRect(0, 0, W, H);
-
-    for (let i=0;i<BASE_STARS;i++){
-      const s = stars[i];
-      let z = s.z - (2.0 * dt) / 1000;
-      if (z <= 0) z += 1;
-      s.z = z;
-
-      const k = 220 * (1 - z);
-      const x = (W/2) + (s.x * W) * (0.3 + k/220);
-      const y = (H/2) + 50 + (s.y * H) * (0.3 + k/220);
-
-      const radius = Math.max(0.2, s.r * (1 - z));
-      const b = 120 + (1 - z) * 135;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI*2);
-      ctx.fillStyle = `rgb(${b|0},${b|0},${b|0})`;
-      ctx.fill();
-    }
-
-    if (now >= nextMeteorAt){
-      spawnMeteor();
-      nextMeteorAt = now + 1800 + Math.random()*2600;
-    }
-    for (let m = meteors.length - 1; m >= 0; m--){
-      const me = meteors[m];
-      me.age += dt;
-      me.x += me.vx * (dt/16.7);
-      me.y += me.vy * (dt/16.7);
-
-      const trail = 80;
-      const grad = ctx.createLinearGradient(me.x, me.y, me.x - me.vx*trail*0.6, me.y - me.vy*trail*0.6);
-      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
-      grad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(me.x, me.y);
-      ctx.lineTo(me.x - me.vx*trail*0.6, me.y - me.vy*trail*0.6);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(me.x, me.y, 1.6, 0, Math.PI*2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-
-      if (me.age > me.life || me.x > W+60 || me.y > H+60) meteors.splice(m,1);
-    }
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+}
+function adminChangeStation(){
+  closeAdminOverlay();
+  startHub();
 }
 
-/* =============== Boot =============== */
-(function boot(){
-  try { sessionStorage.removeItem(UNLOCK_KEY); } catch(_){}
-  show('auth');
-  startStarfield();
+let xrayBoxes = false;
+let allowMultiScan = false;
+db.collection('config').doc('gameSettings').onSnapshot(doc=>{
+  const d = doc.exists ? doc.data() : {};
+  xrayBoxes = d.xrayBoxes === true;
+  allowMultiScan = d.allowMultiScan === true;
+  window._countdownEnabled = d.countdownEnabled !== false; // default ON
+});
 
-  const handler = (ev)=>{ ev?.preventDefault?.(); primeAudio(); authErr.textContent=''; const pw=(pwEl.value||'').trim(); checkPassword(pw).then(ok=>{ ok?unlockUI():denyUI(); }); return false; };
-  unlockBtn?.addEventListener('click', handler, false);
-  unlockBtn?.addEventListener('touchstart', (e)=>{ e?.preventDefault?.(); handler(e); }, false);
-  $('unlock-form')?.addEventListener('submit', handler, false);
-  pwEl?.addEventListener('keydown', (e)=>{ if ((e.key==='Enter')||(e.keyCode===13)){ e.preventDefault(); handler(e); return false; } }, false);
+async function showStationHealth(){
+  $('adminMenuView').style.display = 'none';
+  $('adminHealthView').style.display = 'block';
+  const stId = currentStationId || '?';
+  $('healthTitle').textContent = 'Station #' + stId + ' Health';
+  const box = $('healthContent');
+  box.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading…</div>';
 
-  getExpectedPassword();
+  try{
+    const scanSnap = await db.collection('scans').where('station','==',stId).get();
+    const allScans = [];
+    scanSnap.forEach(doc=>{
+      const d=doc.data()||{};
+      const ts=d.timestamp?.toDate?.();
+      allScans.push({name:d.name||'Unknown',ts});
+    });
+    allScans.sort((a,b)=>(b.ts||0)-(a.ts||0));
 
-  document.addEventListener('visibilitychange', ()=>{
-    if (document.visibilityState!=='visible'){
-      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
+    let statsHtml = `<div class="health-stat">
+      <span class="label">Total check-ins here</span>
+      <span class="value">${allScans.length}</span>
+    </div>`;
+
+    let scansHtml = '<div class="health-section">Recent Check-ins</div>';
+    if(!allScans.length){
+      scansHtml += '<div style="color:var(--muted);font-size:13px">No check-ins yet.</div>';
+    } else {
+      scansHtml += allScans.slice(0,15).map(s=>`
+        <div class="health-scan-row">
+          <span style="font-weight:600">${escapeHtml(s.name)}</span>
+          <span style="color:var(--muted)">${s.ts?s.ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'—'}</span>
+        </div>`).join('');
     }
+
+    box.innerHTML = statsHtml + scansHtml;
+  }catch(e){
+    box.innerHTML = '<div style="color:var(--err);font-size:13px">Error: '+e.message+'</div>';
+  }
+}
+
+
+function showScanMsg(msg,color,border,bg,hint,dur){
+  clearTimeout(window.__scanTO);
+  statusMsg.style.cssText='display:block;margin-top:10px;text-align:center;font-size:16px;font-weight:700;padding:12px 14px;border-radius:8px;letter-spacing:.01em;';
+  statusMsg.style.color=color;statusMsg.style.borderColor=border;statusMsg.style.background=bg;
+  statusMsg.style.border='1px solid '+border;
+  statusMsg.textContent=msg;
+  const ss=document.getElementById('startStatus');
+  if(ss){ss.textContent=msg;ss.style.color=color;}
+  const hintBox=$('hintBox');
+  if(hintBox){
+    if(hint){$('hintText').textContent=hint;hintBox.style.display='block';}
+    else{hintBox.style.display='none';}
+  }
+  window.__scanTO=setTimeout(()=>{
+    statusMsg.style.display='none';statusMsg.textContent='';statusMsg.removeAttribute('style');
+    if(ss){ss.textContent='';ss.style.color='';}
+    if(hintBox)hintBox.style.display='none';
+  },dur);
+}
+
+
+(function initSecrets(){
+  const seq=['TL','TR','BR','BL'];let progress=[];
+  document.querySelectorAll('.hot').forEach((hot)=>{
+    hot.addEventListener('click',function(){
+      progress.push(this.dataset.k);
+      if(progress.length>seq.length)progress=progress.slice(-seq.length);
+      const ok=seq.every((k,i)=>progress[i]===k);
+      if(ok&&progress.length===seq.length){progress=[];openAdminOverlay();}
+      clearTimeout(window.__secretTO);window.__secretTO=setTimeout(()=>{progress=[];},4000);
+    });
   });
 })();
-window.addEventListener('beforeunload', ()=>{
-  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval=null; }
+
+// Header tap secret: tap Left → Right → Middle third of header to go back to hub
+(function(){
+  const seq=['L','R','M']; let cp=[];
+  const hdr=document.querySelector('header');
+  if(hdr) hdr.addEventListener('click',function(e){
+    const third=hdr.offsetWidth/3;
+    const x=e.clientX-hdr.getBoundingClientRect().left;
+    const zone=x<third?'L':x>third*2?'R':'M';
+    cp.push(zone);
+    if(cp.length>seq.length)cp=cp.slice(-seq.length);
+    if(seq.every((k,i)=>cp[i]===k)&&cp.length===seq.length){cp=[];startHub();}
+    clearTimeout(window.__hdrTO);window.__hdrTO=setTimeout(()=>{cp=[];},4000);
+  });
+})();
+
+
+(function boot(){
+  startHub();
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      // Screen woke up — fire immediately so admin sees online right away
+      if(_lastBeatFn){
+        _lastBeatFn();
+        // Restart interval in case the browser killed it while hidden
+        if(heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval=setInterval(_lastBeatFn,10000);
+      }
+    }
+    // Do NOT clear the interval on hide — let the browser throttle it;
+    // it will still fire occasionally and keeps the last-seen timestamp fresher.
+  });
+})();
+// Backstop: every 25s fire the beat unconditionally regardless of any interval state
+setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 25000);
+
+window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
+  stopAudioBroadcast();
+  if(_audioMicStream){_audioMicStream.getTracks().forEach(t=>t.stop());_audioMicStream=null;}
 });
+
+/* ===== BACKGROUND CANVAS (SMB tile art — same as game) ===== */
+(function initBgCanvas(){
+  const bc  = document.getElementById('bgCanvas');
+  const bx  = bc.getContext('2d');
+  const img = new Image();
+  img.src   = 'mario-tiles.png';
+
+  function drawCloud(cx, cy, ts){
+    const L = Math.round(cx - ts * 1.5);
+    const T = Math.round(cy - ts);
+    [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+      bx.drawImage(img, sx, sy, 16, 16, L+(i%3)*ts, T+Math.floor(i/3)*ts, ts, ts);
+    });
+  }
+
+  function draw(){
+    const W = bc.width  = window.innerWidth;
+    const H = bc.height = window.innerHeight;
+    bx.imageSmoothingEnabled = false;
+
+    // Sky
+    bx.fillStyle = '#5c94fc';
+    bx.fillRect(0, 0, W, H);
+
+    const groundH = 56;
+    const gy = H - groundH;
+
+    if(img.complete && img.naturalWidth > 0){
+      // Clouds — scale with screen, same positions as game
+      const cs = Math.round(W * 0.065);
+      drawCloud(W * 0.13, H * 0.12, cs);
+      drawCloud(W * 0.50, H * 0.09, Math.round(cs * 1.2));
+      drawCloud(W * 0.82, H * 0.14, Math.round(cs * 0.85));
+
+      // Ground tiles (2 rows filling groundH)
+      const gt   = Math.round(groundH / 2);
+      const cols = Math.ceil(W / gt) + 1;
+      for(let c = 0; c < cols; c++) bx.drawImage(img, 16, 0, 16, 16, c*gt, gy,    gt, gt);
+      for(let c = 0; c < cols; c++) bx.drawImage(img,  0, 0, 16, 16, c*gt, gy+gt, gt, gt);
+    } else {
+      // Fallback while tiles load
+      bx.fillStyle = '#c8601c';
+      bx.fillRect(0, gy, W, groundH);
+      bx.fillStyle = '#231207';
+      bx.fillRect(0, gy, W, 3);
+    }
+  }
+
+  img.onload = draw;
+  draw();
+  window.addEventListener('resize', draw);
+  // Re-draw after game closes (game leaves canvas dirty)
+  document.getElementById('marioGame').addEventListener('transitionend', draw);
+})();
+
+/* ===== RETRO SFX ENGINE (Web Audio API) ===== */
+const SFX = (function(){
+  let ctx = null;
+  function ac(){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
+  function tone(freq, type, vol, startT, dur, freqEnd){
+    const c = ac();
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type = type||'square';
+    o.frequency.setValueAtTime(freq, c.currentTime+startT);
+    if(freqEnd) o.frequency.linearRampToValueAtTime(freqEnd, c.currentTime+startT+dur);
+    g.gain.setValueAtTime(vol||0.18, c.currentTime+startT);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+startT+dur);
+    o.start(c.currentTime+startT);
+    o.stop(c.currentTime+startT+dur+0.01);
+  }
+  return {
+    jump(){
+      tone(180, 'square', 0.18, 0,    0.08, 600);
+      tone(600, 'square', 0.10, 0.07, 0.12, 900);
+    },
+    coin(){
+      tone(1400,'square', 0.16, 0,    0.06);
+      tone(1800,'square', 0.12, 0.05, 0.10);
+    },
+    stomp(){
+      // Heavy SMB box-bump thump
+      tone(55,  'square', 0.28, 0,    0.04, 28);
+      tone(160, 'square', 0.18, 0.02, 0.07, 70);
+      tone(340, 'square', 0.10, 0,    0.03);
+    },
+    tick(){
+      // Single coin ding — used during score count-up
+      tone(1320, 'square', 0.09, 0, 0.05);
+      tone(1760, 'square', 0.06, 0.03, 0.05);
+    },
+    result(){
+      // 3-note fanfare right before the counter starts
+      tone(523, 'square', 0.15, 0,    0.09);
+      tone(659, 'square', 0.15, 0.09, 0.09);
+      tone(784, 'square', 0.20, 0.18, 0.16);
+    },
+    boxHit(){
+      tone(120, 'square', 0.20, 0,    0.06, 80);
+      tone(90,  'square', 0.14, 0.05, 0.08);
+    },
+    powerup(){
+      [523,659,784,1047].forEach((f,i)=>tone(f,'square',0.15,i*0.09,0.10));
+    },
+    shell(){
+      tone(440,'sawtooth',0.20,0,    0.05, 220);
+      tone(200,'square',  0.18,0.04, 0.12, 100);
+    },
+    land(){
+      tone(100,'square',0.14,0,0.06,60);
+    },
+    key(){
+      // Mechanical keyboard click
+      tone(900, 'square', 0.09, 0,     0.014);
+      tone(320, 'square', 0.07, 0.008, 0.028, 140);
+    },
+    step(){
+      // Short percussive thud — alternates pitch for left/right foot feel
+      this._sl = !this._sl;
+      tone(this._sl ? 92 : 76, 'square', 0.07, 0, 0.038, this._sl ? 58 : 48);
+    },
+    timedOut(){
+      [330,294,262,196].forEach((f,i)=>tone(f,'square',0.16,i*0.13,0.14));
+    }
+  };
+})();
+
+/* ===== MARIO MINI-GAME ENGINE ===== */
+(function(){
+  // ── Config (overridden by Firestore) ──
+  const CFG = { coinsMin:10, coinsMax:40, coinStep:10, shellPenalty:10, powerupSeconds:90, rareChance:0.10, shellRarity:20, directOnMiss:false, directMinPrize:20, shellStationCoins:0, mushroomCoins:0, mushroomSeconds:60, adminCode:'828942', startCoins:10 };
+  window.CFG = CFG; // expose to handleStartStation / handleShellStation / handleMushroomStation (defined outside this IIFE)
+  window._cfgAdminCode = CFG.adminCode;
+  db.collection('config').doc('config').get().then(s=>{
+    if(!s.exists)return; const d=s.data()||{};
+    if(d.gameCoinsMin)           CFG.coinsMin       = Number(d.gameCoinsMin);
+    if(d.gameCoinsMax)           CFG.coinsMax       = Number(d.gameCoinsMax);
+    if(d.gameCoinStep)           CFG.coinStep       = Number(d.gameCoinStep);
+    if(d.gameShellPenalty)       CFG.shellPenalty   = d.gameShellPenalty;
+    if(d.gamePowerupSeconds)     CFG.powerupSeconds = d.gamePowerupSeconds;
+    if(d.gameShellRarity)        CFG.shellRarity    = d.gameShellRarity;
+    if(d.gameDirectOnMiss!=null)  CFG.directOnMiss      = !!d.gameDirectOnMiss;
+    if(d.gameDirectMinPrize)      CFG.directMinPrize    = d.gameDirectMinPrize;
+    if(d.shellStationCoins!=null) CFG.shellStationCoins = Number(d.shellStationCoins);
+    if(d.mushroomCoins!=null)     CFG.mushroomCoins     = Number(d.mushroomCoins);
+    if(d.mushroomSeconds!=null)   CFG.mushroomSeconds   = Number(d.mushroomSeconds);
+    if(d.adminCode)               CFG.adminCode         = String(d.adminCode).replace(/\D/g,'');
+    if(d.startCoins!=null)        CFG.startCoins        = Number(d.startCoins);
+    window._cfgAdminCode = CFG.adminCode;
+  }).catch(()=>{});
+
+
+  // ── DOM refs ──
+  const overlay      = document.getElementById('marioGame');
+  const canvas       = document.getElementById('marioCanvas');
+  const ctx          = canvas.getContext('2d');
+  const tapHintEl    = document.getElementById('gameTapHint');
+  const resultEl     = document.getElementById('gameResult');
+  const timerEl      = document.getElementById('powerupTimer');
+  const balanceEl    = document.getElementById('gameBalance');
+  const playerNameEl = document.getElementById('gamePlayerName');
+
+  // ── Constants ──
+  const MARIO_SPEED=140, GRAVITY=1300, JUMP_VY=-950;
+  const MARIO_W=64, MARIO_H=64, BOX_SIZE=96;
+
+  // ── Game state ──
+  let G=null;
+
+  // ── Sprite sheets from meth-meth-method/super-mario ──
+  const spritesImg = new Image(); spritesImg.src = 'mario-sprites.png';
+  const tilesImg   = new Image(); tilesImg.src   = 'mario-tiles.png';
+
+  // Mario frames in sprites.png (sx, sy, sw, sh — all 16×16 native)
+  // idle:[0,88] run-1:[16,88] run-2:[32,88] run-3:[48,88] jump:[80,88]
+  const MARIO_RUN_SX = [16, 32, 48]; // x offset for run-1, run-2, run-3
+
+  function drawMario(mx,my,dir,frame,jumping){
+    const pw=MARIO_W, ph=MARIO_H;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    // Mirror for left-facing
+    if(dir<0){ ctx.translate(mx+pw, my-ph); ctx.scale(-1,1); }
+    else      { ctx.translate(mx,    my-ph); }
+    if(spritesImg.complete && spritesImg.naturalWidth>0){
+      const sx = jumping ? 80 : MARIO_RUN_SX[frame % 3];
+      ctx.drawImage(spritesImg, sx, 88, 16, 16, 0, 0, pw, ph);
+    } else {
+      ctx.fillStyle='#e52521'; ctx.fillRect(0,0,pw,ph);
+    }
+    ctx.restore();
+  }
+
+  // ── Draw question box ──
+  function randomCoin(){ const steps=Math.max(0,Math.floor((CFG.coinsMax-CFG.coinsMin)/CFG.coinStep)); return CFG.coinsMin+Math.floor(Math.random()*(steps+1))*CFG.coinStep; }
+
+  function animateCounter(el, from, to, duration, onDone, withTick){
+    const range=Math.abs(to-from);
+    if(range===0){el.textContent=to;if(onDone)onDone();return;}
+    const interval=Math.max(16,Math.floor(duration/range));
+    const tickEvery=Math.max(1,Math.floor(range/8)); // ~8 coin dings max
+    let cur=from, n=0;
+    const step=()=>{cur++;n++;el.textContent=cur;if(withTick&&n%tickEvery===0)SFX.tick();if(cur>=to){if(withTick)SFX.tick();if(onDone)onDone();return;}setTimeout(step,interval);};
+    setTimeout(step,interval);
+  }
+
+  const PRIZE_LABELS={'coin':'🟡','coin_direct':'🟡','shell':'SHELL','shell_frozen':'SHELL','powerup':'STAR'};
+
+  // Chance-block tile coords in tiles.png (each 16×16 native)
+  // chance-1:[64,0] chance-2:[80,0] chance-3:[96,0]  metal(used):[32,0]
+  const CHANCE_FRAMES_SX = [64, 64, 80, 96, 80]; // mirrors the JSON animation
+  const CHANCE_PERIOD    = 0.16 * CHANCE_FRAMES_SX.length;
+
+  function drawBox(b){
+    if(b.exploded) return;
+    const by = b.y - b.bump;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+
+    // Xray prize label (overlay, semi-transparent)
+    if(xrayBoxes && !b.hit){
+      ctx.globalAlpha=1;
+      ctx.font=`bold ${Math.round(b.size*0.28)}px 'Press Start 2P',monospace`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const label=PRIZE_LABELS[b.type]||b.type;
+      ctx.fillStyle='#000'; ctx.fillText(label,b.x+b.size/2+1,by+b.size/2+3);
+      ctx.fillStyle=b.type==='shell'||b.type==='shell_frozen'?'#e52521':
+                    b.type==='powerup'?'#ff69b4':'#ffd700';
+      ctx.fillText(label,b.x+b.size/2,by+b.size/2+2);
+      ctx.globalAlpha=0.35;
+    }
+
+    if(tilesImg.complete && tilesImg.naturalWidth>0){
+      if(b.hit){
+        // Used block → metal tile at [2,0] = (32,0)
+        ctx.drawImage(tilesImg, 32, 0, 16, 16, b.x, by, b.size, b.size);
+      } else {
+        // Animated ? block
+        const fi = Math.floor((performance.now()/1000 / 0.16) % CHANCE_FRAMES_SX.length);
+        ctx.drawImage(tilesImg, CHANCE_FRAMES_SX[fi], 0, 16, 16, b.x, by, b.size, b.size);
+      }
+    } else {
+      // Fallback canvas draw
+      const c = b.hit ? '#888' : '#e8a000';
+      ctx.fillStyle=c; ctx.fillRect(b.x,by,b.size,b.size);
+      if(!b.hit){
+        const fontSize = Math.round(b.size*0.5);
+        ctx.font=`bold ${fontSize}px 'Press Start 2P',monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
+        ctx.fillText('?', b.x+b.size/2, by+b.size/2+2);
+      }
+    }
+    ctx.restore();
+  }
+
+  // ── Particles ──
+  function spawnParticles(bx,by,type){
+    const cx=bx, cy=by;
+    const ps=[];
+    const coin=(extra)=>{
+      for(let i=0;i<14;i++){
+        const a=(Math.PI*2*i/14)-Math.PI/2;
+        const spd=160+Math.random()*140;
+        ps.push({x:cx,y:cy,vx:Math.cos(a)*spd*0.6,vy:Math.sin(a)*spd-220,
+          color:Math.random()>.5?'#e8a000':'#ffd700',size:9+Math.random()*7,
+          life:1,decay:0.65+Math.random()*0.45,t:'coin',spin:Math.random()*Math.PI*2});
+      }
+    };
+    if(type==='coin'||type==='coin_direct') coin();
+    else if(type==='shell_frozen'){
+      // Frozen shell: icy blue blobs
+      for(let i=0;i<16;i++){
+        const a=Math.random()*Math.PI*2, spd=90+Math.random()*150;
+        ps.push({x:cx,y:cy,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-100,
+          color:i<8?'#3b79c1':'#a0c8ff',size:10+Math.random()*10,life:1,decay:0.6,t:'blob'});
+      }
+    } else if(type==='shell'){
+      coin();
+      for(let i=0;i<10;i++){
+        const a=Math.random()*Math.PI*2, spd=80+Math.random()*130;
+        ps.push({x:cx,y:cy,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-80,
+          color:i<5?'#4caf50':'#a5d6a7',size:10+Math.random()*8,life:1,decay:0.7,t:'blob'});
+      }
+    } else if(type==='powerup'){
+      for(let i=0;i<20;i++){
+        const a=(Math.PI*2*i/20), spd=120+Math.random()*220;
+        ps.push({x:cx,y:cy,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-280,
+          color:['#e52521','#ffd700','#fff','#ff69b4'][i%4],
+          size:6+Math.random()*14,life:1,decay:0.45+Math.random()*0.35,t:'star',spin:Math.random()*Math.PI*2});
+      }
+    }
+    return ps;
+  }
+  function tickParticles(ps,dt){
+    for(let i=ps.length-1;i>=0;i--){
+      const p=ps[i];
+      p.x+=p.vx*dt; p.y+=p.vy*dt;
+      p.vy+=680*dt;
+      p.life-=p.decay*dt;
+      if(p.life<=0) ps.splice(i,1);
+    }
+  }
+  function drawParticles(ps){
+    for(const p of ps){
+      ctx.save(); ctx.globalAlpha=Math.max(0,p.life);
+      ctx.fillStyle=p.color;
+      if(p.t==='coin'){
+        const sx=Math.abs(Math.cos((p.spin||0)+performance.now()*0.005));
+        const rw=p.size*Math.max(0.05,sx), rh=p.size;
+        ctx.save(); ctx.translate(p.x,p.y);
+        // Gold coin body
+        ctx.fillStyle='#e8a000';
+        ctx.beginPath(); ctx.ellipse(0,0,rw,rh,0,0,Math.PI*2); ctx.fill();
+        // Darker ring border
+        ctx.strokeStyle='#9a6000'; ctx.lineWidth=Math.max(1,p.size*0.12);
+        ctx.beginPath(); ctx.ellipse(0,0,rw,rh,0,0,Math.PI*2); ctx.stroke();
+        // "M" mark — only when coin is wide enough to read
+        if(sx>0.38){
+          ctx.fillStyle='#9a6000';
+          ctx.font=`bold ${Math.round(rh*0.95)}px 'Press Start 2P',monospace`;
+          ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.scale(sx,1); ctx.fillText('M',0,1);
+        }
+        ctx.restore();
+      } else if(p.t==='star'){
+        ctx.translate(p.x,p.y); ctx.rotate((p.spin||0)+performance.now()*0.003);
+        ctx.beginPath();
+        for(let j=0;j<10;j++){
+          const a=(j*Math.PI/5)-Math.PI/2;
+          const r2=j%2===0?p.size:p.size*0.42;
+          j===0?ctx.moveTo(Math.cos(a)*r2,Math.sin(a)*r2):ctx.lineTo(Math.cos(a)*r2,Math.sin(a)*r2);
+        }
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ── Draw scene using real SMB tile sprites ──
+  // Tile index → pixel: col*16, row*16 in tiles.png
+  // cloud row 1: cols 11-13, row 10  → (176,160),(192,160),(208,160)
+  // cloud row 2: cols 11-13, row 11  → (176,176),(192,176),(208,176)
+  // ground: col 0, row 0 → (0,0)
+  // bricks: col 1, row 0 → (16,0)
+
+  function drawTile(sx,sy,dx,dy,size){
+    ctx.drawImage(tilesImg, sx, sy, 16, 16, dx, dy, size, size);
+  }
+
+  function drawSMBCloud(cx, cy, tileSize){
+    // 3-wide × 2-tall tile cloud, centred at (cx,cy)
+    const cLeft = Math.round(cx - tileSize*1.5);
+    const cTop  = Math.round(cy - tileSize);
+    const topRow    = [176,192,208];
+    const bottomRow = [176,192,208];
+    topRow.forEach((sx,i)    => drawTile(sx,160, cLeft+i*tileSize, cTop,            tileSize));
+    bottomRow.forEach((sx,i) => drawTile(sx,176, cLeft+i*tileSize, cTop+tileSize,   tileSize));
+  }
+
+  function drawScene(W,H){
+    ctx.imageSmoothingEnabled = false;
+    // Sky
+    ctx.fillStyle='#5c94fc'; ctx.fillRect(0,0,W,H);
+
+    // Clouds using real SMB tiles
+    if(tilesImg.complete && tilesImg.naturalWidth>0){
+      const cs = Math.round(W * 0.065); // tile size scales with canvas width
+      drawSMBCloud(W*0.13, H*0.10, cs);
+      drawSMBCloud(W*0.50, H*0.07, Math.round(cs*1.2));
+      drawSMBCloud(W*0.82, H*0.13, Math.round(cs*0.85));
+    } else {
+      // Fallback: simple white circles
+      [[W*.13,H*.1,34],[W*.5,H*.07,44],[W*.82,H*.13,28]].forEach(([cx,cy,r])=>{
+        ctx.fillStyle='#fff';
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+        ctx.arc(cx+r*.75,cy-r*.3,r*.65,0,Math.PI*2);
+        ctx.arc(cx-r*.7,cy-r*.2,r*.55,0,Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    // Ground using real SMB tiles
+    const gy=H-74;
+    if(tilesImg.complete && tilesImg.naturalWidth>0){
+      // tile size: fit ~2 rows into 74px of ground height
+      const gTile = Math.round(74 / 2);      // ≈37 px per tile
+      const cols  = Math.ceil(W / gTile) + 1;
+      // Row 0 (top): bricks tile [1,0]=(16,0) for the cap row
+      for(let c=0;c<cols;c++) drawTile(16, 0, c*gTile, gy,         gTile);
+      // Row 1+: ground tile [0,0]=(0,0)
+      for(let c=0;c<cols;c++) drawTile( 0, 0, c*gTile, gy+gTile,   gTile);
+    } else {
+      // Fallback brick ground
+      const bW=52,bH=20,mort=4;
+      ctx.fillStyle='#231207'; ctx.fillRect(0,gy,W,H-gy);
+      const rowCount=Math.ceil((H-gy)/(bH+mort))+1;
+      for(let row=0;row<rowCount;row++){
+        const rowY=gy+mort+row*(bH+mort);
+        const offset=(row%2)*Math.round(bW/2+mort/2);
+        for(let bx=-bW+offset;bx<W+bW;bx+=bW+mort){
+          ctx.fillStyle='#C07028'; ctx.fillRect(bx,rowY,bW,bH);
+          ctx.fillStyle='#D4873A'; ctx.fillRect(bx,rowY,bW,3); ctx.fillRect(bx,rowY,3,bH);
+          ctx.fillStyle='#7A3E10'; ctx.fillRect(bx,rowY+bH-3,bW,3); ctx.fillRect(bx+bW-3,rowY,3,bH);
+        }
+      }
+    }
+  }
+
+  // ── Game loop ──
+  function loop(ts){
+    if(!G||!G.active)return;
+    const dt=Math.min((ts-(G.lastTs||ts))/1000,0.05);
+    G.lastTs=ts;
+    const W=canvas.width, H=canvas.height, gy=H-74;
+
+    // Mario walk
+    if(G.phase==='walk'){
+      G.mario.x += G.mario.dir*G.speed*dt;
+      G.mario.wt += dt;
+      if(G.mario.wt>0.10){G.mario.frame=(G.mario.frame+1)%3;G.mario.wt=0;if(G.mario.frame===0||G.mario.frame===2)SFX.step();}
+      if(G.mario.x<8){G.mario.x=8;G.mario.dir=1;}
+      if(G.mario.x>W-MARIO_W-8){G.mario.x=W-MARIO_W-8;G.mario.dir=-1;}
+    }
+
+    // Mario jump
+    if(G.phase==='jump'){
+      if(CFG.directOnMiss && G.targetBox){
+        // Directed: steer horizontally toward target box
+        const tb=G.targetBox;
+        const tx=tb.x+tb.size/2-MARIO_W/2;
+        const dx=tx-G.mario.x;
+        G.mario.x+=Math.sign(dx)*Math.min(Math.abs(dx),G.speed*dt);
+        G.mario.dir=dx>0?1:-1;
+      }
+      G.mario.vy+=GRAVITY*dt;
+      G.mario.y+=G.mario.vy*dt;
+
+      // Check box collision while rising
+      if(!G.hitDone && G.mario.vy<0){
+        const candidates=G.targetBox?[G.targetBox]:G.boxes.filter(b=>!b.hit);
+        for(const tb of candidates){
+          const mLeft=G.mario.x, mRight=G.mario.x+MARIO_W;
+          const bLeft=tb.x, bRight=tb.x+tb.size;
+          const horizOk=mRight>bLeft+12 && mLeft<bRight-12;
+          if(horizOk && G.mario.y-MARIO_H<=tb.y+tb.size+4){
+            G.hitDone=true; G.targetBox=tb; tb.hit=true;
+            SFX.stomp();
+            if(tb.type==='powerup') SFX.powerup();
+            else if(tb.type==='shell'||tb.type==='shell_frozen') SFX.shell();
+            else SFX.coin();
+            G.particles=spawnParticles(tb.x+tb.size/2, tb.y, tb.type);
+            let bt=0;
+            const bump=()=>{bt+=0.06;tb.bump=Math.sin(bt*Math.PI)*18;if(bt<1)requestAnimationFrame(bump);else tb.bump=0;};
+            requestAnimationFrame(bump);
+            break;
+          }
+        }
+      }
+
+      // Land
+      if(G.mario.y>=gy){
+        G.mario.y=gy; G.mario.vy=0;
+        SFX.land();
+        if(G.hitDone){
+          G.phase='landing'; setTimeout(revealResult,500);
+        } else if(G.targetBox){
+          // Directed mode missed — auto-jump again toward same target
+          G.mario.vy=G.jumpVY;
+          G.phase='jump';
+        } else {
+          G.phase='walk'; // free mode — wait for next tap
+        }
+      }
+    }
+
+    if(G.particles) tickParticles(G.particles,dt);
+
+    // Draw
+    ctx.clearRect(0,0,W,H);
+    drawScene(W,H);
+    for(const b of G.boxes) drawBox(b);
+    if(G.particles) drawParticles(G.particles);
+    drawMario(G.mario.x, G.mario.y, G.mario.dir, G.mario.frame, G.phase==='jump');
+
+    G.animId=requestAnimationFrame(loop);
+  }
+
+  // ── Timed-out (0 coins, no box hit) ──
+  function showTimedOut(){
+    if(!G)return;
+    SFX.timedOut();
+    const iconEl=document.getElementById('resultIcon');
+    const amtEl =document.getElementById('resultAmount');
+    const multEl=document.getElementById('resultMultiplier');
+    const finEl =document.getElementById('resultFinal');
+    const lblEl =document.getElementById('resultLabel');
+    tapHintEl.style.display='none';
+    multEl.style.display='none';
+    const toEl=document.getElementById('resultTotal');
+    iconEl.textContent='⏱';
+    amtEl.textContent='TIME\'S UP!'; amtEl.style.color='#e52521';
+    finEl.textContent='0 coins';
+    if(toEl){ toEl.textContent='TOTAL: '+(G.kidData.coins||0)+' 🟡'; toEl.style.display='block'; }
+    lblEl.textContent=G.kidData.name||'Participant';
+    resultEl.classList.remove('hide');
+    // Record 0-coin scan
+    (async()=>{
+      try{
+        if(!G.isPowerupMode && !G.isFrozen){
+          await G.kidRef.update({scans:FSV.arrayUnion(currentStationId)});
+          await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+            station:currentStationId,coins:0,gameType:'timed_out',timestamp:firebase.firestore.Timestamp.now()});
+          lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
+          await maybeTriggerWebSwitch();
+        }
+      }catch(e){console.error('showTimedOut',e);}
+    })();
+    setTimeout(closeGame,3500);
+  }
+
+  // ── Reveal result ──
+  function revealResult(){
+    if(!G)return;
+    stopGameTimer();
+    cancelAnimationFrame(G.animId);
+
+    const prize=G.targetBox.type;
+    const pm=G.isPowerupMode;
+    const iconEl  =document.getElementById('resultIcon');
+    const amtEl   =document.getElementById('resultAmount');
+    const multEl  =document.getElementById('resultMultiplier');
+    const finEl   =document.getElementById('resultFinal');
+    const lblEl   =document.getElementById('resultLabel');
+    const totalEl =document.getElementById('resultTotal');
+
+    tapHintEl.style.display='none';
+    multEl.style.display='none';
+    if(totalEl) totalEl.style.display='none';
+
+    if(prize==='shell_frozen'){
+      // Frozen player hit a shell — animate their balance counting down
+      const oldBal=(G.kidData.coins||0)+CFG.shellPenalty;
+      const newBal=G.kidData.coins||0;
+      iconEl.innerHTML='<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">';
+      amtEl.textContent='KOOPA SHELL!'; amtEl.style.color='#3b79c1';
+      finEl.innerHTML='Balance: <span id="frozenBalCount">'+oldBal+'</span>';
+      lblEl.innerHTML='<span style="color:#e52521;font-size:1.2em">−'+CFG.shellPenalty+'</span> COINS';
+      resultEl.classList.remove('hide');
+      // Animate balance counting down after a short pause
+      setTimeout(()=>{
+        const counter=document.getElementById('frozenBalCount');
+        let cur=oldBal;
+        const step=Math.max(1,Math.ceil(CFG.shellPenalty/30));
+        const anim=setInterval(()=>{
+          cur=Math.max(newBal,cur-step);
+          if(counter) counter.textContent=cur;
+          if(balanceEl) balanceEl.innerHTML='<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> '+cur;
+          if(cur<=newBal) clearInterval(anim);
+        },50);
+      },900);
+      beep(); applyFrozen();
+      setTimeout(closeGame,5500);
+    } else if(prize==='powerup'){
+      iconEl.innerHTML='<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">';
+      amtEl.textContent='SUPER MARIO!'; amtEl.style.color='#e52521';
+      finEl.innerHTML='<span style="font-size:.55em">×2 COINS + SHELL SHIELD</span>';
+      lblEl.innerHTML='<span style="font-size:.8em">'+CFG.powerupSeconds+' SECONDS — RUN TO ANOTHER STATION!</span><br><span style="font-size:.7em;color:#ffe082">You are protected from the next red shell</span>';
+      resultEl.classList.remove('hide');
+      beep(); applyPowerup();
+      setTimeout(closeGame, 5500);
+    } else if(prize==='shell'){
+      iconEl.innerHTML='<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">';
+      amtEl.textContent='KOOPA SHELL!'; amtEl.style.color='#4caf50';
+      finEl.innerHTML='<span style="font-size:.6em">+'+CFG.coinsMin+' for you</span>';
+      const shellNewTotal=(G.kidData.coins||0)+CFG.coinsMin;
+      if(totalEl){ totalEl.innerHTML='YOUR TOTAL: '+shellNewTotal+' <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">'; totalEl.style.display='block'; }
+      lblEl.textContent='Everyone else loses '+CFG.shellPenalty+' coins!';
+      resultEl.classList.remove('hide');
+      beep(); applyShell();
+      setTimeout(closeGame,4500);
+    } else {
+      let base=prize==='coin_direct'?CFG.directMinPrize:randomCoin();
+      let total=pm?base*2:base;
+      const oldTotal=G.kidData.coins||0;
+      const newTotal=oldTotal+total;
+      iconEl.innerHTML='<span style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background:#e8a000;border:5px solid #9a6000;color:#9a6000;font-size:26px;font-weight:900;font-family:\'Press Start 2P\',monospace;box-shadow:3px 3px 0 #9a6000">M</span>';
+      amtEl.innerHTML='<span class="result-plus">+'+base+'</span>';
+      multEl.style.display='none';
+      finEl.textContent=String(oldTotal);
+      if(totalEl) totalEl.style.display='none';
+      lblEl.textContent=G.kidData.name||'Participant';
+      resultEl.classList.remove('hide');
+      SFX.result();
+      const _applyPromise = applyCoins(total);
+      if(pm){
+        // Wait for both 400ms delay and actual Firestore balance before animating
+        Promise.all([new Promise(r=>setTimeout(r,400)), _applyPromise]).then(([,actualNew])=>{
+          const trueOld = actualNew - total;
+          const trueBase = actualNew - base; // trueOld + base (mid-point before ×2)
+          const trueFinal = actualNew;
+          if(trueOld !== oldTotal) finEl.textContent = String(trueOld);
+          // Count up to base first, then mushroom pops with ×2, then count to doubled total
+          animateCounter(finEl, trueOld, trueBase, 900, ()=>{
+            setTimeout(()=>{
+              iconEl.innerHTML='<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">';
+              amtEl.innerHTML='<span class="result-plus" style="background:#e52521;border-color:#900;color:#fff">×2</span>';
+              SFX.result();
+              setTimeout(()=>{
+                animateCounter(finEl, trueBase, trueFinal, 900, ()=>{
+                  if(totalEl){totalEl.innerHTML='TOTAL: '+trueFinal+' <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">';totalEl.style.display='block';}
+                }, true);
+              }, 400);
+            },600);
+          }, true);
+        });
+        setTimeout(closeGame, 9800);
+      } else {
+        // Wait for both 400ms delay and actual Firestore balance before animating
+        Promise.all([new Promise(r=>setTimeout(r,400)), _applyPromise]).then(([,actualNew])=>{
+          const trueOld = actualNew - total;
+          const trueFinal = actualNew;
+          if(trueOld !== oldTotal) finEl.textContent = String(trueOld);
+          animateCounter(finEl, trueOld, trueFinal, 1000, ()=>{
+            if(totalEl){totalEl.innerHTML='TOTAL: '+trueFinal+' <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">';totalEl.style.display='block';}
+          }, true);
+        });
+        setTimeout(closeGame, 7400);
+      }
+    }
+  }
+
+  // ── Firebase writes ──
+  async function applyCoins(amount){
+    try{
+      await G.kidRef.update({scans:FSV.arrayUnion(currentStationId),coins:FSV.increment(amount)});
+      const snap = await G.kidRef.get();
+      const actualCoins = snap.data()?.coins ?? (G.kidData.coins||0) + amount;
+      // fire-and-forget remaining writes so animation doesn't wait on them
+      db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+        station:currentStationId,coins:amount,gameType:G.targetBox.type,
+        powerupMode:!!G.isPowerupMode,timestamp:firebase.firestore.Timestamp.now()})
+        .catch(e=>console.error('scans.add',e));
+      lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
+      maybeTriggerWebSwitch().catch(e=>console.error('webswitch',e));
+      return actualCoins;
+    }catch(e){console.error('applyCoins',e); return (G.kidData.coins||0)+amount;}
+  }
+
+  async function applyShell(){
+    try{
+      const shellUpd={scans:FSV.arrayUnion(currentStationId),coins:FSV.increment(CFG.coinsMin)};
+      if(G.powerupType==='shell') shellUpd.usedShell=true;
+      await G.kidRef.update(shellUpd);
+      await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+        station:currentStationId,coins:CFG.coinsMin,gameType:'shell',timestamp:firebase.firestore.Timestamp.now()});
+      lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
+      await maybeTriggerWebSwitch();
+
+      // Deduct from all other kids + freeze (skip shielded, finished, or not-yet-started players)
+      const allKids=await db.collection('kids').get();
+      const batch=db.batch(); let n=0, shielded=0;
+      allKids.forEach(doc=>{
+        if(doc.id===G.kidRef.id)return;
+        const dd=doc.data();
+        if(dd.completed||!dd.mazeStartTime)return; // skip finished or not-yet-started
+        if(dd.shellShield){
+          batch.update(doc.ref,{shellShield:FSV.delete()});
+          shielded++;
+        } else {
+          batch.update(doc.ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});
+          n++;
+        }
+      });
+      if(n+shielded>0) await batch.commit();
+
+      // Broadcast
+      await db.collection('config').doc('shellBroadcast').set({
+        triggeredAt:firebase.firestore.Timestamp.now(),
+        by:G.kidRef.id,byName:G.kidData.name||'Participant',
+        penalty:CFG.shellPenalty,affectedCount:n,shieldedCount:shielded
+      });
+
+    }catch(e){console.error('applyShell',e);}
+  }
+
+  async function applyPowerup(){
+    try{
+      const expiry=new Date(Date.now()+CFG.powerupSeconds*1000);
+      const mushUpd={
+        scans:FSV.arrayUnion(currentStationId),
+        superMarioActive:true,
+        superMarioExpiry:firebase.firestore.Timestamp.fromDate(expiry),
+        shellShield:true
+      };
+      if(G.powerupType==='mushroom') mushUpd.usedMushroom=true;
+      await G.kidRef.update(mushUpd);
+      await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+        station:currentStationId,coins:0,gameType:'powerup',timestamp:firebase.firestore.Timestamp.now()});
+      lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
+      await maybeTriggerWebSwitch();
+      // Expiry is tracked in Firestore only — no on-screen countdown shown
+    }catch(e){console.error('applyPowerup',e);}
+  }
+
+  async function applyFrozen(){
+    try{
+      await G.kidRef.update({frozen:FSV.delete(),scans:FSV.arrayUnion(currentStationId)});
+      await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+        station:currentStationId,coins:0,gameType:'frozen_shell',timestamp:firebase.firestore.Timestamp.now()});
+      lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
+      await maybeTriggerWebSwitch();
+    }catch(e){console.error('applyFrozen',e);}
+  }
+
+  // ── 30-second game timeout ──
+  let _gameTimerTO=null, _gameTimerEl=null;
+  function startGameTimer(){
+    if(_gameTimerTO){clearInterval(_gameTimerTO);_gameTimerTO=null;}
+    if(!_gameTimerEl){
+      _gameTimerEl=document.createElement('div');
+      _gameTimerEl.style.cssText='position:absolute;top:16px;left:16px;font-family:"Press Start 2P",monospace;font-size:clamp(10px,2.5vw,14px);color:#fff;text-shadow:2px 2px 0 #000;z-index:12;pointer-events:none;';
+      overlay.appendChild(_gameTimerEl);
+    }
+    let rem=30;
+    const tick=()=>{
+      if(!G||!G.active) return; // game ended
+      if(G.hitDone){_gameTimerEl.textContent='';return;} // result already found
+      _gameTimerEl.textContent='⏱ '+rem+'s';
+      _gameTimerEl.style.color=rem<=10?'#e52521':'#fff';
+      if(rem<=0){
+        _gameTimerEl.textContent='';
+        tapHintEl.style.display='none';
+        if(CFG.directOnMiss){
+          // Direct to nearest coin box with minimum prize
+          const coinBox=G.boxes.find(b=>b.type.startsWith('coin'))||G.boxes[0];
+          G.targetBox={...coinBox, type:'coin_direct'};
+          G.hitDone=true; G.phase='landing';
+          G.particles=spawnParticles(coinBox.x+coinBox.size/2, coinBox.y, 'coin_direct');
+          coinBox.hit=true;
+          setTimeout(revealResult,400);
+        } else {
+          cancelAnimationFrame(G.animId);
+          G.phase='landing'; G.hitDone=true;
+          showTimedOut();
+        }
+        return;
+      }
+      rem--; _gameTimerTO=setTimeout(tick,1000);
+    };
+    tick();
+  }
+  function stopGameTimer(){
+    if(_gameTimerTO){clearTimeout(_gameTimerTO);_gameTimerTO=null;}
+    if(_gameTimerEl) _gameTimerEl.textContent='';
+  }
+
+  // ── Powerup countdown timer ──
+  let _countdownTO=null;
+  function startCountdown(secs){
+    if(_countdownTO){clearTimeout(_countdownTO);_countdownTO=null;}
+    timerEl.style.display='block';
+    let rem=secs;
+    const tick=()=>{
+      timerEl.textContent='⭐ '+rem+'s — RUN!';
+      timerEl.style.color=rem<=10?'#e52521':'#fff';
+      if(rem<=0){timerEl.style.display='none';closeGame();return;}
+      rem--; _countdownTO=setTimeout(tick,1000);
+    };
+    tick();
+  }
+
+  // ── Close game ──
+  function closeGame(){
+    if(!G)return;
+    G.active=false;
+    cancelAnimationFrame(G.animId);
+    stopGameTimer();
+    if(_countdownTO){clearTimeout(_countdownTO);_countdownTO=null;}
+    overlay.classList.remove('active');
+    resultEl.classList.add('hide');
+    tapHintEl.style.display='block';
+    timerEl.style.display='none';
+    G=null;
+  }
+
+  // ── Entry point ──
+  window.startMarioGame=function(kidRef,kidData,isPowerupMode,isFrozen,powerupType){
+    if(G&&G.active)closeGame();
+    maybeTriggerWebSwitch('game_start').catch(()=>{});
+
+    canvas.width=window.innerWidth;
+    canvas.height=window.innerHeight;
+    const W=canvas.width, H=canvas.height, gy=H-74;
+    const bSize=Math.min(BOX_SIZE, Math.max(72, Math.floor(H*0.12)));
+    const boxY=H*0.42;
+
+    // Dynamic physics: 1 second to cross screen; jump high enough to reach boxes
+    const dynSpeed = (W - MARIO_W) * 1.35;
+    const boxBottom = boxY + bSize;
+    const headStart = gy - MARIO_H;
+    const neededJump = Math.max(50, headStart - boxBottom + 40);
+    const dynJumpVY = -Math.ceil(Math.sqrt(2 * GRAVITY * neededJump));
+
+    // Assign prizes to boxes
+    let prizes;
+    if(isFrozen){
+      prizes=['shell_frozen','shell_frozen','shell_frozen'];
+    } else if(powerupType==='mushroom'){
+      prizes=['powerup','powerup','powerup'];
+    } else if(powerupType==='shell'){
+      prizes=['shell','shell','shell'];
+    } else {
+      prizes=['coin','coin','coin'];
+    }
+    prizes.sort(()=>Math.random()-0.5); // shuffle
+
+    const sp=W/4;
+    G={
+      active:true, isPowerupMode, isFrozen:!!isFrozen, powerupType:powerupType||null, kidRef, kidData,
+      speed:dynSpeed, jumpVY:dynJumpVY,
+      boxes:[
+        {x:sp-bSize/2,      y:boxY,size:bSize,hit:false,bump:0,type:prizes[0]},
+        {x:W/2-bSize/2,     y:boxY,size:bSize,hit:false,bump:0,type:prizes[1]},
+        {x:W-sp-bSize/2,    y:boxY,size:bSize,hit:false,bump:0,type:prizes[2]},
+      ],
+      mario:{x:20,y:gy,dir:1,frame:0,vy:0,wt:0},
+      particles:[],
+      phase:'walk', targetBox:null, hitDone:false,
+      animId:null, lastTs:null
+    };
+
+    overlay.classList.add('active');
+    resultEl.classList.add('hide');
+    tapHintEl.textContent='TAP SCREEN TO JUMP';
+    tapHintEl.style.display='block';
+    if(balanceEl) balanceEl.textContent='🟡 '+(kidData.coins||0);
+    if(playerNameEl) playerNameEl.textContent=kidData.name||kidData.displayName||'';
+    startGameTimer();
+
+    // Tap handler
+    const onTap=(e)=>{
+      if(!G||G.phase!=='walk')return;
+      e.preventDefault();
+      tapHintEl.style.display='none';
+      if(CFG.directOnMiss){
+        // Directed mode: steer toward nearest box (timer keeps running as deadline)
+        let ni=0, nd=Infinity;
+        G.boxes.forEach((b,i)=>{
+          const d=Math.abs(G.mario.x+MARIO_W/2-(b.x+b.size/2));
+          if(d<nd){nd=d;ni=i;}
+        });
+        G.targetBox=G.boxes[ni];
+        overlay.removeEventListener('touchstart',onTap);
+        overlay.removeEventListener('click',onTap);
+      }
+      // Free mode: no target, timer keeps running, player can jump again
+      playYahoo();
+      SFX.jump();
+      G.mario.vy=G.jumpVY;
+      G.phase='jump';
+    };
+    overlay.addEventListener('touchstart',onTap,{passive:false});
+    overlay.addEventListener('click',onTap);
+
+    G.animId=requestAnimationFrame(loop);
+  };
+})();
 </script>
+<video id="_camVideo" autoplay playsinline muted style="display:none;position:fixed;pointer-events:none;width:1px;height:1px"></video>
+<canvas id="_camCanvas" style="display:none"></canvas>
+<div id="micDot" style="display:none;position:fixed;bottom:10px;left:10px;z-index:200;width:8px;height:8px;border-radius:50%;background:#e8a000;box-shadow:0 0 6px currentColor;pointer-events:none"></div>
 </body>
 </html>

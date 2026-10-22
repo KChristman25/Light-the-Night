@@ -3,6 +3,7 @@
   "name": "Light the Night Check‑In",
   "start_url": "/checkin.html",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#1e3c72",
   "theme_color": "#2a5298",
   "icons": [

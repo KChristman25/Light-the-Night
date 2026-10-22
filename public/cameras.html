@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Station Cameras</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;background:#1a1a2e;font-family:'Inter',system-ui,sans-serif;color:#fff;}
+    .topbar{
+      background:#231207;border-bottom:3px solid #e52521;
+      padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    }
+    .topbar h1{font-family:'Press Start 2P',monospace;font-size:9px;color:#fff;line-height:1.6;}
+    .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .status{font-size:11px;color:rgba(255,255,255,.5)}
+    .btn{
+      display:inline-flex;align-items:center;gap:5px;background:#e52521;border:2px solid #fff;
+      padding:6px 14px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;border-radius:4px;font-family:'Inter',sans-serif;
+    }
+    .btn:hover{background:#b01a18}
+    .btn-outline{background:transparent;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.7)}
+    .btn-outline:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.6);color:#fff}
+
+    #loginWrap{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 60px);padding:32px 16px;}
+    .login-card{
+      background:#fff;border:3px solid #231207;border-radius:4px;box-shadow:6px 6px 0 #231207;
+      padding:32px 28px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;
+    }
+    .login-card h2{font-family:'Press Start 2P',monospace;font-size:9px;color:#e52521;text-align:center;line-height:1.6;}
+    .login-card input{
+      padding:10px 14px;border:2px solid #ccc;border-radius:4px;font-size:14px;
+      font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;color:#231207;
+    }
+    .login-card input:focus{border-color:#e52521}
+    .login-card .btn{width:100%;justify-content:center;border-color:#231207}
+    #loginErr{font-size:13px;color:#dc2626;min-height:16px;text-align:center}
+
+    #grid{display:none;padding:20px;}
+    .section-header{
+      font-family:'Press Start 2P',monospace;font-size:8px;color:rgba(255,255,255,.4);
+      letter-spacing:.1em;text-transform:uppercase;margin:20px 0 10px;
+    }
+    .section-header:first-child{margin-top:0}
+    .cam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:16px;}
+    .cam-card{background:#231207;border:2px solid #3a2010;border-radius:6px;overflow:hidden;transition:border-color .15s;}
+    .cam-card.live{border-color:#22c55e;}
+    .cam-vid-wrap{position:relative;background:#0a0a14;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+    .cam-vid-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
+    .cam-vid-wrap .placeholder{font-size:11px;color:rgba(255,255,255,.25);text-align:center;padding:16px;line-height:1.8;}
+    .live-badge{
+      position:absolute;top:8px;right:8px;
+      background:rgba(34,197,94,.92);border:1px solid rgba(34,197,94,.6);
+      border-radius:12px;padding:3px 9px;font-size:10px;font-weight:700;color:#fff;
+      display:flex;align-items:center;gap:4px;letter-spacing:.04em;
+    }
+    .cam-footer{padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+    .cam-name{font-size:12px;font-weight:700;color:#fff;}
+    .cam-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#374151;}
+    .cam-status-dot.live{background:#22c55e;}
+    .audio-btn{
+      background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:4px;
+      padding:3px 9px;font-size:11px;font-weight:700;color:rgba(255,255,255,.5);
+      cursor:pointer;font-family:'Inter',sans-serif;transition:background .15s,color .15s,border-color .15s;white-space:nowrap;
+    }
+    .audio-btn.unmuted{border-color:rgba(34,197,94,.5);color:#4ade80;}
+    .audio-btn:hover{background:rgba(255,255,255,.07);}
+    #emptyMsg{text-align:center;padding:60px 20px;font-size:13px;color:rgba(255,255,255,.4);line-height:1.8;}
+    #disabledOverlay{
+      display:none;position:fixed;inset:0;z-index:100;
+      background:#0a0a14;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+    }
+    #disabledOverlay.show{display:flex;}
+    #disabledOverlay .do-icon{font-size:48px}
+    #disabledOverlay .do-title{font-family:'Press Start 2P',monospace;font-size:12px;color:#e52521;text-align:center;line-height:1.8}
+    #disabledOverlay .do-sub{font-size:13px;color:rgba(255,255,255,.45);text-align:center}
+  </style>
+  <script src="/pw.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📹 Station Cameras</h1>
+  <div class="topbar-right">
+    <span class="status" id="lastRefresh"></span>
+    <a href="/admin.html" class="btn btn-outline">← Admin</a>
+  </div>
+</div>
+
+<div id="loginWrap">
+  <div class="login-card">
+    <h2>Station Cameras</h2>
+    <input id="pwInput" type="password" placeholder="Admin password" autofocus/>
+    <button class="btn" onclick="doLogin()">Sign In</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<div id="disabledOverlay">
+  <div class="do-icon">🔒</div>
+  <div class="do-title">Cameras Disabled</div>
+  <div class="do-sub">Camera access has been turned off by an admin.<br>Enable it in Admin → Camera Access.</div>
+</div>
+
+<div id="grid">
+  <div id="camGrid"></div>
+  <div id="emptyMsg" style="display:none">No stations configured yet.</div>
+</div>
+
+<script>
+  firebase.initializeApp({
+    apiKey:     "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+    authDomain: "light-the-night-2025.firebaseapp.com",
+    projectId:  "light-the-night-2025"
+  });
+  const db = firebase.firestore();
+  firebase.auth().signInAnonymously().catch(()=>{});
+  document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+  async function doLogin(){
+    const pw = document.getElementById('pwInput').value;
+    const err = document.getElementById('loginErr');
+    err.textContent = '';
+    try{
+      await firebase.auth().signInAnonymously();
+      const doc = await db.collection('config').doc('config').get();
+      if(!doc.exists || (doc.data().adminPassword||'').toLowerCase() !== (pw||'').toLowerCase()){ err.textContent = 'Incorrect password.'; return; }
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('grid').style.display = 'block';
+      startListening();
+      db.collection('config').doc('cameras').onSnapshot(snap => {
+        const disabled = snap.exists ? snap.data().disabled === true : false;
+        document.getElementById('disabledOverlay').classList.toggle('show', disabled);
+      });
+    }catch(e){ err.textContent = 'Error: ' + e.message; }
+  }
+
+  // ── Station label maps ────────────────────────────────────────────────────
+  const SPECIAL_STATIONS = [
+    {id:'start',        label:'🏁 Start Line'},
+    {id:'rescue_peach', label:'👸 Princess Peach'},
+    {id:'bowser',       label:'🦖 Bowser Castle'},
+    {id:'land_ice',     label:'🧊 Ice Land'},
+    {id:'land_water',   label:'🌊 Water Land'},
+    {id:'land_fire',    label:'🔥 Fire Land'},
+    {id:'land_lava',    label:'🌋 Lava Land'},
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let _numericStations = [];
+  let _broadcastStates = {};
+  const _connections = new Map(); // stationId → {pc, stream, muted, unsub, offerSdp}
+
+  // ── Init listeners ────────────────────────────────────────────────────────
+  function startListening(){
+    db.collection('stations').onSnapshot(snap=>{
+      _numericStations = [];
+      snap.forEach(doc=>{
+        if(!/^\d+$/.test(doc.id)) return;
+        const d = doc.data()||{};
+        _numericStations.push({id:doc.id, label: d.label||('Station '+doc.id)});
+      });
+      _numericStations.sort((a,b)=>Number(a.id)-Number(b.id));
+      renderGrid();
+    });
+
+    db.collection('webrtcAudio').onSnapshot(snap=>{
+      _broadcastStates = {};
+      snap.forEach(doc=>{ _broadcastStates[doc.id] = doc.data(); });
+
+      Object.entries(_broadcastStates).forEach(([id, state])=>{
+        if(!state.broadcasting) return;
+        const existing = _connections.get(id);
+        if(!existing || existing.offerSdp !== state.offer?.sdp){
+          if(existing) disconnectStation(id);
+          connectStation(id, state);
+        }
+      });
+
+      for(const [id] of _connections){
+        if(!_broadcastStates[id]?.broadcasting) disconnectStation(id);
+      }
+
+      document.getElementById('lastRefresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      renderGrid();
+    });
+  }
+
+  // ── WebRTC ────────────────────────────────────────────────────────────────
+  async function connectStation(stationId, state){
+    if(_connections.has(stationId)) return;
+    if(!state?.offer) return;
+
+    const conn = {pc:null, stream:null, muted:true, unsub:null, offerSdp: state.offer.sdp};
+    _connections.set(stationId, conn);
+
+    const docRef = db.collection('webrtcAudio').doc(String(stationId));
+    const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    conn.pc = pc;
+
+    pc.ontrack = event=>{
+      const c = _connections.get(stationId);
+      if(!c) return;
+      c.stream = event.streams[0] || new MediaStream([event.track]);
+      // Attach to existing video element without rebuilding the card
+      const vid = document.getElementById('vid_'+stationId);
+      if(vid && vid.srcObject !== c.stream){ vid.srcObject = c.stream; vid.play().catch(()=>{}); }
+      updateCardState(stationId);
+    };
+
+    pc.onicecandidate = ({candidate})=>{
+      if(candidate) docRef.collection('answerCandidates').add(candidate.toJSON()).catch(()=>{});
+    };
+
+    pc.onconnectionstatechange = ()=>{
+      const st = pc.connectionState;
+      if(st==='failed'||st==='disconnected'){ disconnectStation(stationId); updateCardState(stationId); }
+    };
+
+    // Clean stale candidates in background — don't await, saves ~200-400ms on connect
+    docRef.collection('answerCandidates').get().then(s=>{
+      if(s.empty) return;
+      const b=db.batch(); s.forEach(d=>b.delete(d.ref)); return b.commit();
+    }).catch(()=>{});
+
+    try{
+      await pc.setRemoteDescription(new RTCSessionDescription(state.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await docRef.update({answer:{type:answer.type, sdp:answer.sdp}});
+    }catch(e){ console.warn('WebRTC connect failed:', e); disconnectStation(stationId); return; }
+
+    const unsub = docRef.collection('offerCandidates').onSnapshot(s=>{
+      s.docChanges().forEach(ch=>{
+        if(ch.type==='added'&&pc.signalingState!=='closed')
+          pc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
+      });
+    });
+    if(_connections.has(stationId)) _connections.get(stationId).unsub = unsub;
+    updateCardState(stationId);
+  }
+
+  function disconnectStation(stationId){
+    const conn = _connections.get(stationId);
+    if(!conn) return;
+    if(conn.unsub) conn.unsub();
+    if(conn.pc) conn.pc.close();
+    _connections.delete(stationId);
+  }
+
+  function _stopAudio(id){
+    const a = document.getElementById('aud_'+id);
+    if(a){ try{a.pause();}catch(_){} a.srcObject=null; a.remove(); }
+  }
+
+  function _startAudio(id, stream){
+    _stopAudio(id);
+    if(!stream) return;
+    const a = document.createElement('audio');
+    a.id = 'aud_'+id;
+    a.autoplay = true;
+    a.srcObject = stream;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.play().catch(e=>console.warn('[audio] play failed:', e));
+  }
+
+  function toggleAudio(stationId){
+    const conn = _connections.get(stationId);
+    if(!conn) return;
+    // Mute all others
+    _connections.forEach((c,id)=>{
+      if(id!==stationId && !c.muted){
+        c.muted = true;
+        _stopAudio(id);
+        updateAudioBtn(id, true);
+      }
+    });
+    conn.muted = !conn.muted;
+    if(conn.muted){
+      _stopAudio(stationId);
+    } else {
+      _startAudio(stationId, conn.stream);
+    }
+    updateAudioBtn(stationId, conn.muted);
+  }
+
+  // ── Surgical DOM updates — never destroy a live <video> element ───────────
+
+  function renderGrid(){
+    const container = document.getElementById('camGrid');
+    const empty = document.getElementById('emptyMsg');
+    const allStations = [..._numericStations, ...SPECIAL_STATIONS];
+    empty.style.display = allStations.length ? 'none' : 'block';
+
+    // Build section shells once
+    if(_numericStations.length && !document.getElementById('grid-coin')){
+      const s = document.createElement('div');
+      s.innerHTML = '<div class="section-header">Coin Stations</div><div class="cam-grid" id="grid-coin"></div>';
+      container.appendChild(s);
+    }
+    if(!document.getElementById('grid-special')){
+      const s = document.createElement('div');
+      s.innerHTML = '<div class="section-header">Special Stations</div><div class="cam-grid" id="grid-special"></div>';
+      container.appendChild(s);
+    }
+
+    _numericStations.forEach(({id,label})=>ensureCard('grid-coin', id, label));
+    SPECIAL_STATIONS.forEach(({id,label})=>ensureCard('grid-special', id, label));
+  }
+
+  function ensureCard(gridId, id, label){
+    const grid = document.getElementById(gridId);
+    if(!grid) return;
+    if(!document.getElementById('card_'+id)){
+      const card = document.createElement('div');
+      card.id = 'card_'+id;
+      card.className = 'cam-card';
+      card.innerHTML = `
+        <div class="cam-vid-wrap" id="wrap_${id}">
+          <div class="placeholder" id="placeholder_${id}">📷<br>${escHtml(label)}<br><span style="font-size:10px">Offline</span></div>
+        </div>
+        <div class="cam-footer">
+          <span class="cam-status-dot" id="dot_${id}"></span>
+          <span class="cam-name">${escHtml(label)}</span>
+          <div id="audiobtn_${id}"></div>
+        </div>`;
+      grid.appendChild(card);
+    }
+    updateCardState(id);
+  }
+
+  function updateCardState(id){
+    const card = document.getElementById('card_'+id);
+    if(!card) return;
+    const conn = _connections.get(id);
+    const isLive = !!(conn?.stream);
+
+    card.classList.toggle('live', isLive);
+    document.getElementById('dot_'+id)?.classList.toggle('live', isLive);
+
+    const wrap = document.getElementById('wrap_'+id);
+    const placeholder = document.getElementById('placeholder_'+id);
+
+    // Show "connecting" state for stations that have an offer but no stream yet
+    const isConnecting = !isLive && !!_broadcastStates[id]?.broadcasting;
+    if(placeholder){
+      placeholder.style.display = (isLive || isConnecting) ? 'none' : '';
+      if(isConnecting && placeholder.style.display === 'none'){
+        // ensure a connecting indicator exists
+        let ci = document.getElementById('ci_'+id);
+        if(!ci){
+          ci = document.createElement('div');
+          ci.id = 'ci_'+id;
+          ci.className = 'placeholder';
+          ci.innerHTML = '📡<br>Connecting…';
+          placeholder.parentNode.insertBefore(ci, placeholder.nextSibling);
+        }
+      } else {
+        const ci = document.getElementById('ci_'+id);
+        if(ci) ci.remove();
+      }
+    }
+
+    if(isLive){
+      const ci = document.getElementById('ci_'+id); if(ci) ci.remove();
+      // Hide placeholder, ensure <video> exists
+      if(placeholder) placeholder.style.display = 'none';
+      let vid = document.getElementById('vid_'+id);
+      if(!vid){
+        vid = document.createElement('video');
+        vid.id = 'vid_'+id;
+        vid.autoplay = true;
+        vid.muted = true;
+        vid.setAttribute('muted','');
+        vid.setAttribute('playsinline','');
+        vid.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+        wrap.insertBefore(vid, wrap.firstChild);
+        // Live badge
+        if(!document.getElementById('badge_'+id)){
+          const badge = document.createElement('div');
+          badge.id = 'badge_'+id;
+          badge.className = 'live-badge';
+          badge.textContent = '📹 Live';
+          wrap.appendChild(badge);
+        }
+      }
+      if(conn.stream && vid.srcObject !== conn.stream){
+        vid.srcObject = conn.stream; vid.play().catch(()=>{});
+      }
+    } else {
+      // Show placeholder, hide video but DON'T remove it (avoids flicker on reconnect)
+      if(placeholder) placeholder.style.display = '';
+      const vid = document.getElementById('vid_'+id);
+      if(vid){ vid.style.display = 'none'; vid.srcObject = null; }
+      const badge = document.getElementById('badge_'+id);
+      if(badge) badge.remove();
+    }
+
+    updateAudioBtn(id, conn ? conn.muted : true);
+  }
+
+  function updateAudioBtn(id, isMuted){
+    const conn = _connections.get(id);
+    const container = document.getElementById('audiobtn_'+id);
+    if(!container) return;
+    if(!conn?.stream){ container.innerHTML=''; return; }
+    // Reuse the button element so Android keeps it as a valid tap target
+    let btn = container.querySelector('.audio-btn');
+    if(!btn){
+      btn = document.createElement('button');
+      btn.className = 'audio-btn';
+      btn.addEventListener('click', ()=>toggleAudio(id));
+      container.appendChild(btn);
+    }
+    btn.className = 'audio-btn' + (isMuted ? '' : ' unmuted');
+    btn.textContent = isMuted ? '🔇 Unmute' : '🔊 Mute';
+  }
+
+  function escHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+</script>
+</body>
+</html>

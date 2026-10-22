@@ -1,550 +1,705 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Leaderboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <style>
-    body {
-      margin: 0;
-      background: black;
-      color: #0ff;
-      font-family: 'JetBrains Mono', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-    }
+<meta charset="UTF-8"/>
+<title>Light the Night — Finishers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="/pw.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .title {
-      font-size: 3rem;
-      margin: 3rem 0 1rem;
-      text-shadow: 0 0 12px #0ff, 0 0 24px #00f5f5;
-    }
+  html, body {
+    height: 100%; width: 100%;
+    background: #5c94fc;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #fff;
+  }
 
-    .count {
-      font-size: 1.8rem;
-      font-weight: bold;
-      text-shadow: 0 0 10px #0ff;
-    }
+  /* ── Background canvas (sky + SMB tiles) ── */
+  #bgCanvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    image-rendering: pixelated;
+  }
 
-    .entry-list {
-      margin-top: 2rem;
-      width: 90%;
-      height: 60vh;
-      overflow: hidden;
-      position: relative;
-    }
+  #app {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+  }
 
-    .scroll-inner {
-      display: flex;
-      flex-direction: column;
-      animation: scrollList 60s linear infinite;
-    }
+  /* ── Header ── */
+  .topbar {
+    flex-shrink: 0;
+    background: #e52521;
+    border-bottom: 3px solid #231207;
+    display: flex; align-items: center;
+    padding: clamp(8px,1.4vh,14px) clamp(20px,3vw,40px);
+    gap: 14px;
+    position: relative;
+    box-shadow: 0 3px 0 #1a0d04;
+  }
+  .topbar-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 1.8vw, 20px);
+    color: #fff;
+    text-shadow: 2px 2px 0 #231207;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+    letter-spacing: .04em;
+  }
+  .topbar-count {
+    margin-left: auto;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, 1.2vw, 12px);
+    color: #fff;
+    background: rgba(0,0,0,.3);
+    border: 2px solid rgba(255,255,255,.25);
+    border-radius: 3px;
+    padding: 5px 14px;
+    white-space: nowrap;
+  }
 
-    .entry {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 0.75rem 1.25rem;
-      margin-bottom: 0.75rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-radius: 8px;
-      font-size: 2rem;
-    }
+  /* Spinning coin in topbar */
+  .topbar-coin {
+    display: inline-block;
+    width: clamp(14px,2vw,20px);
+    height: clamp(14px,2vw,20px);
+    background: #e8a000;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: coinSpin 1.2s steps(4) infinite;
+  }
+  @keyframes coinSpin {
+    0%,100% { transform: scaleX(1);   background: #e8a000; }
+    25%,75%  { transform: scaleX(0.3); background: #c07800; }
+    50%      { transform: scaleX(0.1); background: #c07800; }
+  }
 
-    .scroll-text {
-      width: 100%;
-      padding: 2rem 1rem 1rem;
-      margin-bottom: 2rem;
-      display: flex;
-      justify-content: center;
-      font-size: 3rem;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.5);
-    }
+  /* ── Scroll area ── */
+  .scroll-wrap {
+    flex: 1; min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .scroll-inner {
+    position: absolute;
+    width: 100%;
+    will-change: transform;
+    padding: clamp(10px,1.5vh,18px) 0 clamp(8px,1.2vh,14px);
+  }
 
-    .rank {
-      margin-right: 1rem;
-      font-weight: bold;
-      font-size: 2.2rem;
-      text-shadow: 0 0 10px #fff;
-    }
+  /* ── Rows ── */
+  .lb-row {
+    display: flex; align-items: center;
+    gap: clamp(12px, 2vw, 28px);
+    padding: clamp(12px,1.8vh,22px) clamp(20px,3vw,48px);
+    border-bottom: 2px solid rgba(35,18,7,.12);
+    background: rgba(255,255,255,.88);
+    position: relative;
+    overflow: hidden;
+  }
+  .lb-row.lb-row-alt { background: rgba(255,255,255,.72); }
+  .lb-row.gold   { background: rgba(232,160,0,.55);   border-bottom-color: rgba(232,160,0,.4); }
+  .lb-row.silver { background: rgba(192,192,192,.55); border-bottom-color: rgba(160,160,160,.4); }
+  .lb-row.bronze { background: rgba(205,127,50,.45);  border-bottom-color: rgba(180,100,30,.35); }
 
-    .first { background: rgba(255,215,0,0.2); color: gold; }
-    .second { background: rgba(192,192,192,0.2); color: silver; }
-    .third { background: rgba(205,127,50,0.2); color: #cd7f32; }
+  .lb-rank {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.6vw, 20px);
+    flex-shrink: 0;
+    min-width: clamp(28px,3.5vw,48px);
+    text-align: right;
+  }
+  .lb-row.gold   .lb-rank { color: #e8a000; text-shadow: 1px 1px 0 #7a5000; }
+  .lb-row.silver .lb-rank { color: #888; }
+  .lb-row.bronze .lb-rank { color: #cd7f32; }
+  .lb-rank.other { color: #aaa; }
 
-    .glow { text-shadow: 0 0 10px #0ff; }
+  .lb-name {
+    font-weight: 800;
+    font-size: clamp(16px, 2.6vw, 36px);
+    color: #231207; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 
-    @keyframes scrollList {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(-50%); }
-    }
+  .lb-time {
+    font-size: clamp(12px, 1.6vw, 20px);
+    color: #7a5c44; flex-shrink: 0;
+    min-width: clamp(56px,7vw,100px); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .lb-score {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.6vw, 20px);
+    color: #e8a000; flex-shrink: 0;
+    min-width: clamp(60px,8vw,110px); text-align: right;
+  }
 
-    .message {
-      position: absolute;
-      bottom: 20px;
-      color: #0f0;
-      font-size: 1.6rem;
-      animation: slideUp 1s ease-out;
-    }
+  .lb-badges {
+    display: flex; align-items: center;
+    gap: clamp(3px, 0.5vw, 7px);
+    flex-shrink: 0;
+  }
+  .lb-badges img {
+    height: clamp(18px, 2.8vh, 34px);
+    width: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.35));
+  }
 
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+  .empty-msg {
+    padding: 60px 24px;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px,1.6vw,16px);
+    color: #7a5c44;
+    line-height: 2.2;
+  }
 
-    .fallback {
-      margin-top: 2rem;
-      font-size: 1.8rem;
-      color: #888;
-      text-align: center;
-    }
+  /* ── QR row ── */
+  .qr-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(20px,3vw,40px);
+    padding: clamp(20px,3vh,40px) clamp(20px,3vw,48px);
+    background: #231207;
+    border-bottom: 2px solid rgba(232,160,0,.2);
+  }
+  .qr-row img { border: 4px solid #e8a000; border-radius: 4px; display: block; }
+  .qr-text { font-family: 'Press Start 2P', monospace; color: #e8a000; line-height: 2; text-align: left; }
+  .qr-text .qr-headline { font-size: clamp(11px,1.8vw,18px); }
+  .qr-text .qr-sub { font-size: clamp(8px,1.1vw,12px); color: rgba(255,255,255,.5); margin-top: 6px; }
 
-    .qr {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-top: 2rem;
-      margin-bottom: 2rem;
-    }
-
-    .qr img {
-      width: 150px;
-      height: 150px;
-      border: 2px solid #0ff;
-      border-radius: 10px;
-      box-shadow: 0 0 12px #0ff;
-    }
-
-    .qr .text {
-      margin-top: 1rem;
-      font-size: 1.2rem;
-      color: #0ff;
-      text-shadow: 0 0 6px #0ff;
-    }
-
-    .halloween {
-      margin-top: 1.5rem;
-      font-size: 3rem;
-      color: orange;
-      font-weight: bold;
-      text-shadow: 0 0 6px orange;
-      text-align: center;
-      width: 100%;
-    }
-
-    .spacer { height: 3rem; }
-    .large-spacer { height: 3rem; }
-  </style>
+  /* ── New-finisher wipe animation ── */
+  @keyframes goldFlash {
+    0%, 15%  { opacity: 0; }
+    25%, 70% { opacity: 1; }
+    90%      { opacity: 1; }
+    100%     { opacity: 0; }
+  }
+  @keyframes goldWipe {
+    0%   { transform: translateX(-110%); }
+    22%  { transform: translateX(0%);    }
+    68%  { transform: translateX(0%);    }
+    90%  { transform: translateX(110%);  }
+    100% { transform: translateX(110%);  }
+  }
+  .lb-row-new::after {
+    content: '';
+    position: absolute; inset: 0;
+    z-index: 0; pointer-events: none;
+    background: rgba(232,160,0,.45);
+    opacity: 0;
+    animation: goldFlash 3.5s cubic-bezier(.4,0,.2,1) forwards;
+  }
+  .lb-row-new::before {
+    content: '';
+    position: absolute; inset: 0;
+    z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg,
+      transparent                  0%,
+      rgba(232, 160,  0, .82)     14%,
+      rgba(255, 218, 30, .97)     38%,
+      rgba(255, 244, 100, 1.00)   50%,
+      rgba(255, 218, 30, .97)     62%,
+      rgba(232, 160,  0, .82)     86%,
+      transparent                  100%
+    );
+    animation: goldWipe 3.5s cubic-bezier(.4,0,.2,1) forwards;
+  }
+</style>
 </head>
 <body>
-  <!-- star bg -->
-  <canvas id="starsCanvas" style="position:fixed; top:0; left:0; z-index:-1; pointer-events:none;"></canvas>
 
-  <div class="title" id="leaderboardTitle">Leaderboard</div>
-  <div class="count" id="finisherCount">Loading...</div>
+<canvas id="bgCanvas"></canvas>
 
-  <div class="entry-list">
-    <div class="scroll-inner" id="entryList"></div>
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-coin"></span>
+    <div class="topbar-title">🏆 FINISHERS</div>
+    <div class="topbar-count" id="countEl">0 finishers</div>
   </div>
 
-  <div class="fallback" id="fallbackMessage" style="display:none;">
-    🛰️ No missions completed yet. Awaiting brave explorers...
+  <div class="scroll-wrap" id="scrollWrap">
+    <div class="scroll-inner" id="scrollInner">
+      <div class="empty-msg">No finishers yet…<br>be the first!</div>
+    </div>
   </div>
-  <div class="message" id="messageArea"></div>
 
-  <script>
-    // --- FIREBASE SETUP ---
-    const firebaseConfig = {
-      apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
-      authDomain: "light-the-night-2025.firebaseapp.com",
-      projectId: "light-the-night-2025"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+</div>
 
-    const listEl = document.getElementById("entryList");
-    const countEl = document.getElementById("finisherCount");
-    const titleEl = document.getElementById("leaderboardTitle");
-    const fallbackEl = document.getElementById("fallbackMessage");
-    const msgEl = document.getElementById("messageArea");
+<!-- Test panel — dismiss with × during the real event -->
+<div id="_testPanel" style="position:fixed;bottom:20px;right:20px;z-index:9999;
+  background:#231207;border:3px solid #e8a000;border-radius:4px;padding:14px 16px;
+  font-family:'Press Start 2P',monospace;box-shadow:4px 4px 0 #9a5f00;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:7px">
+    <div style="font-size:8px;color:#e8a000;letter-spacing:.06em">TEST MODE</div>
+    <button onclick="document.getElementById('_testPanel').style.display='none'"
+      style="background:none;border:none;color:rgba(255,255,255,.4);font-size:16px;cursor:pointer;padding:0;line-height:1">×</button>
+  </div>
+  <div id="_testCounter" style="font-size:11px;color:#fff;margin-bottom:10px">0 / 50</div>
+  <div style="display:flex;gap:6px">
+    <button id="_testStartBtn" onclick="_testStart()"
+      style="background:#248a26;border:2px solid #80ff80;border-radius:3px;padding:7px 12px;
+             font-family:'Press Start 2P',monospace;font-size:8px;color:#fff;cursor:pointer;
+             box-shadow:2px 2px 0 #80ff80">▶ Start</button>
+    <button id="_testStopBtn" onclick="_testStop()" disabled
+      style="background:#7a4a00;border:2px solid #e8a000;border-radius:3px;padding:7px 12px;
+             font-family:'Press Start 2P',monospace;font-size:8px;color:#e8a000;cursor:pointer;
+             box-shadow:2px 2px 0 #9a5f00;opacity:.45">⏸ Stop</button>
+    <button onclick="_testReset()"
+      style="background:#7a0000;border:2px solid #e52521;border-radius:3px;padding:7px 12px;
+             font-family:'Press Start 2P',monospace;font-size:8px;color:#ff8080;cursor:pointer;
+             box-shadow:2px 2px 0 #e52521">↺ Reset</button>
+  </div>
+</div>
 
-    const titles = ["Commander", "Captain", "Pilot", "Agent", "Navigator"];
-    let isLive = true;
-    let totalStations = 6;
+<script>
+// ── Background canvas ─────────────────────────────────────
+(function(){
+  const bc  = document.getElementById('bgCanvas');
+  const bx  = bc.getContext('2d');
+  const img = new Image();
+  img.src   = 'mario-tiles.png';
 
-    // make Firestore/JS value -> ms
-    function toMillis(v) {
-      if (!v) return null;
-      if (typeof v.toMillis === "function") return v.toMillis();
-      const ms = Date.parse(v);
-      return isNaN(ms) ? null : ms;
+  function drawCloud(cx, cy, ts){
+    const L = Math.round(cx - ts * 1.5);
+    const T = Math.round(cy - ts);
+    [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+      bx.drawImage(img, sx, sy, 16, 16, L+(i%3)*ts, T+Math.floor(i/3)*ts, ts, ts);
+    });
+  }
+
+  function draw(){
+    const W = bc.width  = window.innerWidth;
+    const H = bc.height = window.innerHeight;
+    bx.imageSmoothingEnabled = false;
+    bx.fillStyle = '#5c94fc';
+    bx.fillRect(0, 0, W, H);
+    const groundH = Math.round(H * 0.055);
+    const gy = H - groundH;
+    if(img.complete && img.naturalWidth > 0){
+      const cs = Math.round(W * 0.065);
+      drawCloud(W * 0.13, H * 0.12, cs);
+      drawCloud(W * 0.50, H * 0.09, Math.round(cs * 1.2));
+      drawCloud(W * 0.82, H * 0.14, Math.round(cs * 0.85));
+      const gt   = Math.round(groundH / 2);
+      const cols = Math.ceil(W / gt) + 1;
+      for(let c = 0; c < cols; c++) bx.drawImage(img, 16, 0, 16, 16, c*gt, gy,    gt, gt);
+      for(let c = 0; c < cols; c++) bx.drawImage(img,  0, 0, 16, 16, c*gt, gy+gt, gt, gt);
+    } else {
+      bx.fillStyle = '#c8601c';
+      bx.fillRect(0, gy, W, groundH);
+      bx.fillStyle = '#231207';
+      bx.fillRect(0, gy, W, 3);
     }
+  }
 
-    // read total stations
-    db.collection("config").doc("config").onSnapshot(doc => {
-      if (doc.exists) {
-        const d = doc.data();
-        if (d.totalStations) {
-          totalStations = d.totalStations;
+  img.onload = draw;
+  draw();
+  window.addEventListener('resize', draw);
+})();
+
+// ── Firebase ──────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db = firebase.firestore();
+
+const countEl     = document.getElementById('countEl');
+const scrollInner = document.getElementById('scrollInner');
+
+function fmtTime(ms) {
+  if (!ms || ms < 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function calcScore(coins, mazeStartTime, mazeEndTime) {
+  const base = coins || 0;
+  if (!mazeStartTime || !mazeEndTime) return base;
+  const startMs = mazeStartTime.toMillis ? mazeStartTime.toMillis() : mazeStartTime;
+  const endMs   = mazeEndTime.toMillis   ? mazeEndTime.toMillis()   : mazeEndTime;
+  const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
+  const timeBonus = Math.max(0, Math.floor((2700 - elapsedSec) / 10));
+  return base + timeBonus;
+}
+
+// ── State ────────────────────────────────────────────────
+// committedList: finishers currently in the DOM, sorted score desc
+// pendingQueue:  { item, queueDocId } — waiting to be inserted
+// isLooped:      true after innerHTML is doubled for seamless scroll
+let committedList = [], pendingQueue = [];
+let animBusy = false, isLooped = false;
+let scrollPos = 0, scrollAnim = null, _tickN = 0;
+let _seamAt = 0;
+let _firstHalfCount = 0; // lb-row count in first half — never changes while scrolling
+const SCROLL_SPEED = 0.7;
+
+// ── Row building ─────────────────────────────────────────
+function buildRowEl(item, rank) {
+  const s = item.mazeStartTime?.toMillis?.() ?? 0;
+  const e = item.mazeEndTime?.toMillis?.()   ?? 0;
+  const cls = ['gold','silver','bronze'][rank] || '';
+  const rankStr = rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
+  const bdgs = [];
+  if (item.usedMushroom) bdgs.push('<img src="icons/mushroom.png" alt="Mushroom">');
+  if (item.usedShell)    bdgs.push('<img src="icons/red_shell.webp" alt="Red Shell">');
+  if (item.savedPeach)   bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach">');
+  const el = document.createElement('div');
+  const alt = rank % 2 === 1 ? ' lb-row-alt' : '';
+  el.className = `lb-row${cls?' '+cls:''}${alt}`;
+  el.dataset.id = item.id;
+  el.innerHTML = `<div class="lb-rank ${rank<3?'':'other'}">${rankStr}</div>`
+    + `<div class="lb-name">${escHtml(item.name||'?')}</div>`
+    + (bdgs.length ? `<div class="lb-badges">${bdgs.join('')}</div>` : '')
+    + `<div class="lb-time">${fmtTime(e-s)}</div>`
+    + `<div class="lb-score"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated;margin-right:4px"> ${item.score}</div>`;
+  return el;
+}
+
+function rebuildAllRanks() {
+  committedList.forEach((item, rank) => {
+    const cls     = ['gold','silver','bronze'][rank] || '';
+    const rankStr = rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
+    scrollInner.querySelectorAll(`[data-id="${item.id}"]`).forEach(row => {
+      const hasNew = row.classList.contains('lb-row-new');
+      const alt = rank % 2 === 1 ? ' lb-row-alt' : '';
+      row.className = `lb-row${cls?' '+cls:''}${alt}${hasNew?' lb-row-new':''}`;
+      const rk = row.querySelector('.lb-rank');
+      if (rk) { rk.className = `lb-rank ${rank<3?'':'other'}`; rk.textContent = rankStr; }
+    });
+  });
+}
+
+function _calcRank(item) {
+  // 0-based index where item belongs in committedList (score desc, name asc)
+  return committedList.filter(c =>
+    c.score > item.score || (c.score === item.score && (c.name||'') < (item.name||''))
+  ).length;
+}
+
+// ── Scroll ───────────────────────────────────────────────
+function stopScroll() {
+  if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
+  scrollPos = 0; isLooped = false; _seamAt = 0; _firstHalfCount = 0;
+  scrollInner.style.transform = '';
+}
+
+function _rebuildDOM() {
+  scrollInner.innerHTML = committedList.map((k, i) => buildRowEl(k, i).outerHTML).join('') + QR_ROW;
+}
+
+const MAX_PER_REVOLUTION = 5;
+
+// Try to absorb pending into the off-screen second half right now.
+// Inserts rows surgically — no existing rows are removed, so no frame-blocking rebuild.
+function _tryAddToSecondHalf() {
+  if (!pendingQueue.length || !isLooped) return;
+  if (scrollPos + scrollWrap.clientHeight >= _seamAt) return;
+
+  // Absorb into committedList, tracking items (not ranks — ranks shift as we insert)
+  const newItems = [];
+  while (pendingQueue.length && newItems.length < MAX_PER_REVOLUTION) {
+    const { item, queueDocId } = pendingQueue.shift();
+    committedList.splice(_calcRank(item), 0, item);
+    if (queueDocId) db.collection('leaderboardQueue').doc(queueDocId).delete().catch(() => {});
+    newItems.push(item);
+  }
+  if (!newItems.length) return;
+  countEl.textContent = committedList.length + (committedList.length === 1 ? ' finisher' : ' finishers');
+
+  // Compute final ranks now that all insertions are done, sort ascending for correct DOM order
+  const newRanks = newItems.map(it => committedList.indexOf(it)).sort((a, b) => a - b);
+  const newRankSet = new Set(newRanks);
+  const minRank = newRanks[0];
+
+  const allRows = Array.from(scrollInner.querySelectorAll('.lb-row'));
+  const secondQR = scrollInner.querySelectorAll('.qr-row')[1] || null;
+
+  // Insert each new row at its correct second-half position
+  for (const rank of newRanks) {
+    const newRow = buildRowEl(committedList[rank], rank);
+    scrollInner.insertBefore(newRow, allRows[_firstHalfCount + rank] || secondQR || null);
+    allRows.splice(_firstHalfCount + rank, 0, newRow); // keep array in sync for subsequent inserts
+  }
+
+  // Update rank label + class for existing rows shifted down by the insertions
+  for (let r = minRank; r < committedList.length; r++) {
+    if (newRankSet.has(r)) continue; // already built with correct rank
+    const row = allRows[_firstHalfCount + r];
+    if (!row) continue;
+    const cls = ['gold','silver','bronze'][r] || '';
+    const alt = r % 2 === 1 ? ' lb-row-alt' : '';
+    const rankStr = r===0?'🥇':r===1?'🥈':r===2?'🥉':`#${r+1}`;
+    row.className = `lb-row${cls?' '+cls:''}${alt}`;
+    const rk = row.querySelector('.lb-rank');
+    if (rk) { rk.className = `lb-rank ${r<3?'':'other'}`; rk.textContent = rankStr; }
+  }
+}
+
+// At the seam: promote the old second half to first half (no DOM recreation),
+// then clone it as the new second half. Avoids innerHTML mutation and row-height drift.
+function _atSeam() {
+  scrollAnim = null;
+  scrollPos = 0; isLooped = false;
+
+  // Remove old first-half rows and its QR row — second half becomes the new first half
+  const rows = Array.from(scrollInner.querySelectorAll('.lb-row'));
+  const qrs  = Array.from(scrollInner.querySelectorAll('.qr-row'));
+  for (let i = _firstHalfCount - 1; i >= 0; i--) { if (rows[i]) rows[i].remove(); }
+  if (qrs[0]) qrs[0].remove();
+
+  // Clone the surviving content (new first half) as the new second half
+  const frag = document.createDocumentFragment();
+  Array.from(scrollInner.childNodes).forEach(n => frag.appendChild(n.cloneNode(true)));
+  scrollInner.appendChild(frag);
+
+  isLooped = true;
+  scrollInner.style.transform = 'translateY(0px)';
+  _firstHalfCount = committedList.length;
+  _seamAt = scrollInner.scrollHeight / 2;
+  _tryAddToSecondHalf();
+  requestAnimationFrame(maybeStartScroll);
+}
+
+function startScrollLoop() {
+  if (scrollAnim) cancelAnimationFrame(scrollAnim);
+  if (!isLooped) {
+    const frag = document.createDocumentFragment();
+    Array.from(scrollInner.childNodes).forEach(n => frag.appendChild(n.cloneNode(true)));
+    scrollInner.appendChild(frag);
+    isLooped = true;
+    _firstHalfCount = committedList.length;
+    _seamAt = scrollInner.scrollHeight / 2;
+    _tryAddToSecondHalf();
+  }
+  function tick() {
+    scrollPos += SCROLL_SPEED;
+    if (_seamAt > 0 && scrollPos >= _seamAt) {
+      scrollAnim = null;
+      _atSeam();
+      return;
+    }
+    scrollInner.style.transform = `translateY(-${scrollPos}px)`;
+    scrollAnim = requestAnimationFrame(tick);
+  }
+  scrollAnim = requestAnimationFrame(tick);
+}
+
+function maybeStartScroll() {
+  if (scrollAnim) return;
+  // Require single-copy height > viewport. This guarantees _seamAt > viewport,
+  // so _tryAddToSecondHalf always has a safe off-screen window at scrollPos=0.
+  const singleH = isLooped ? scrollInner.scrollHeight / 2 : scrollInner.scrollHeight;
+  if (singleH > scrollWrap.clientHeight) startScrollLoop();
+}
+
+// ── Queue processing (non-scrolling case only) ────────────
+function _tryProcessQueue() {
+  if (!pendingQueue.length || isLooped) return;
+  while (pendingQueue.length) {
+    const { item, queueDocId } = pendingQueue.shift();
+    const rank = _calcRank(item);
+    if (committedList.length === 0) {
+      const empty = scrollInner.querySelector('.empty-msg');
+      if (empty) empty.remove();
+      if (!scrollInner.querySelector('.qr-row')) scrollInner.insertAdjacentHTML('beforeend', QR_ROW);
+    }
+    const all = Array.from(scrollInner.querySelectorAll('.lb-row'));
+    const qrs = Array.from(scrollInner.querySelectorAll('.qr-row'));
+    scrollInner.insertBefore(buildRowEl(item, rank), all[rank] || qrs[0] || null);
+    committedList.splice(rank, 0, item);
+    if (queueDocId) db.collection('leaderboardQueue').doc(queueDocId).delete().catch(() => {});
+  }
+  countEl.textContent = committedList.length + (committedList.length === 1 ? ' finisher' : ' finishers');
+  rebuildAllRanks();
+  requestAnimationFrame(maybeStartScroll);
+}
+
+// ── Initial render (no animation) ────────────────────────
+const scrollWrap = document.getElementById('scrollWrap');
+const QR_URL = 'https://light-the-night.web.app/participant.html';
+const QR_IMG = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=ffe896&bgcolor=231207&data=${encodeURIComponent(QR_URL)}`;
+const QR_ROW = `<div class="qr-row"><img src="${QR_IMG}" width="140" height="140" alt="QR">
+  <div class="qr-text"><div class="qr-headline">See the scores!</div>
+  <div class="qr-sub">Scan to view the<br>live leaderboard</div></div></div>`;
+
+function initRender(kids) {
+  const finishers = kids
+    .filter(k => k.mazeEndTime || k.bestMazeEndTime)
+    .map(k => {
+      // During a re-run, mazeEndTime is cleared — use best-run data for display
+      if(!k.mazeEndTime && k.bestMazeEndTime){
+        const durMs = k.bestDurationMs||0;
+        const fakeStart = { toMillis:()=>k.bestMazeEndTime.toMillis()-durMs };
+        return {...k, coins:k.bestCoins||0, mazeEndTime:k.bestMazeEndTime, mazeStartTime:fakeStart};
+      }
+      return k;
+    })
+    .map(k => ({ ...k, score: calcScore(k.coins, k.mazeStartTime, k.mazeEndTime) }))
+    .sort((a, b) => b.score - a.score || (a.name||'').localeCompare(b.name||''));
+  committedList = finishers;
+  countEl.textContent = finishers.length + (finishers.length===1?' finisher':' finishers');
+  if (!finishers.length) {
+    scrollInner.innerHTML = '<div class="empty-msg">No finishers yet…<br>be the first!</div>';
+    return;
+  }
+  scrollInner.innerHTML = finishers.map((k,i) => buildRowEl(k,i).outerHTML).join('') + QR_ROW;
+  requestAnimationFrame(maybeStartScroll);
+}
+
+// ── Test harness ─────────────────────────────────────────
+const TEST_NAMES = [
+  'Emma','Liam','Olivia','Noah','Ava','William','Sophia','James',
+  'Isabella','Oliver','Mia','Benjamin','Charlotte','Elijah','Amelia',
+  'Lucas','Harper','Mason','Evelyn','Logan','Abigail','Ethan','Emily',
+  'Aiden','Elizabeth','Jackson','Mila','Sebastian','Ella','Mateo',
+  'Avery','Jack','Sofia','Owen','Camila','Theodore','Aria','Asher',
+  'Scarlett','Henry','Victoria','Samuel','Madison','David','Luna',
+  'Joseph','Grace','John','Chloe','Wyatt','Penelope','Carter','Layla',
+  'Julian','Riley','Luke','Zoey','Grayson','Nora','Isaac','Lily',
+  'Jayden','Eleanor','Gabriel','Hannah','Anthony','Lillian','Dylan',
+  'Addison','Lincoln','Aubrey','Ezra','Ellie','Thomas','Stella',
+  'Matthew','Natalie','Ryan','Zoe','Nathan','Leah','Caleb','Hazel',
+  'Nicholas','Violet','Christian','Aurora','Eli','Savannah','Connor',
+  'Audrey','Levi','Brooklyn','Isaiah','Bella','Brayden','Claire',
+  'Joshua','Skylar','Archer','Lucy','Dominic','Paisley','Adam',
+  'Everly','Leo','Anna','Josiah','Caroline','Xavier','Nova','Adrian',
+  'Genesis','Nolan','Emilia','Jordan','Kennedy','Angel','Maya',
+  'Hunter','Willow','Aaron','Kinsley','Jake','Naomi','Ian','Aaliyah'
+];
+const TEST_MAX = 50;
+let _testInterval = null, _testCount = 0;
+
+function _testAddOne() {
+  if (_testCount >= TEST_MAX) return false;
+  const idx  = _testCount++;
+  const name = TEST_NAMES[idx % TEST_NAMES.length];
+  const now  = Date.now(), dur = (10 + Math.random() * 35) * 60000;
+  const endMs = now - Math.random() * 90000;
+  const ts = ms => ({ toMillis: () => ms });
+  const item = {
+    id: `_test_${idx}`, name,
+    coins: 50 + Math.floor(Math.random() * 251),
+    mazeStartTime: ts(endMs - dur), mazeEndTime: ts(endMs),
+    usedMushroom: Math.random() > 0.5,
+    usedShell:    Math.random() > 0.6,
+    savedPeach:   Math.random() > 0.7,
+  };
+  item.score = calcScore(item.coins, item.mazeStartTime, item.mazeEndTime);
+  if (committedList.some(c => c.id === item.id) || pendingQueue.some(p => p.item.id === item.id)) return true;
+  pendingQueue.push({ item, queueDocId: null });
+  return true;
+}
+function _testAddAndProcess() {
+  if (!_testAddOne()) { _testStop(); return; }
+  if (!scrollAnim) _tryProcessQueue();
+  else _tryAddToSecondHalf();
+  const el = document.getElementById('_testCounter');
+  if (el) el.textContent = `${_testCount} / ${TEST_MAX}`;
+  if (_testCount >= TEST_MAX) _testStop();
+}
+function _testStart() {
+  if (_testInterval) return;
+  _testAddAndProcess();
+  _testInterval = setInterval(_testAddAndProcess, 5000);
+  document.getElementById('_testStartBtn').disabled = true;
+  const t = document.getElementById('_testStopBtn');
+  t.disabled = false; t.style.opacity = '1';
+}
+function _testStop() {
+  clearInterval(_testInterval); _testInterval = null;
+  const s = document.getElementById('_testStartBtn');
+  const t = document.getElementById('_testStopBtn');
+  if (s) s.disabled = (_testCount >= TEST_MAX);
+  if (t) { t.disabled = true; t.style.opacity = '.45'; }
+}
+function _testReset() {
+  _testStop(); _testCount = 0;
+  committedList = []; pendingQueue = [];
+  animBusy = false; isLooped = false;
+  stopScroll();
+  scrollInner.innerHTML = '<div class="empty-msg">No finishers yet…<br>be the first!</div>';
+  countEl.textContent = '0 finishers';
+  const el = document.getElementById('_testCounter');
+  if (el) el.textContent = `0 / ${TEST_MAX}`;
+  const s = document.getElementById('_testStartBtn');
+  if (s) s.disabled = false;
+}
+
+// ── Firebase ─────────────────────────────────────────────
+firebase.auth().signInAnonymously().catch(() => {});
+firebase.auth().onAuthStateChanged(user => {
+  if (!user) return;
+
+  // One-time load of existing finishers — renders immediately, no animation
+  db.collection('kids').get().then(snap => {
+    const kids = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!d.revoked) kids.push({ id: doc.id, ...d });
+    });
+    initRender(kids);
+
+    // Watch kids for changes — add new finishers to queue; rebuild on reset/removal
+    db.collection('kids').onSnapshot(snap => {
+      let needsRebuild = false;
+
+      snap.docChanges().forEach(change => {
+        const id = change.doc.id;
+
+        if (change.type === 'removed') {
+          if (committedList.some(c => c.id === id)) needsRebuild = true;
+          return;
         }
+
+        const d = change.doc.data();
+
+        // Doc modified and lost its mazeEndTime (unfinish or reset)
+        if (change.type === 'modified' && !d.mazeEndTime) {
+          if (committedList.some(c => c.id === id)) needsRebuild = true;
+          return;
+        }
+
+        if (!d.mazeEndTime || d.revoked) return;
+        if (committedList.some(c => c.id === id)) return;
+        if (pendingQueue.some(p => p.item.id === id)) return;
+        const item = {
+          id, name: d.name, coins: d.coins || 0,
+          mazeStartTime: d.mazeStartTime, mazeEndTime: d.mazeEndTime,
+          savedPeach: !!d.savedPeach, usedMushroom: !!d.usedMushroom, usedShell: !!d.usedShell,
+          score: calcScore(d.coins, d.mazeStartTime, d.mazeEndTime)
+        };
+        pendingQueue.push({ item, queueDocId: null });
+        if (!scrollAnim) _tryProcessQueue();
+        else _tryAddToSecondHalf();
+      });
+
+      if (needsRebuild) {
+        const kids = [];
+        snap.forEach(doc => { const d = doc.data(); if (!d.revoked) kids.push({ id: doc.id, ...d }); });
+        committedList = []; pendingQueue = [];
+        stopScroll();
+        initRender(kids);
       }
     });
-
-    // optional leaderboard title
-    db.collection("config").doc("leaderboard").onSnapshot(doc => {
-      if (doc.exists && doc.data().title) {
-        titleEl.textContent = doc.data().title;
-      }
-    });
-
-    // control channel
-    db.collection("leaderboard").doc("control").onSnapshot(doc => {
-      const data = doc.data();
-      if (!data) return;
-
-      if (data.command === "start") isLive = true;
-      if (data.command === "stop") isLive = false;
-      if (data.command === "clear") {
-        listEl.innerHTML = "";
-        countEl.textContent = "0 Finishers";
-        fallbackEl.style.display = "block";
-      }
-
-      // show "Commander Kyle has completed..." like before
-      if (data.lastCompletedId) {
-        db.collection("kids").doc(data.lastCompletedId).get().then(docSnap => {
-          if (docSnap.exists) {
-            const d = docSnap.data();
-            const name = d.name || "Unnamed";
-            const cmd = titles[Math.floor(Math.random() * titles.length)];
-            msgEl.textContent = `${cmd} ${name} has completed the mission.`;
-            setTimeout(() => msgEl.textContent = "", 5000);
-            db.collection("leaderboard").doc("control").update({
-              lastCompletedId: firebase.firestore.FieldValue.delete()
-            });
-          }
-        });
-      }
-    });
-
-    // MAIN LISTENER
-    db.collection("kids").onSnapshot(snapshot => {
-      const allDocs = [];
-      snapshot.forEach(doc => {
-        allDocs.push({ id: doc.id, data: doc.data() });
-      });
-
-      // build barcode->name map
-      const barcodeNameMap = {};
-      allDocs.forEach(({ data }) => {
-        if (data && data.barcode && data.name) {
-          barcodeNameMap[data.barcode] = data.name;
-        }
-      });
-
-      const finished = [];
-
-      allDocs.forEach(({ id, data: d }) => {
-        if (!d) return;
-        if (d.revoked === true) return;
-
-        const scans = Array.isArray(d.scans) ? d.scans : [];
-        const hasEnoughScans = scans.length >= totalStations;
-        const alreadyCompletedFlag = d.completed === true;
-
-        // START: from SIGN-IN doc on kids
-        // you said: "use these two" -> this is it:
-        // 1) d.timestamp  (Firestore TS from signin.html)
-        // 2) d.startCheckIn (ISO string from signin.html)
-        // fallbacks just in case
-        const startMs =
-          toMillis(d.timestamp) ||
-          toMillis(d.startCheckIn) ||
-          toMillis(d.signinTime) ||
-          toMillis(d.checkinTime) ||
-          toMillis(d.startMaze);  // LAST, only if nothing else
-
-        // END: from station code
-        // station always writes lastScanAt, so trust that first
-        const endMs =
-          toMillis(d.lastScanAt) ||
-          toMillis(d.completionTime); // fallback only
-
-        if (hasEnoughScans || alreadyCompletedFlag) {
-          // *** IMPORTANT: ignore d.durationMs from Firestore ***
-          // always recompute from sign-in -> airlock
-          let durationMs = null;
-          if (startMs !== null && endMs !== null && endMs >= startMs) {
-            durationMs = endMs - startMs;
-          }
-
-          const resolvedName =
-            d.name ||
-            (d.barcode ? barcodeNameMap[d.barcode] : null) ||
-            "Unnamed";
-
-          finished.push({
-            id,
-            name: resolvedName,
-            durationMs,
-            scansCount: scans.length
-          });
-        }
-      });
-
-      // sort: real durations first
-      finished.sort((a, b) => {
-        const aHas = typeof a.durationMs === "number";
-        const bHas = typeof b.durationMs === "number";
-        if (aHas && bHas) return a.durationMs - b.durationMs;
-        if (aHas && !bHas) return -1;
-        if (!aHas && bHas) return 1;
-        return (a.name || "").localeCompare(b.name || "");
-      });
-
-      // render
-      fallbackEl.style.display = finished.length === 0 ? "block" : "none";
-      countEl.textContent = `${finished.length} Finishers`;
-      listEl.innerHTML = "";
-
-      // header
-      const halloween = document.createElement("div");
-      halloween.className = "halloween";
-      halloween.textContent = "🎃 Happy Halloween 🎃";
-      listEl.appendChild(halloween);
-
-      const spacer1 = document.createElement("div");
-      spacer1.className = "spacer";
-      listEl.appendChild(spacer1);
-
-      const qrBlock = document.createElement("div");
-      qrBlock.className = "qr";
-      qrBlock.innerHTML = `
-        <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://ltn-leaderboard.web.app/&size=150x150&color=00ffff&bgcolor=000000" alt="QR Code">
-        <div class="text">📱 Scan for leaderboard</div>
-      `;
-      listEl.appendChild(qrBlock);
-
-      const spacer2 = document.createElement("div");
-      spacer2.className = "spacer";
-      listEl.appendChild(spacer2);
-
-      const light = document.createElement("div");
-      light.className = "scroll-text";
-      light.textContent = "Light the Night 2025";
-      listEl.appendChild(light);
-
-      const spacer3 = document.createElement("div");
-      spacer3.className = "large-spacer";
-      listEl.appendChild(spacer3);
-
-      finished.forEach((data, i) => {
-        const e = document.createElement("div");
-        e.className = "entry glow";
-        if (i === 0) e.classList.add("first");
-        else if (i === 1) e.classList.add("second");
-        else if (i === 2) e.classList.add("third");
-
-        const rank = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
-
-        let timeStr = "—";
-        if (typeof data.durationMs === "number") {
-          const secs = Math.round(data.durationMs / 1000);
-          const m = Math.floor(secs / 60);
-          const s = secs % 60;
-          timeStr = `${m}m ${s.toString().padStart(2, '0')}s`;
-        } else {
-          // if somehow we didn't get both times
-          timeStr = `${data.scansCount}/${totalStations} stations`;
-        }
-
-        e.innerHTML = `<span><span class="rank">${rank}</span> ${data.name}</span><span>${timeStr}</span>`;
-        listEl.appendChild(e);
-      });
-
-      // duplicate for infinite scroll
-      const currentHTML = listEl.innerHTML;
-      listEl.innerHTML = currentHTML + currentHTML;
-
-      // animation speed
-      const scrollDiv = document.querySelector('.scroll-inner');
-      if (scrollDiv) {
-        if (isLive) {
-          const itemCount = finished.length + 6;
-          scrollDiv.style.animation = `scrollList ${Math.max(itemCount * 3, 30)}s linear infinite`;
-        } else {
-          scrollDiv.style.animation = "none";
-        }
-      }
-    });
-  </script>
-
-  <!-- STARFIELD (same as before) -->
-  <script>
-    const canvas = document.getElementById('starsCanvas');
-    const ctx = canvas.getContext('2d');
-    const DPR = Math.max(1, window.devicePixelRatio || 1);
-    let W, H;
-
-    function resizeCanvas() {
-      W = Math.floor(window.innerWidth);
-      H = Math.floor(window.innerHeight);
-      canvas.width = W * DPR;
-      canvas.height = H * DPR;
-      canvas.style.width = W + 'px';
-      canvas.style.height = H + 'px';
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    const stars = Array.from({ length: 400 }, () => ({
-      x: (Math.random() - 0.5) * W,
-      y: (Math.random() - 0.5) * H,
-      z: Math.random() * W,
-      radius: Math.random() * 1.5 + 0.5
-    }));
-
-    const shootingStars = [];
-    let nextSpawn = performance.now() + randRange(1200, 3500);
-
-    function spawnShootingStar() {
-      const edge = Math.random();
-      let x, y, vx, vy;
-      const speed = randRange(700, 1100) / 1000;
-      const angle = randRange(20, 35) * (Math.PI / 180);
-
-      if (edge < 0.5) {
-        x = randRange(-W * 0.2, W * 0.3);
-        y = randRange(-H * 0.2, H * 0.15);
-      } else {
-        x = randRange(-W * 0.1, W * 0.9);
-        y = randRange(-H * 0.2, H * 0.05);
-      }
-
-      vx = Math.cos(angle) * randRange(8, 14) * speed;
-      vy = Math.sin(angle) * randRange(8, 14) * speed;
-
-      shootingStars.push({
-        x, y, vx, vy,
-        length: randRange(120, 220),
-        life: 0,
-        maxLife: randRange(700, 1400),
-        width: randRange(1.2, 2.2)
-      });
-    }
-
-    function randRange(min, max) {
-      return Math.random() * (max - min) + min;
-    }
-
-    function drawStars() {
-      for (let s of stars) {
-        s.z -= 2;
-        if (s.z <= 0) s.z = W;
-
-        const k = 128 / s.z;
-        const x = W / 2 + s.x * k;
-        const y = H / 2 + 50 + s.y * k;
-        const r = Math.max(0.2, s.radius * (1 - s.z / W));
-        const b = 120 + (1 - s.z / W) * 135;
-
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, 2 * Math.PI);
-        ctx.fillStyle = `rgb(${b},${b},${b})`;
-        ctx.fill();
-      }
-    }
-
-    function drawShootingStars(dt) {
-      for (let i = shootingStars.length - 1; i >= 0; i--) {
-        const m = shootingStars[i];
-        m.life += dt;
-
-        m.x += m.vx * (dt / 16.67);
-        m.y += m.vy * (dt / 16.67);
-
-        const trailDX = -m.vx * (m.length / Math.hypot(m.vx, m.vy));
-        const trailDY = -m.vy * (m.length / Math.hypot(m.vx, m.vy));
-
-        const alpha = Math.max(0, 1 - (m.life / m.maxLife));
-
-        ctx.save();
-        ctx.globalAlpha = alpha * 0.6;
-        ctx.shadowBlur = 18;
-        ctx.shadowColor = '#00ffff';
-        ctx.lineWidth = m.width + 1.5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(m.x, m.y);
-        ctx.lineTo(m.x + trailDX, m.y + trailDY);
-        ctx.strokeStyle = 'rgba(0,255,255,0.9)';
-        ctx.stroke();
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = m.width;
-        ctx.lineCap = 'round';
-        const grad = ctx.createLinearGradient(m.x, m.y, m.x + trailDX, m.y + trailDY);
-        grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.4, 'rgba(200,255,255,0.9)');
-        grad.addColorStop(1, 'rgba(0,255,255,0)');
-        ctx.strokeStyle = grad;
-        ctx.beginPath();
-        ctx.moveTo(m.x, m.y);
-        ctx.lineTo(m.x + trailDX, m.y + trailDY);
-        ctx.stroke();
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.arc(m.x, m.y, m.width * 0.9, 0, Math.PI * 2);
-        ctx.fillStyle = 'white';
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = '#ffffff';
-        ctx.fill();
-        ctx.restore();
-
-        if (m.life > m.maxLife || m.x - m.length > W + 50 || m.y - m.length > H + 50) {
-          shootingStars.splice(i, 1);
-        }
-      }
-    }
-
-    let last = performance.now();
-    function draw() {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, W, H);
-
-      drawStars();
-      drawShootingStars(dt);
-
-      if (now > nextSpawn) {
-        spawnShootingStar();
-        nextSpawn = now + randRange(900, 3200);
-        if (Math.random() < 0.2) {
-          setTimeout(spawnShootingStar, randRange(120, 350));
-        }
-      }
-
-      requestAnimationFrame(draw);
-    }
-    draw();
-  </script>
+  });
+});
+</script>
 </body>
 </html>

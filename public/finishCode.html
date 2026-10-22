@@ -3,73 +3,127 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Maze Admin — Live View & Quick Finish</title>
-
-  <!-- ZXing (barcode scanner) -->
-  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <title>Maze Admin — Live View &amp; Quick Finish</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <style>
-    body { font-family: system-ui, -apple-system, Roboto, Arial; margin:0; background:#071126; color:#e6f2ff; }
-    header { display:flex; align-items:center; gap:1rem; padding:12px 16px; background:#0b2340; box-shadow:0 2px 6px rgba(0,0,0,.4); }
-    h1 { margin:0; font-size:1.1rem; }
-    .controls { margin-left:auto; display:flex; gap:8px; align-items:center; }
-    button { background:#0f6; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
-    button.warn { background:#f59e0b; }
-    main { display:flex; gap:16px; padding:12px; height:calc(100vh - 64px); box-sizing:border-box; }
-    .left, .right { background:rgba(255,255,255,0.03); border-radius:10px; padding:12px; }
+    *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: #5c94fc;
+      background-image:
+        radial-gradient(ellipse 90px 50px at 10% 15%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 65px 38px at 7% 15%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 75px 44px at 13% 12%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 110px 55px at 62% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 78px 42px at 59% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 88px 48px at 66% 7%, #fff 50%, transparent 51%);
+      color: #231207;
+      min-height: 100vh;
+    }
+    header {
+      display:flex; align-items:center; gap:1rem; padding:12px 16px;
+      background: #e52521;
+      border-bottom: 3px solid #231207;
+      box-shadow: 0 3px 0 #231207;
+    }
+    h1 {
+      margin:0; font-size:11px; flex:1;
+      font-family: 'Press Start 2P', monospace;
+      color: #fff;
+      text-shadow: 2px 2px 0 #231207;
+    }
+    .controls { display:flex; gap:8px; align-items:center; }
+    button {
+      background: #e8a000; color: #231207;
+      border: 3px solid #231207; box-shadow: 2px 2px 0 #231207;
+      padding: 8px 12px; border-radius: 4px; cursor:pointer; font-weight:700;
+      font-family: 'Inter', sans-serif; font-size: 12px;
+      transition: transform .05s, box-shadow .05s;
+    }
+    button:active { transform: translate(2px,2px); box-shadow: none; }
+    button.warn { background: #e8a000; color: #231207; }
+    button.danger { background: #e52521; color: #fff; }
+    button.ghost { background: #fff; color: #231207; border: 3px solid #231207; }
+    main { display:flex; gap:12px; padding:12px; height:calc(100vh - 56px); }
     .left { flex:1; overflow:auto; }
-    .right { width:420px; display:flex; flex-direction:column; gap:12px; }
-    .participant { padding:10px; border-radius:8px; margin-bottom:8px; background:rgba(255,255,255,0.01); display:flex; justify-content:space-between; gap:12px; align-items:center; }
-    .name { font-weight:700; }
-    .meta { color:#9fb7d5; font-size:0.85rem; }
-    .duration { font-size:0.95rem; font-variant-numeric:tabular-nums; }
-    #video { width:100%; border-radius:8px; background:#000; height:280px; object-fit:cover; }
-    .small { font-size:0.85rem; color:#9fb7d5; }
-    .scan-indicator { width:12px; height:12px; border-radius:50%; background:#ef4444; display:inline-block; margin-right:8px; box-shadow:0 0 8px rgba(239,68,68,.6); }
-    .ok { background:#10b981; box-shadow:0 0 8px rgba(16,185,129,.6); }
+    .right { width:340px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; }
+    .panel {
+      background: #fff;
+      border: 3px solid #231207; box-shadow: 4px 4px 0 #231207;
+      border-radius: 4px; padding:14px;
+    }
+    .panel-title {
+      font-size: 8px; font-weight:700; color: #e52521;
+      font-family: 'Press Start 2P', monospace;
+      text-transform:uppercase; letter-spacing:.07em; margin-bottom:12px;
+    }
+    .participant {
+      padding:10px; border-radius:4px; margin-bottom:8px;
+      background: #f7f0dc;
+      border: 2px solid #e0d4b8;
+      display:flex; justify-content:space-between; gap:12px; align-items:center;
+    }
+    .participant.completed-row { background: #eaffea; border-color: #b8e0b8; }
+    .name { font-weight:700; color: #231207; }
+    .meta { color: #8b6040; font-size:0.85rem; }
+    .duration { font-size:0.95rem; font-variant-numeric:tabular-nums; color: #231207; }
+    .small { font-size:0.85rem; color: #8b6040; }
+    .section-label {
+      font-size:8px; font-weight:700; color: #e52521;
+      font-family: 'Press Start 2P', monospace;
+      text-transform:uppercase; letter-spacing:.07em; margin:8px 0 6px;
+    }
+    #completedSection { flex:1; overflow:auto; }
+    input {
+      flex:1; padding:8px 10px;
+      border-radius:4px; border: 2px solid #231207;
+      background: #fff; color: #231207;
+      font-size:13px; font-family: 'Inter', sans-serif;
+    }
+    input:focus { outline: none; border-color: #e52521; box-shadow: 2px 2px 0 #e52521; }
   </style>
+  <script src="/pw.js"></script>
 </head>
 <body>
   <header>
-    <h1>Maze — Live (longest-in-maze at top)</h1>
+    <h1>Maze — Live (longest in maze at top)</h1>
     <div class="controls">
-      <div id="status" class="small"><span class="scan-indicator" id="scanDot"></span><span id="statusText">scanner idle</span></div>
-      <button id="toggleScan">Start Scanner</button>
       <button id="refreshBtn" class="warn">Refresh</button>
     </div>
   </header>
 
   <main>
-    <div class="left">
-      <div style="margin-bottom:8px; color:#cfe9ff">Showing participants with a <code>startCheckIn</code> and not completed (sorted by time spent).</div>
+    <!-- In-maze list -->
+    <div class="left panel">
+      <div class="panel-title">Currently In Maze</div>
       <div id="list"></div>
     </div>
 
+    <!-- Right: manual entry + recently completed -->
     <div class="right">
-      <div>
-        <video id="video" muted playsinline></video>
+      <div class="panel">
+        <div class="panel-title">Finish by Code</div>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input id="manualInput" placeholder="Enter participant code" style="flex:1; padding:8px; border-radius:4px; border:2px solid #231207; background:#fff; color:#231207; font-size:13px"/>
+          <button id="manualFinish" style="background:#248a26; color:#fff; border:3px solid #231207; box-shadow:2px 2px 0 #231207; padding:8px 12px; border-radius:4px; white-space:nowrap; font-weight:700">Finish</button>
+        </div>
+        <div id="lastAction" class="small" style="margin-top:8px; min-height:18px;"></div>
       </div>
 
-      <div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div><strong>Last scan:</strong> <span id="lastScan">none</span></div>
-          <div><button id="manualFinish" style="background:#0aa; padding:6px 8px; border-radius:6px">Finish by barcode</button></div>
-        </div>
-        <div style="margin-top:8px;">
-          <input id="manualInput" placeholder="Paste barcode string here" style="width:100%; padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:rgba(0,0,0,0.25); color:#e6f2ff"/>
-        </div>
+      <div class="panel" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+        <div class="panel-title">Recently Completed</div>
+        <div id="completedSection" style="overflow-y:auto; flex:1;"></div>
       </div>
-
-      <div class="small">Tip: Point camera at wristband QR. Scanning a barcode will immediately mark participant complete.</div>
     </div>
   </main>
 
 <script>
-  // --------- Firebase config (your project) ----------
   const firebaseConfig = {
     apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
     authDomain: "light-the-night-2025.firebaseapp.com",
@@ -83,250 +137,204 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
-  // --------- UI elements ----------
-  const listEl = document.getElementById('list');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const toggleScanBtn = document.getElementById('toggleScan');
-  const lastScanEl = document.getElementById('lastScan');
-  const manualInput = document.getElementById('manualInput');
-  const manualFinish = document.getElementById('manualFinish');
-  const statusText = document.getElementById('statusText');
-  const scanDot = document.getElementById('scanDot');
+  const listEl          = document.getElementById('list');
+  const completedEl     = document.getElementById('completedSection');
+  const refreshBtn      = document.getElementById('refreshBtn');
+  const manualInput     = document.getElementById('manualInput');
+  const manualFinish    = document.getElementById('manualFinish');
+  const lastActionEl    = document.getElementById('lastAction');
 
-  // --------- live fetch & render ----------
-  let unsubscribe = null;
+  // ── helpers ──────────────────────────────────────────────
+  function formatDuration(ms) {
+    if (!ms || ms < 0) return '0s';
+    const s = Math.floor(ms/1000);
+    const hh = Math.floor(s/3600), mm = Math.floor((s%3600)/60), ss = s%60;
+    if (hh > 0) return `${hh}h ${mm}m ${ss}s`;
+    if (mm > 0) return `${mm}m ${ss}s`;
+    return `${ss}s`;
+  }
+  function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+  }
+  function setLastAction(msg, ok=true) {
+    lastActionEl.textContent = msg;
+    lastActionEl.style.color = ok ? '#10b981' : '#ef4444';
+    setTimeout(() => { lastActionEl.textContent = ''; }, 3000);
+  }
+  function normalizeStart(d) {
+    let s = d.mazeStartTime || null;
+    if (!s) return null;
+    if (typeof s === 'string') return new Date(s);
+    if (s.toDate) return s.toDate();
+    return new Date(s);
+  }
+
+  // ── in-maze list ─────────────────────────────────────────
+  let _liveTimer = null;
 
   async function fetchAndRender() {
-    // fetch all docs from 'kids' collection (adjust collection name if you prefer 'participants')
     const snapshot = await db.collection('kids').get();
     const items = [];
     snapshot.forEach(doc => {
-      const d = doc.data();
-      d._id = doc.id;
-      items.push(d);
+      const d = doc.data(); d._id = doc.id; items.push(d);
     });
 
-    // filter: those who have started but not completed
-    const inMaze = items.filter(p => {
-      const hasStart = p.scans && (p.scans.startCheckIn || p.startCheckIn || p.startMaze || p.startCheckin);
-      const isCompleted = p.completed === true;
-      return hasStart && !isCompleted;
-    }).map(p => {
-      // try to normalize start time
-      let s = null;
-      if (p.scans && p.scans.startCheckIn) s = p.scans.startCheckIn;
-      else if (p.startCheckIn) s = p.startCheckIn;
-      else if (p.startMaze) s = p.startMaze;
-      else if (p.startCheckin) s = p.startCheckin;
+    // Only show people who have scanned at the start station (mazeStartTime set)
+    const inMaze = items.filter(p => p.mazeStartTime && p.completed !== true)
+      .map(p => {
+        const startDate = normalizeStart(p);
+        const startMs = startDate ? startDate.getTime() : 0;
+        return { raw: p, startDate, startMs };
+      })
+      .sort((a, b) => a.startMs - b.startMs); // earliest start = longest in maze, shown first
 
-      // convert to JS Date
-      let startDate = null;
-      if (!s) startDate = null;
-      else if (typeof s === 'string') startDate = new Date(s);
-      else if (s && s.toDate) startDate = s.toDate(); // firebase Timestamp
-      else startDate = new Date(s);
+    // Stop any previous live timer
+    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
 
-      const now = new Date();
-      const durationMs = startDate ? (now - startDate) : 0;
-      return { raw: p, startDate, durationMs };
-    });
-
-    // sort descending (longest time first)
-    inMaze.sort((a,b) => b.durationMs - a.durationMs);
-
-    // render
     listEl.innerHTML = '';
     if (inMaze.length === 0) {
       listEl.innerHTML = '<div class="small">No participants currently in maze.</div>';
+    } else {
+      inMaze.forEach(p => {
+        const doc = p.raw;
+        const name = doc.name || doc.displayName || 'Unnamed';
+        const code = doc.barcode || doc.code || doc._id;
+        const el = document.createElement('div');
+        el.className = 'participant';
+        el.dataset.startMs = p.startMs; // anchor for live timer
+        el.innerHTML = `
+          <div>
+            <div class="name">${escapeHtml(name)}</div>
+            <div class="meta">${escapeHtml(code)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="duration">${p.startMs ? formatDuration(Date.now() - p.startMs) : '—'}</div>
+            <div class="small">${p.startDate ? p.startDate.toLocaleTimeString() : ''}</div>
+            <button onclick="finishById('${escapeHtml(doc._id)}')" style="margin-top:4px; font-size:12px; padding:4px 8px;">Finish</button>
+          </div>`;
+        listEl.appendChild(el);
+      });
+
+      // Tick every second — only updates the timer text, no DOM rebuild
+      _liveTimer = setInterval(() => {
+        listEl.querySelectorAll('.participant[data-start-ms]').forEach(el => {
+          const ms = parseInt(el.dataset.startMs);
+          const dur = el.querySelector('.duration');
+          if (dur && ms) dur.textContent = formatDuration(Date.now() - ms);
+        });
+      }, 1000);
+    }
+
+    // also refresh completed
+    fetchAndRenderCompleted(items);
+  }
+
+  // ── completed list ────────────────────────────────────────
+  function fetchAndRenderCompleted(allItems) {
+    const completed = (allItems || [])
+      .filter(p => p.completed === true)
+      .sort((a,b) => {
+        const ta = a.completionTime?.toMillis?.() || 0;
+        const tb = b.completionTime?.toMillis?.() || 0;
+        return tb - ta; // most recent first
+      })
+      .slice(0, 20);
+
+    completedEl.innerHTML = '';
+    if (completed.length === 0) {
+      completedEl.innerHTML = '<div class="small">No one finished yet.</div>';
       return;
     }
-    inMaze.forEach(p => {
-      const doc = p.raw;
+    completed.forEach(doc => {
       const name = doc.name || doc.displayName || 'Unnamed';
-      const barcode = doc.barcode || doc.code || doc.id || doc._id;
-      const container = document.createElement('div');
-      container.className = 'participant';
-      const left = document.createElement('div');
-      left.innerHTML = `<div class="name">${escapeHtml(name)}</div><div class="meta">${escapeHtml(barcode)}</div>`;
-      const right = document.createElement('div');
-      right.style.textAlign = 'right';
-      right.innerHTML = `<div class="duration">${formatDuration(p.durationMs)}</div><div class="small">${p.startDate ? p.startDate.toLocaleString() : ''}</div>`;
-      const finishBtn = document.createElement('button');
-      finishBtn.textContent = 'Finish';
-      finishBtn.style.marginLeft = '12px';
-      finishBtn.onclick = () => finishById(doc._id || doc.id || barcode);
-      right.appendChild(finishBtn);
-      container.appendChild(left);
-      container.appendChild(right);
-      listEl.appendChild(container);
+      const code = doc.barcode || doc.code || doc._id;
+      const dur  = doc.durationMs != null ? formatDuration(doc.durationMs) : '—';
+      const el   = document.createElement('div');
+      el.className = 'participant completed-row';
+      el.innerHTML = `
+        <div>
+          <div class="name" style="color:#6ee7b7">${escapeHtml(name)}</div>
+          <div class="meta">${escapeHtml(code)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="duration" style="color:#6ee7b7">${dur}</div>
+          <button onclick="unfinishById('${escapeHtml(doc._id)}')" class="ghost danger" style="margin-top:4px; font-size:12px; padding:4px 8px; background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.25)">Unfinish</button>
+        </div>`;
+      completedEl.appendChild(el);
     });
   }
 
   refreshBtn.addEventListener('click', fetchAndRender);
 
-  // ---------- helper utilities ----------
-  function formatDuration(ms) {
-    if (!ms || ms < 0) return '0s';
-    const s = Math.floor(ms/1000);
-    const hh = Math.floor(s/3600); const mm = Math.floor((s%3600)/60); const ss = s%60;
-    if (hh>0) return `${hh}h ${mm}m ${ss}s`;
-    if (mm>0) return `${mm}m ${ss}s`;
-    return `${ss}s`;
-  }
-
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
-
-  // ---------- finish logic ----------
-  async function finishById(docIdOrBarcode) {
-    // try to find document by ID first, then by barcode/code
+  // ── finish ────────────────────────────────────────────────
+  async function finishById(docIdOrCode) {
     let docRef = null;
-
-    // if looks like Firestore doc id (we'll attempt direct get)
     try {
-      const tryDoc = await db.collection('kids').doc(docIdOrBarcode).get();
-      if (tryDoc.exists) docRef = db.collection('kids').doc(docIdOrBarcode);
-    } catch(e){ /* ignore */ }
+      const tryDoc = await db.collection('kids').doc(docIdOrCode).get();
+      if (tryDoc.exists) docRef = db.collection('kids').doc(docIdOrCode);
+    } catch(e) {}
 
     if (!docRef) {
-      // query by barcode or code field
-      const q = await db.collection('kids').where('barcode','==',docIdOrBarcode).limit(1).get();
-      if (q.empty) {
-        const q2 = await db.collection('kids').where('code','==',docIdOrBarcode).limit(1).get();
-        if (!q2.empty) docRef = db.collection('kids').doc(q2.docs[0].id);
-      } else {
-        docRef = db.collection('kids').doc(q.docs[0].id);
-      }
+      const q = await db.collection('kids').where('barcode','==',docIdOrCode).limit(1).get();
+      if (!q.empty) docRef = db.collection('kids').doc(q.docs[0].id);
     }
-
     if (!docRef) {
-      alert('Participant not found: ' + docIdOrBarcode);
+      const q2 = await db.collection('kids').where('code','==',docIdOrCode).limit(1).get();
+      if (!q2.empty) docRef = db.collection('kids').doc(q2.docs[0].id);
+    }
+    if (!docRef) {
+      setLastAction('Not found: ' + docIdOrCode, false);
       return;
     }
 
     const snap = await docRef.get();
     const data = snap.data();
-
-    // determine start time
-    let startVal = null;
-    if (data.scans && data.scans.startCheckIn) startVal = data.scans.startCheckIn;
-    else if (data.startCheckIn) startVal = data.startCheckIn;
-    else if (data.startMaze) startVal = data.startMaze;
-    else if (data.startCheckin) startVal = data.startCheckin;
-
-    let startDate = null;
-    if (startVal) {
-      if (typeof startVal === 'string') startDate = new Date(startVal);
-      else if (startVal.toDate) startDate = startVal.toDate();
-      else startDate = new Date(startVal);
-    }
-
+    const startDate = normalizeStart(data);
     const now = new Date();
     const durationMs = startDate ? (now - startDate) : 0;
 
-    // set completed fields
     await docRef.update({
       completed: true,
       completionTime: firebase.firestore.Timestamp.fromDate(now),
-      durationMs: durationMs
+      mazeEndTime: firebase.firestore.Timestamp.fromDate(now),
+      durationMs
     });
 
-    // UI feedback
-    lastScanEl.textContent = (data.name || data.barcode || docRef.id) + ' finished';
-    flashStatus('Finished ' + (data.name||data.barcode||docRef.id));
-
-    // refresh view
+    setLastAction('Finished: ' + (data.name || docRef.id));
     await fetchAndRender();
   }
 
-  // ---------- manual entry ----------
+  // ── unfinish ──────────────────────────────────────────────
+  async function unfinishById(docId) {
+    if (!confirm('Unfinish this participant? This removes their completion record.')) return;
+    try {
+      await db.collection('kids').doc(docId).update({
+        completed: firebase.firestore.FieldValue.delete(),
+        completionTime: firebase.firestore.FieldValue.delete(),
+        mazeEndTime: firebase.firestore.FieldValue.delete(),
+        durationMs: firebase.firestore.FieldValue.delete()
+      });
+      setLastAction('Unfinished.');
+      await fetchAndRender();
+    } catch(e) {
+      setLastAction('Error: ' + e.message, false);
+    }
+  }
+
+  // ── manual entry ──────────────────────────────────────────
   manualFinish.addEventListener('click', () => {
     const val = manualInput.value.trim();
-    if (!val) return alert('Paste barcode first');
+    if (!val) { setLastAction('Enter a code first.', false); return; }
     finishById(val);
     manualInput.value = '';
   });
-
-  // ---------- ZXing scanner setup ----------
-  const codeReader = new ZXing.BrowserMultiFormatReader();
-  let scanning = false;
-
-  async function startScanner() {
-    try {
-      const devices = await codeReader.listVideoInputDevices();
-      // choose rear camera if possible
-      let chosen = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
-      if (!chosen && devices.length) chosen = devices[0];
-      if (!chosen) throw new Error('No camera found');
-
-      await codeReader.decodeFromVideoDevice(chosen.deviceId, 'video', (result, err) => {
-        if (result) {
-          // barcode text
-          handleBarcode(result.getText());
-        } else if (err && !(err instanceof ZXing.NotFoundException)) {
-          console.error(err);
-        }
-      });
-      scanning = true;
-      toggleScanBtn.textContent = 'Stop Scanner';
-      setStatus('scanner running', true);
-    } catch (e) {
-      console.error('startScanner error', e);
-      alert('Could not start scanner: ' + (e.message || e));
-    }
-  }
-
-  function stopScanner() {
-    try {
-      codeReader.reset();
-    } catch(e){}
-    scanning = false;
-    toggleScanBtn.textContent = 'Start Scanner';
-    setStatus('scanner idle', false);
-  }
-
-  toggleScanBtn.addEventListener('click', () => {
-    if (!scanning) startScanner(); else stopScanner();
+  manualInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') manualFinish.click();
   });
 
-  let lastHandled = 0;
-  async function handleBarcode(text) {
-    const now = Date.now();
-    // simple debounce to avoid double triggers
-    if (now - lastHandled < 1500) return;
-    lastHandled = now;
-
-    setStatus('scanned: ' + text, true);
-    lastScanEl.textContent = text;
-    // immediately finish by barcode (attempt)
-    try {
-      await finishById(text);
-    } catch (e) {
-      console.error(e);
-      alert('Error finishing: ' + (e.message || e));
-    }
-    // tiny visual flash
-    setTimeout(()=>setStatus('scanner running', true), 700);
-  }
-
-  function setStatus(msg, ok) {
-    statusText.textContent = msg;
-    if (ok) { scanDot.classList.add('ok'); } else { scanDot.classList.remove('ok'); }
-  }
-
-  function flashStatus(msg) {
-    const previous = statusText.textContent;
-    setStatus(msg, true);
-    setTimeout(()=>setStatus(previous, true), 1500);
-  }
-
-  // ---------- initial load ----------
+  // ── boot ─────────────────────────────────────────────────
   fetchAndRender();
-  // also refresh every 7s to keep list current
-  setInterval(fetchAndRender, 7000);
-
-  // ---------- cleanup on unload ----------
-  window.addEventListener('beforeunload', ()=>{ try{ codeReader.reset(); }catch(e){} });
-
+  setInterval(fetchAndRender, 10000);
 </script>
 </body>
 </html>

@@ -1,64 +1,368 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Light The Night Navigation</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8"/>
+  <title>Light the Night 2026 — Staff HQ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
     body {
-      margin: 0;
-      font-family: -apple-system, Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
-      color: #fff;
       min-height: 100vh;
+      background-color: #5c94fc;
+      color: #231207;
+      font-family: 'Inter', system-ui, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      text-align: center;
-      gap: 18px;
-      padding: 24px;
+      padding: 40px 24px 72px;
     }
-    h1 { font-size: 2rem; margin: 0 0 1rem; }
+    #bgCanvas {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 0;
+      image-rendering: pixelated;
+    }
+
+    /* ── Top bar ───────────────────────────────────────────────────────── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: #e52521;
+      border-bottom: 3px solid #231207;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 10;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      color: #fff;
+    }
+    .topbar-brand .coin {
+      display: inline-block;
+      width: 14px; height: 14px;
+      background: #e8a000;
+      border: 2px solid #231207;
+      border-radius: 50%;
+      box-shadow: 1px 1px 0 #231207;
+      animation: coinSpin 1.2s steps(4) infinite;
+    }
+    @keyframes coinSpin {
+      0%   { transform: scaleX(1);   background: #e8a000; }
+      25%  { transform: scaleX(0.4); background: #c07800; }
+      50%  { transform: scaleX(0.1); background: #c07800; }
+      75%  { transform: scaleX(0.4); background: #c07800; }
+      100% { transform: scaleX(1);   background: #e8a000; }
+    }
+    .topbar-right {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #fff;
+      opacity: 0.85;
+    }
+
+    /* ── Page wrapper ──────────────────────────────────────────────────── */
+    .page {
+      width: 100%;
+      max-width: 860px;
+      padding-top: 20px;
+      position: relative; z-index: 1;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────── */
+    .header {
+      margin-bottom: 28px;
+    }
+    .header h1 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 16px;
+      color: #231207;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .header p {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #4a3728;
+    }
+    .header-deco {
+      font-size: 22px;
+      margin-bottom: 10px;
+      display: block;
+      letter-spacing: 6px;
+    }
+    .divider {
+      height: 3px;
+      background: #231207;
+      margin: 18px 0 24px;
+    }
+
+    /* ── Section label ─────────────────────────────────────────────────── */
+    .section-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #e52521;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+
+    /* ── Grid ──────────────────────────────────────────────────────────── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────── */
+    a.card {
+      display: flex;
+      align-items: center;
       gap: 14px;
-      width: min(900px, 96vw);
-    }
-    button {
-      background: #0c7bdc;
-      color: #fff;
-      padding: 1rem 1.25rem;
-      border: none;
-      border-radius: 10px;
-      font-size: 1.05rem;
+      padding: 16px 18px;
+      background: #fff;
+      border: 3px solid #231207;
+      border-radius: 4px;
+      box-shadow: 4px 4px 0 #231207;
+      text-decoration: none;
+      transition: box-shadow 0.07s, transform 0.07s;
       cursor: pointer;
-      width: 100%;
-      transition: background .15s ease, transform .06s ease, box-shadow .15s ease;
-      box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
-    button:hover { background: #095cad; }
-    button:active { transform: translateY(1px); }
-    .sub { opacity:.9; font-size:.95rem; margin-top:-6px; }
-    footer { opacity:.7; font-size:.85rem; margin-top:10px; }
+    a.card:hover {
+      box-shadow: 8px 8px 0 #231207;
+      transform: translate(-2px, -2px);
+    }
+    a.card:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 #231207;
+    }
+
+    .card-icon {
+      width: 40px; height: 40px;
+      border-radius: 4px;
+      border: 2px solid #231207;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .icon-orange { background: #fde8d4; }
+    .icon-blue   { background: #d4e6fd; }
+    .icon-green  { background: #d4f4d4; }
+    .icon-amber  { background: #fdf2d4; }
+    .icon-red    { background: #fdd4d4; }
+    .icon-teal   { background: #d4f4ef; }
+
+    .card-body {}
+    .card-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #231207;
+      margin-bottom: 5px;
+      line-height: 1.5;
+    }
+    .card-desc {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: #4a3728;
+      line-height: 1.4;
+    }
+
+    .card-arrow {
+      margin-left: auto;
+      color: #e52521;
+      font-size: 14px;
+      flex-shrink: 0;
+      transition: transform 0.1s;
+    }
+    a.card:hover .card-arrow {
+      transform: translateX(3px);
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────────── */
+    .footer {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #fff;
+      text-align: center;
+      padding: 12px 0 16px;
+      width: 100%;
+      margin-top: 8px;
+    }
   </style>
+  <script src="/pw.js"></script>
 </head>
 <body>
-  <h1>Light The Night 2025</h1>
-  <div class="sub">Quick navigation</div>
 
-  <div class="grid" id="navGrid">
-    <button onclick="location.href='signin.html'">Check-In Page</button>
-    <button onclick="location.href='station.html'">Station Scanner</button>
-    <button onclick="location.href='admin.html'">Admin Dashboard</button>
-    <button onclick="location.href='wristbands.html'">Wristband Codes</button>
-    <button onclick="location.href='leaderboard.html'">Leaderboard</button>
-    <button onclick="location.href='web-switch.html'">Web Switch Control</button>
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span class="coin"></span>
+      Light the Night 2026
+    </div>
+    <div class="topbar-right">STAFF HQ</div>
   </div>
 
-  <footer>Happy Halloween! 🎃</footer>
+  <div class="page">
+    <div class="header">
+      <span class="header-deco">🍄 🌟 ⭐</span>
+      <h1>Staff HQ</h1>
+      <p>Select a page to get started.</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Event Operations</div>
+    <div class="grid">
+
+      <a class="card" href="signin.html">
+        <div class="card-icon icon-orange">📋</div>
+        <div class="card-body">
+          <div class="card-title">Check-In</div>
+          <div class="card-desc">Register kids — code shown on screen, write on wristband</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="station.html">
+        <div class="card-icon icon-blue">📡</div>
+        <div class="card-body">
+          <div class="card-title">Station</div>
+          <div class="card-desc">Kiosk display for maze stations</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="admin.html">
+        <div class="card-icon icon-green">🛠</div>
+        <div class="card-body">
+          <div class="card-title">Admin Dashboard</div>
+          <div class="card-desc">Live stats, participants, controls</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="leaderboard.html">
+        <div class="card-icon icon-amber">🏆</div>
+        <div class="card-body">
+          <div class="card-title">Leaderboard</div>
+          <div class="card-desc">Staff projector — finisher rankings</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="participant.html">
+        <div class="card-icon icon-blue">📊</div>
+        <div class="card-body">
+          <div class="card-title">Guest Leaderboard</div>
+          <div class="card-desc">Public QR — split-screen finishers + in maze</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="inmaze.html">
+        <div class="card-icon icon-green">🟢</div>
+        <div class="card-body">
+          <div class="card-title">In the Maze</div>
+          <div class="card-desc">Projector — live in-maze players only</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+
+      <a class="card" href="web-switch.html">
+        <div class="card-icon icon-teal">⚡</div>
+        <div class="card-body">
+          <div class="card-title">Mission Control</div>
+          <div class="card-desc">Smart outlet control and automation</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="cameras.html">
+        <div class="card-icon icon-red">📷</div>
+        <div class="card-body">
+          <div class="card-title">Cameras</div>
+          <div class="card-desc">Live snapshots from each station tablet</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+      <a class="card" href="check.html">
+        <div class="card-icon icon-green">✅</div>
+        <div class="card-body">
+          <div class="card-title">Checklist</div>
+          <div class="card-desc">Pre-event system status — stations, config, OSC</div>
+        </div>
+        <span class="card-arrow">▶</span>
+      </a>
+
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Downloads</div>
+    <div class="grid">
+
+      <a class="card" href="/LTN-Overlay.zip" download>
+        <div class="card-icon icon-red">🎮</div>
+        <div class="card-body">
+          <div class="card-title">QLab Overlay</div>
+          <div class="card-desc">LTN Overlay app for Mac — transparent game-over display</div>
+        </div>
+        <span class="card-arrow">↓</span>
+      </a>
+
+    </div>
+
+    <div class="footer">Light the Night 2026</div>
+  </div>
+
+  <canvas id="bgCanvas"></canvas>
+  <script>
+  (function(){
+    const bc = document.getElementById('bgCanvas');
+    const bx = bc.getContext('2d');
+    const img = new Image();
+    img.src = 'mario-tiles.png';
+    function drawCloud(cx, cy, ts){
+      const L = Math.round(cx - ts * 1.5), T = Math.round(cy - ts);
+      [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+        bx.drawImage(img, sx, sy, 16, 16, L+(i%3)*ts, T+Math.floor(i/3)*ts, ts, ts);
+      });
+    }
+    function draw(){
+      const W = bc.width  = window.innerWidth;
+      const H = bc.height = window.innerHeight;
+      bx.imageSmoothingEnabled = false;
+      bx.fillStyle = '#5c94fc';
+      bx.fillRect(0, 0, W, H);
+      const groundH = 56, gy = H - groundH;
+      if(img.complete && img.naturalWidth > 0){
+        const cs = Math.round(W * 0.065);
+        drawCloud(W*0.13, H*0.12, cs);
+        drawCloud(W*0.50, H*0.09, Math.round(cs*1.2));
+        drawCloud(W*0.82, H*0.14, Math.round(cs*0.85));
+        const gt = Math.round(groundH / 2), cols = Math.ceil(W / gt) + 1;
+        for(let c=0;c<cols;c++) bx.drawImage(img, 16,0,16,16, c*gt, gy,    gt, gt);
+        for(let c=0;c<cols;c++) bx.drawImage(img,  0,0,16,16, c*gt, gy+gt, gt, gt);
+      } else {
+        bx.fillStyle = '#c8601c'; bx.fillRect(0, gy, W, groundH);
+        bx.fillStyle = '#231207'; bx.fillRect(0, gy, W, 3);
+      }
+    }
+    img.onload = draw; draw();
+    window.addEventListener('resize', draw);
+  })();
+  </script>
 </body>
 </html>

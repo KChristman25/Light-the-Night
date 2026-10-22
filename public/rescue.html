@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Rescue Station</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --red:#e52521; --gold:#e8a000; --green:#248a26;
+      --dark:#231207; --sky:#5c94fc;
+    }
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background-color: var(--sky);
+      background-image:
+        radial-gradient(ellipse 90px 48px at 10% 14%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 65px 38px at  7% 14%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 75px 44px at 14% 11%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 130px 62px at 36%  8%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  95px 52px at 32%  8%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 105px 58px at 41%  5%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 100px 54px at 68% 16%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  72px 42px at 65% 16%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  82px 46px at 73% 13%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  75px 42px at 90% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  55px 34px at 87% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  62px 38px at 93%  7%, #fff 50%, transparent 51%);
+      background-attachment: fixed;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: var(--dark);
+      user-select: none;
+      overflow: hidden;
+    }
+
+    /* ── Shell flash overlay ── */
+    #shellFlash {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(229,37,33,.92);
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; gap: 16px;
+      animation: flashIn .15s ease-out;
+    }
+    #shellFlash.show { display: flex; }
+    @keyframes flashIn { from{opacity:0} to{opacity:1} }
+    .flash-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(24px,6vw,52px); color: #fff;
+      text-shadow: 3px 3px 0 #900; line-height: 1.5;
+    }
+    .flash-sub {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(14px,3.5vw,28px); color: #ffd0d0;
+    }
+
+    /* ── Page layout ── */
+    .page {
+      height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: env(safe-area-inset-top, 16px) 24px env(safe-area-inset-bottom, 16px);
+      gap: 0;
+    }
+
+    /* ── Header card ── */
+    .header-card {
+      background: var(--red); border: 3px solid var(--dark);
+      border-radius: 8px; box-shadow: 5px 5px 0 var(--dark);
+      padding: 18px 28px; text-align: center; margin-bottom: 20px; width: 100%;
+      max-width: 420px;
+    }
+    .station-name {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(11px,2.5vw,15px); color: #fff;
+      text-shadow: 2px 2px 0 var(--dark); line-height: 1.8;
+    }
+    .cost-badge {
+      display: inline-block; margin-top: 10px;
+      background: var(--gold); border: 2px solid var(--dark);
+      border-radius: 20px; padding: 6px 16px;
+      font-family: 'Press Start 2P', monospace; font-size: 10px;
+      color: var(--dark);
+    }
+    #rescuedBanner {
+      display: none; margin-top: 10px;
+      font-family: 'Press Start 2P', monospace; font-size: 10px;
+      color: #90ee90; text-shadow: 1px 1px 0 var(--dark);
+    }
+
+    /* ── Code display slots ── */
+    #codeDisplay {
+      display: flex; gap: 10px; justify-content: center;
+      margin-bottom: 18px;
+    }
+    .slot {
+      width: 52px; height: 64px;
+      background: #fff; border: 3px solid var(--dark); border-radius: 6px;
+      box-shadow: 3px 3px 0 var(--dark);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Press Start 2P', monospace; font-size: 22px;
+      color: var(--dark); transition: background .1s;
+    }
+    .slot.filled { background: #fff9e0; border-color: var(--gold); }
+
+    /* ── Keypad ── */
+    .keypad {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; width: 100%; max-width: 320px;
+    }
+    .key {
+      height: clamp(64px, 10vh, 88px);
+      background: #fff; border: 3px solid var(--dark);
+      border-radius: 8px; box-shadow: 4px 4px 0 var(--dark);
+      font-family: 'Press Start 2P', monospace; font-size: clamp(16px,3vw,22px);
+      color: var(--dark); cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: transform .07s, box-shadow .07s;
+    }
+    .key:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 var(--dark); }
+    .key.clear { background: #fde8d4; color: var(--red); }
+    .key.enter { background: var(--green); color: #fff; font-size: clamp(12px,2.2vw,16px); }
+    .key.enter:disabled { opacity: .4; cursor: not-allowed; }
+    .key-zero { grid-column: 2; }
+
+    /* ── Status message ── */
+    #statusMsg {
+      min-height: 54px; margin-top: 16px; width: 100%; max-width: 320px;
+      text-align: center; font-family: 'Press Start 2P', monospace;
+      font-size: clamp(8px,1.6vw,11px); line-height: 2;
+      padding: 10px 14px; border-radius: 6px;
+      transition: opacity .3s;
+    }
+
+  </style>
+  <script src="/pw.js"></script>
+</head>
+<body>
+
+<!-- Shell flash overlay -->
+<div id="shellFlash">
+  <div class="flash-title"><img src="icons/red_shell.webp" style="height:.85em;width:auto;vertical-align:middle"> RED SHELL!</div>
+  <div class="flash-sub" id="flashPenalty">−10 POINTS</div>
+</div>
+
+<div class="page">
+
+  <!-- Station header -->
+  <div class="header-card">
+    <div class="station-name" id="stationName">Loading…</div>
+    <div class="cost-badge" id="costBadge"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> — points to rescue</div>
+    <div id="rescuedBanner">✅ ALREADY RESCUED</div>
+  </div>
+
+  <!-- Code slots -->
+  <div id="codeDisplay"></div>
+
+  <!-- Keypad -->
+  <div class="keypad" id="keypad">
+    <button class="key" onclick="tap('1')">1</button>
+    <button class="key" onclick="tap('2')">2</button>
+    <button class="key" onclick="tap('3')">3</button>
+    <button class="key" onclick="tap('4')">4</button>
+    <button class="key" onclick="tap('5')">5</button>
+    <button class="key" onclick="tap('6')">6</button>
+    <button class="key" onclick="tap('7')">7</button>
+    <button class="key" onclick="tap('8')">8</button>
+    <button class="key" onclick="tap('9')">9</button>
+    <button class="key clear" onclick="tap('clear')">⌫</button>
+    <button class="key key-zero" onclick="tap('0')">0</button>
+    <button class="key enter" id="enterBtn" onclick="tap('enter')">GO</button>
+  </div>
+
+  <!-- Status -->
+  <div id="statusMsg"></div>
+
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db  = firebase.firestore();
+const auth = firebase.auth();
+const FSV = firebase.firestore.FieldValue;
+
+/* ── Station identity from URL param ── */
+const STATION_ID = new URLSearchParams(location.search).get('id') || '';
+const QUEUE_COL  = db.collection("webswitch").doc("queueRoot").collection("queue");
+
+/* ── State ── */
+let codeLength   = 6;
+let stationCfg   = null;   // { name, pointCost, outlet, rescued }
+let codeBuffer   = '';
+let busy         = false;
+
+/* ── Auth ── */
+auth.signInAnonymously().catch(()=>{});
+
+/* ── Load station config ── */
+if(!STATION_ID){
+  document.getElementById('stationName').textContent = 'No station ID in URL';
+  document.getElementById('stationName').style.color = '#ffd0d0';
+} else {
+  db.collection('rescueStations').doc(STATION_ID).onSnapshot(snap=>{
+    if(!snap.exists){ document.getElementById('stationName').textContent = 'Station not found: '+STATION_ID; return; }
+    stationCfg = snap.data();
+    document.getElementById('stationName').textContent = stationCfg.name || STATION_ID;
+    document.getElementById('costBadge').innerHTML = '<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> '+( stationCfg.pointCost||0)+' points to rescue';
+    document.getElementById('rescuedBanner').style.display = stationCfg.rescued ? 'block' : 'none';
+    document.getElementById('keypad').style.opacity = stationCfg.rescued ? '0.4' : '1';
+  });
+}
+
+/* ── Code length from global config ── */
+db.collection('config').doc('config').onSnapshot(snap=>{
+  const d = snap.exists ? snap.data() : {};
+  codeLength = (Number.isInteger(d.codeLength) && d.codeLength >= 1) ? d.codeLength : 6;
+  buildSlots();
+});
+
+/* ── Code display ── */
+function buildSlots(){
+  const el = document.getElementById('codeDisplay');
+  el.innerHTML = '';
+  for(let i=0;i<codeLength;i++){
+    const s = document.createElement('div');
+    s.className = 'slot'; s.id = 'slot'+i;
+    el.appendChild(s);
+  }
+  updateDisplay();
+}
+function updateDisplay(){
+  for(let i=0;i<codeLength;i++){
+    const s = document.getElementById('slot'+i);
+    if(!s) continue;
+    if(i < codeBuffer.length){ s.textContent = codeBuffer[i]; s.classList.add('filled'); }
+    else { s.textContent = ''; s.classList.remove('filled'); }
+  }
+}
+buildSlots();
+
+/* ── Keypad handler ── */
+function tap(key){
+  if(busy) return;
+  if(key === 'clear'){ codeBuffer = codeBuffer.slice(0,-1); updateDisplay(); clearStatus(); return; }
+  if(key === 'enter'){
+    if(!codeBuffer){ setStatus('Enter your code first.','#e52521'); return; }
+    submitCode(codeBuffer); codeBuffer=''; updateDisplay(); return;
+  }
+  if(/^\d$/.test(key) && codeBuffer.length < codeLength){
+    codeBuffer += key; updateDisplay();
+    if(codeBuffer.length === codeLength){ const c=codeBuffer; codeBuffer=''; updateDisplay(); submitCode(c); }
+  }
+}
+document.addEventListener('keydown', e=>{
+  if(/^\d$/.test(e.key)) tap(e.key);
+  else if(e.key==='Backspace') tap('clear');
+  else if(e.key==='Enter' && codeBuffer) tap('enter');
+});
+
+/* ── Status helpers ── */
+function setStatus(msg, color='#231207', bg='rgba(255,255,255,.85)'){
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg; el.style.color = color; el.style.background = bg;
+}
+function clearStatus(){ const el=document.getElementById('statusMsg'); el.textContent=''; el.style.background='transparent'; }
+
+/* ── Submit code ── */
+async function submitCode(code){
+  if(!stationCfg){ setStatus('Station not configured.','#e52521'); return; }
+  if(stationCfg.rescued){ setStatus('Already rescued!','#e8a000','rgba(232,160,0,.15)'); return; }
+  busy = true;
+  setStatus('Checking…','#231207','rgba(255,255,255,.7)');
+
+  let docRef=null, kidData=null;
+  try{ const q=await db.collection('kids').where('barcode','==',code).limit(1).get(); if(!q.empty){docRef=q.docs[0].ref;kidData=q.docs[0].data();} }catch(_){}
+  if(!docRef){ try{ const q=await db.collection('kids').where('code','==',code).limit(1).get(); if(!q.empty){docRef=q.docs[0].ref;kidData=q.docs[0].data();} }catch(_){} }
+
+  if(!docRef){ setStatus('Code not found.','#e52521','rgba(229,37,33,.08)'); busy=false; return; }
+
+  const name    = kidData.name || kidData.displayName || 'Participant';
+  const balance = kidData.coins || 0;
+  const cost    = stationCfg.pointCost || 0;
+
+  if(balance < cost){
+    const need = cost - balance;
+    setStatus(`${name} needs ${need} more points!\n(Has ${balance}, needs ${cost})`, '#e52521', 'rgba(229,37,33,.08)');
+    busy = false; return;
+  }
+
+  /* ── Rescue! ── */
+  try{
+    // Deduct points
+    await docRef.update({ coins: FSV.increment(-cost) });
+
+    // Mark station rescued
+    await db.collection('rescueStations').doc(STATION_ID).update({
+      rescued: true, rescuedBy: docRef.id, rescuedByName: name,
+      rescuedAt: firebase.firestore.Timestamp.now()
+    });
+
+    // Record in scans log
+    await db.collection('scans').add({
+      kidId: docRef.id, name, station: 'rescue:'+STATION_ID,
+      coins: -cost, gameType: 'rescue',
+      rescueStation: STATION_ID, rescueName: stationCfg.name||STATION_ID,
+      timestamp: firebase.firestore.Timestamp.now()
+    });
+
+    // Fire QLab cue via Pi queue
+    if(stationCfg.qlabCue){
+      await QUEUE_COL.add({ type:'osc', cue: String(stationCfg.qlabCue),
+        processed:false, ts: FSV.serverTimestamp(), uid:'rescue:'+STATION_ID });
+    }
+
+    busy = false;
+    clearStatus();
+
+  }catch(e){
+    setStatus('Error: '+e.message,'#e52521');
+    busy = false;
+  }
+}
+
+/* ── Shell broadcast flash ── */
+let _lastShellTs = null;
+db.collection('config').doc('shellBroadcast').onSnapshot(snap=>{
+  if(!snap.exists) return;
+  const d = snap.data()||{};
+  const ts = d.triggeredAt ? d.triggeredAt.toMillis() : null;
+  if(!ts || ts===_lastShellTs) return;
+  _lastShellTs = ts;
+  if(Date.now() - ts > 120_000) return;
+
+  const penalty = d.penalty || 10;
+  const flash = document.getElementById('shellFlash');
+  document.getElementById('flashPenalty').textContent = '−'+penalty+' POINTS';
+  flash.classList.add('show');
+  setTimeout(()=>flash.classList.remove('show'), 3000);
+});
+</script>
+</body>
+</html>

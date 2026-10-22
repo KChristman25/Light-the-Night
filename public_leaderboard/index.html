@@ -2,17 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Leaderboard</title>
+  <title>Leaderboard — Light the Night 2025</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     body {
       margin: 0;
-      background: black;
-      color: #0ff;
-      font-family: 'JetBrains Mono', monospace;
+      background: #000040;
+      color: #fff;
+      font-family: 'Press Start 2P', monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -21,24 +23,71 @@
       position: relative;
     }
 
+    /* Underground brick texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 31px,
+          rgba(255,255,255,0.04) 31px,
+          rgba(255,255,255,0.04) 32px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 63px,
+          rgba(255,255,255,0.04) 63px,
+          rgba(255,255,255,0.04) 64px
+        );
+    }
+
+    /* Ground bar at bottom */
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 16px;
+      background: #c8601c;
+      border-top: 3px solid #231207;
+      z-index: 10;
+    }
+
     .title {
-      font-size: 3rem;
-      margin: 3rem 0 1rem;
-      text-shadow: 0 0 12px #0ff, 0 0 24px #00f5f5;
+      position: relative;
+      z-index: 1;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 2rem;
+      margin: 2.4rem 0 0.6rem;
+      color: #e8a000;
+      text-shadow: 3px 3px 0 #231207, -1px -1px 0 #231207;
+      letter-spacing: 2px;
+      text-align: center;
     }
 
     .count {
-      font-size: 1.8rem;
+      position: relative;
+      z-index: 1;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 1rem;
       font-weight: bold;
-      text-shadow: 0 0 10px #0ff;
+      color: #fff;
+      text-shadow: 2px 2px 0 #231207;
+      margin-bottom: 0.5rem;
     }
 
     .entry-list {
-      margin-top: 2rem;
+      position: relative;
+      z-index: 1;
+      margin-top: 1.5rem;
       width: 90%;
       height: 60vh;
       overflow: hidden;
-      position: relative;
     }
 
     .scroll-inner {
@@ -50,38 +99,47 @@
     .entry {
       width: 100%;
       box-sizing: border-box;
-      padding: 0.75rem 1.25rem;
-      margin-bottom: 0.75rem;
+      padding: 0.6rem 1.25rem;
+      margin-bottom: 0.6rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-radius: 8px;
-      font-size: 2rem;
+      border: 3px solid #231207;
+      box-shadow: 4px 4px 0 #231207;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.1rem;
+      background: rgba(0, 0, 64, 0.8);
+      color: #fff;
     }
 
     .scroll-text {
       width: 100%;
-      padding: 2rem 1rem 1rem;
-      margin-bottom: 2rem;
+      padding: 1.5rem 1rem 1rem;
+      margin-bottom: 1.5rem;
       display: flex;
       justify-content: center;
-      font-size: 3rem;
-      color: #fff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 1.2rem;
+      color: #e8a000;
+      text-shadow: 2px 2px 0 #231207;
       background: rgba(0, 0, 0, 0.5);
+      border: 3px solid #231207;
+      border-radius: 4px;
     }
 
     .rank {
       margin-right: 1rem;
       font-weight: bold;
-      font-size: 2.2rem;
-      text-shadow: 0 0 10px #fff;
+      font-size: 1.3rem;
     }
 
-    .first { background: rgba(255,215,0,0.2); color: gold; }
-    .second { background: rgba(192,192,192,0.2); color: silver; }
-    .third { background: rgba(205,127,50,0.2); color: #cd7f32; }
+    /* Medal rows */
+    .first  { background: rgba(232, 160, 0, 0.22); color: #e8a000; border-color: #e8a000; box-shadow: 4px 4px 0 #7a5400; }
+    .second { background: rgba(192, 192, 192, 0.18); color: #c0c0c0; border-color: #c0c0c0; box-shadow: 4px 4px 0 #555; }
+    .third  { background: rgba(205, 127, 50, 0.22); color: #cd7f32; border-color: #cd7f32; box-shadow: 4px 4px 0 #6b3d0a; }
 
-    .glow { text-shadow: 0 0 10px #0ff; }
+    .glow { /* keep class, no-op styling now */ }
 
     @keyframes scrollList {
       0% { transform: translateY(0); }
@@ -90,63 +148,80 @@
 
     .message {
       position: absolute;
-      bottom: 20px;
-      color: #0f0;
-      font-size: 1.6rem;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.8rem;
+      color: #e8a000;
+      text-shadow: 2px 2px 0 #231207;
+      background: rgba(0,0,40,0.85);
+      border: 3px solid #e8a000;
+      border-radius: 4px;
+      padding: 8px 16px;
       animation: slideUp 1s ease-out;
+      white-space: nowrap;
     }
 
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateX(-50%) translateY(30px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
 
     .fallback {
+      position: relative;
+      z-index: 1;
       margin-top: 2rem;
-      font-size: 1.8rem;
-      color: #888;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.8rem;
+      color: #e8a000;
       text-align: center;
+      line-height: 2;
     }
 
     .qr {
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 2rem;
-      margin-bottom: 2rem;
+      margin-top: 1.5rem;
+      margin-bottom: 1.5rem;
     }
 
     .qr img {
       width: 150px;
       height: 150px;
-      border: 2px solid #0ff;
-      border-radius: 10px;
-      box-shadow: 0 0 12px #0ff;
+      border: 3px solid #e8a000;
+      border-radius: 4px;
+      box-shadow: 4px 4px 0 #231207;
     }
 
     .qr .text {
-      margin-top: 1rem;
-      font-size: 1.2rem;
-      color: #0ff;
-      text-shadow: 0 0 6px #0ff;
+      margin-top: 0.75rem;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.65rem;
+      color: #e8a000;
+      text-shadow: 1px 1px 0 #231207;
     }
 
+    /* Replace old .halloween with Mario-themed banner */
     .halloween {
-      margin-top: 1.5rem;
-      font-size: 3rem;
-      color: orange;
+      margin-top: 1.2rem;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 1.4rem;
+      color: #e8a000;
       font-weight: bold;
-      text-shadow: 0 0 6px orange;
+      text-shadow: 3px 3px 0 #231207;
       text-align: center;
       width: 100%;
     }
 
-    .spacer { height: 3rem; }
-    .large-spacer { height: 3rem; }
+    .spacer { height: 2rem; }
+    .large-spacer { height: 2rem; }
   </style>
 </head>
 <body>
-  <!-- star bg -->
+  <!-- star bg — canvas kept for animated starfield background -->
   <canvas id="starsCanvas" style="position:fixed; top:0; left:0; z-index:-1; pointer-events:none;"></canvas>
 
   <div class="title" id="leaderboardTitle">Leaderboard</div>
@@ -157,7 +232,7 @@
   </div>
 
   <div class="fallback" id="fallbackMessage" style="display:none;">
-    🛰️ No missions completed yet. Awaiting brave explorers...
+    🍄 No adventurers have finished yet... Keep going!
   </div>
   <div class="message" id="messageArea"></div>
 
@@ -261,8 +336,11 @@
         const startMaze = d.startMaze || d.startCheckIn;
         const endTime = d.lastScanAt || d.completionTime;
 
-        if (hasEnoughScans || alreadyCompletedFlag) {
-          let durationMs = d.durationMs || null;
+        const hasBeenFinisher = hasEnoughScans || alreadyCompletedFlag || typeof d.bestDurationMs === 'number';
+
+        if (hasBeenFinisher) {
+          // During a re-run, use best-run duration
+          let durationMs = d.durationMs || d.bestDurationMs || null;
 
           if (!durationMs && startMaze && endTime) {
             const startMs = startMaze.toMillis ? startMaze.toMillis() : Date.parse(startMaze);
@@ -306,7 +384,7 @@
       // header bits
       const halloween = document.createElement("div");
       halloween.className = "halloween";
-      halloween.textContent = "🎃 Happy Halloween 🎃";
+      halloween.textContent = "🍄 Light the Night 2025 🌟";
       listEl.appendChild(halloween);
 
       const spacer1 = document.createElement("div");
@@ -316,7 +394,7 @@
       const qrBlock = document.createElement("div");
       qrBlock.className = "qr";
       qrBlock.innerHTML = `
-        <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://ltn-leaderboard.web.app/&size=150x150&color=00ffff&bgcolor=000000" alt="QR Code">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://ltn-leaderboard.web.app/&size=150x150&color=e8a000&bgcolor=000040" alt="QR Code">
         <div class="text">📱 Scan for leaderboard</div>
       `;
       listEl.appendChild(qrBlock);
@@ -375,7 +453,7 @@
     });
   </script>
 
-  <!-- STARFIELD -->
+  <!-- STARFIELD — kept intact, draws on canvas behind everything -->
   <script>
     const canvas = document.getElementById('starsCanvas');
     const ctx = canvas.getContext('2d');
@@ -468,13 +546,13 @@
         ctx.save();
         ctx.globalAlpha = alpha * 0.6;
         ctx.shadowBlur = 18;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = '#e8a000';
         ctx.lineWidth = m.width + 1.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(m.x, m.y);
         ctx.lineTo(m.x + trailDX, m.y + trailDY);
-        ctx.strokeStyle = 'rgba(0,255,255,0.9)';
+        ctx.strokeStyle = 'rgba(232,160,0,0.9)';
         ctx.stroke();
         ctx.restore();
 
@@ -484,8 +562,8 @@
         ctx.lineCap = 'round';
         const grad = ctx.createLinearGradient(m.x, m.y, m.x + trailDX, m.y + trailDY);
         grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.4, 'rgba(200,255,255,0.9)');
-        grad.addColorStop(1, 'rgba(0,255,255,0)');
+        grad.addColorStop(0.4, 'rgba(255,240,180,0.9)');
+        grad.addColorStop(1, 'rgba(232,160,0,0)');
         ctx.strokeStyle = grad;
         ctx.beginPath();
         ctx.moveTo(m.x, m.y);
@@ -515,7 +593,7 @@
       const dt = now - last;
       last = now;
 
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = '#000040';
       ctx.fillRect(0, 0, W, H);
 
       drawStars();

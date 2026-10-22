@@ -3,200 +3,334 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Web Power Switch — Control Panel + Simple Blocks</title>
+  <title>Mission Control</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
-  <!-- Blockly -->
-  <script src="https://unpkg.com/blockly/blockly.min.js"></script>
-  <script src="https://unpkg.com/blockly/javascript.min.js"></script>
-
   <style>
-    :root{--bg:#050712;--panel:#0d1224;--ink:#e7f4ff;--muted:#9fb0c2;}
-    *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--ink);
-      font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-
-    header{
-      padding:18px 16px;border-bottom:1px solid #1b2342;
-      background:linear-gradient(180deg,#0b132a,#0a1022);
-      display:flex;align-items:center;gap:14px;flex-wrap:wrap
+    :root {
+      --red:#e52521; --green:#248a26; --gold:#e8a000;
+      --ink:#231207; --sky:#5c94fc; --muted:#8b6040;
+      --border:#231207; --shadow:4px 4px 0 #231207;
     }
-    .title{font-family:Orbitron,Inter,sans-serif;font-size:22px;letter-spacing:.5px}
-    .pill{font-size:12px;padding:6px 10px;border-radius:999px;
-      background:#0c1328;border:1px solid #223064;color:var(--muted)}
-    .pill.badge-online{color:#d7ffe0;background:#0f2a23;border-color:#1e4c3f}
-    .pill.badge-offline{color:#ffd7d7;background:#2a1111;border-color:#5a2525}
-
-    .wrap{max-width:1200px;margin:20px auto;padding:0 14px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-    .card{background:var(--panel);border:1px solid #1c2748;border-radius:16px;
-      padding:14px;box-shadow:0 6px 26px rgba(0,0,0,.25)}
-    .card h3{margin:0 0 8px;font-size:16px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-
-    button{
-      appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:600;
-      background:#141a34;color:var(--ink);cursor:pointer;
-      transition:transform .02s ease,opacity .15s ease;border:1px solid #252f5a
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background-color: var(--sky);
+      background-image:
+        radial-gradient(ellipse 90px 48px at 10% 14%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 65px 38px at  7% 14%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 75px 44px at 14% 11%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 130px 62px at 36%  8%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  95px 52px at 32%  8%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 105px 58px at 41%  5%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse 100px 54px at 68% 16%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  72px 42px at 65% 16%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  82px 46px at 73% 13%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  75px 42px at 90% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  55px 34px at 87% 10%, #fff 50%, transparent 51%),
+        radial-gradient(ellipse  62px 38px at 93%  7%, #fff 50%, transparent 51%);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh;
     }
-    button:hover{opacity:.95}
-    button:active{transform:translateY(1px)}
-    .on{background:#0f2a23;border-color:#1e4c3f}
-    .off{background:#2a1111;border-color:#5a2525}
-    .toggle{background:#121f35;border-color:#23345e}
-    .status{margin-top:6px;color:var(--muted);font-size:12px;min-height:16px}
-    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-    .err{color:#ffb4b4}
 
-    /* LEDs beside each outlet */
-    .led{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
-    .led-dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,.2)}
-    .led-on{background:#34d399;border-color:#1e8e66}
-    .led-off{background:#f87171;border-color:#9c2b2b}
-    .led-unknown{background:#5b6785;border-color:#3b4661}
-    .led-text{font-size:12px;color:#9fb0c2}
-    .row.with-led{justify-content:space-between;width:100%}
+    /* ── Header ── */
+    header {
+      height: 56px; padding: 0 20px;
+      background: var(--red); border-bottom: 3px solid var(--ink);
+      display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;
+      position: sticky; top: 0; z-index: 200;
+    }
+    .title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px; color: #fff;
+      text-shadow: 1px 1px 0 var(--ink); white-space: nowrap;
+    }
+    .pill {
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      background: rgba(0,0,0,.2); border: 1px solid rgba(255,255,255,.3);
+      color: #fff; font-weight: 600; white-space: nowrap;
+    }
+    .pill.badge-online  { background: rgba(36,138,38,.6); }
+    .pill.badge-offline { background: rgba(229,37,33,.6); }
+    #hdr-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    /* ── Tab bar ── */
+    .tab-bar {
+      background: var(--ink); display: flex; gap: 0;
+      border-bottom: 3px solid #000;
+      position: sticky; top: 56px; z-index: 199; overflow-x: auto;
+    }
+    .tab-btn {
+      appearance: none; border: none; outline: none;
+      padding: 14px 22px; cursor: pointer;
+      font-family: 'Press Start 2P', monospace; font-size: 8px;
+      color: rgba(255,255,255,.45); background: transparent;
+      border-bottom: 3px solid transparent; margin-bottom: -3px;
+      transition: color .15s, border-color .15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .tab-btn:hover { color: rgba(255,255,255,.8); }
+    .tab-btn.active { color: #fff; border-bottom-color: var(--gold); }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px 48px; }
+
+    /* ── Global button base ── */
+    button {
+      appearance: none; border-radius: 4px; padding: 8px 14px;
+      font-weight: 700; font-family: 'Inter', sans-serif; font-size: 13px;
+      cursor: pointer; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink);
+      background: #fff; color: var(--ink);
+      transition: transform .07s, box-shadow .07s, filter .07s;
+    }
+    button:hover { filter: brightness(.94); }
+    button:active { transform: translate(2px,2px); box-shadow: none; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    .on     { background: var(--green); color: #fff; }
+    .off    { background: var(--red);   color: #fff; }
+    .toggle { background: var(--gold);  color: var(--ink); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Outlet cards ── */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .card {
+      background: #fff; border: 3px solid var(--ink); border-radius: 6px;
+      border-left: 7px solid #c0b8a0; box-shadow: var(--shadow); padding: 18px 16px 14px;
+      transition: border-left-color .25s, background .25s;
+    }
+    .card.outlet-on { border-left-color: var(--green); background: #f2fdf3; }
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+    .card-num { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--muted); margin-bottom: 5px; }
+    .card-name { font-size: 16px; font-weight: 800; color: var(--ink); line-height: 1.2; }
+    .card-state { display: flex; align-items: center; gap: 6px; padding-top: 2px; flex-shrink: 0; }
+    .state-dot { width: 13px; height: 13px; border-radius: 50%; background: #c0b8a0; border: 2px solid #999; flex-shrink: 0; }
+    .state-dot.state-on  { background: var(--green); border-color: #1a6b1c; }
+    .state-dot.state-off { background: var(--red);   border-color: #9a1c19; }
+    .state-label { font-size: 11px; font-weight: 800; color: var(--muted); }
+    .card-btns { display: flex; gap: 8px; }
+    .card-btns button { font-size: 14px; padding: 11px 0; flex: 1; border-radius: 4px; }
+    .btn-on  { background: var(--green); color: #fff; }
+    .btn-off { background: var(--red);   color: #fff; }
+    .btn-tog { background: var(--gold);  color: var(--ink); flex: 0 !important; padding: 11px 16px !important; }
+    .card-status { font-size: 11px; color: var(--muted); margin-top: 8px; min-height: 14px; }
+
+    /* ── Section cards (automation/health) ── */
+    .section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .scard {
+      background: #fff; border: 3px solid var(--ink); border-radius: 6px;
+      box-shadow: var(--shadow); padding: 22px 20px 18px;
+    }
+    .scard h3 {
+      font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--ink);
+      margin: 0 0 6px; line-height: 1.9;
+    }
+    .scard p { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.6; }
+    .scard .row { margin-bottom: 4px; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+    .err { color: var(--red); font-weight: 700; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* ── Health tab ── */
+    #healthCanvas {
+      width: 100%; height: 160px; background: #f5ecd5;
+      border: 2px solid var(--ink); border-radius: 4px; display: block;
+    }
+    .health-legend { display: flex; gap: 16px; align-items: center; font-size: 12px; margin-bottom: 6px; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .leg-on { background: var(--green); } .leg-off { background: var(--red); }
+    #healthStats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-top: 12px; }
+    .legendDot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dotOnline { background: var(--green); } .dotOffline { background: var(--red); }
+
+    select {
+      background: #fff; border: 2px solid var(--ink); border-radius: 4px;
+      padding: 4px 8px; color: var(--ink); font-family: 'Inter', sans-serif;
+      font-weight: 600; cursor: pointer;
+    }
   </style>
+  <script src="/pw.js"></script>
 </head>
 <body>
+  <!-- Red Shell Alert Banner -->
+  <div id="shellAlert" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#e52521;color:#fff;font-family:'Press Start 2P',monospace;font-size:clamp(9px,1.8vw,12px);padding:14px 20px;box-shadow:0 4px 0 #900;align-items:center;gap:16px;flex-wrap:wrap">
+    <span style="font-size:1.6em"><img src="icons/red_shell.webp" style="height:.85em;width:auto;vertical-align:middle"></span>
+    <div style="flex:1;min-width:180px">
+      <div id="shellAlertMsg" style="font-size:1.1em;letter-spacing:.04em">RED SHELL!</div>
+      <div id="shellAlertSub" style="font-size:.75em;color:#ffd0d0;margin-top:4px"></div>
+    </div>
+    <button onclick="document.getElementById('shellAlert').style.display='none'" style="background:rgba(0,0,0,.3);border:2px solid #fff;color:#fff;font-family:'Press Start 2P',monospace;font-size:10px;padding:6px 12px;cursor:pointer;border-radius:3px;box-shadow:none">DISMISS</button>
+  </div>
+
   <header>
-    <div class="title">Web Power Switch — Control Panel</div>
-    <div class="pill">Switch IP: <span id="switchIp">loading…</span></div>
-    <div class="pill">Auth: <span id="authStatus">signing in…</span></div>
-    <div class="pill">Night: <span id="nightBadge">OFF</span></div>
+    <div class="title">🎮 Mission Control</div>
+    <div class="pill" style="display:none" id="ipPill">IP: <span id="switchIp">…</span></div>
     <div id="netStatus" class="pill">Link: <span id="netStatusText">checking…</span></div>
+    <div id="hdr-right">
+      <div class="pill" style="opacity:.7;font-size:10px"><span id="authStatus">signing in…</span></div>
+    </div>
   </header>
 
-  <div class="wrap">
-    <div class="toolbar">
-      <button id="openBlocks" class="toggle" disabled>Open Blocks</button>
-      <button id="resetBlocks" class="off" disabled title="Clear workspace">Reset</button>
-      <button id="btnSaveCloud" class="toggle" disabled title="Save workspace">Save</button>
-      <button id="btnSavePhones" class="toggle" disabled title="Save for Phones">Save for Phones</button>
-      <button id="btnLoadCloud" class="toggle" disabled>Load</button>
-      <span id="globalStatus" class="status"></span>
-    </div>
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="outlets">⚡ Outlets</button>
+    <button class="tab-btn" data-tab="air">💨 Air</button>
+    <button class="tab-btn" data-tab="automation">▶ Automation</button>
+    <button class="tab-btn" data-tab="health">🩺 Health</button>
+  </nav>
 
-    <div class="toolbar">
-      <button id="btnRunNight" class="on" disabled>Run Night</button>
-      <button id="btnStopNight" class="off" disabled>Stop Night</button>
-      <span id="runStatus" class="status"></span>
+  <!-- OUTLETS TAB -->
+  <div id="tab-outlets" class="tab-panel active">
+    <div class="wrap">
+      <div id="cards" class="grid"></div>
+      <div id="err" class="status err" style="margin-top:12px"></div>
     </div>
-
-    <div id="cards" class="grid"></div>
-    <div id="err" class="status err"></div>
   </div>
-  <!-- ===== BLOCKS OVERLAY ===== -->
-  <div id="overlay" class="overlay" aria-hidden="true">
-    <div class="panel" role="dialog" aria-label="Blocks Editor">
-      <header style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px">
-        <div class="title" style="font-size:18px">Blocks</div>
-        <div class="btnRow">
-          <button id="btnClose" class="off">Close</button>
-        </div>
-      </header>
-      <div class="body">
-        <div id="blocklyDiv" aria-live="polite"></div>
-        <div class="side">
-          <h4>Execution Log</h4>
-          <div id="log" class="log" aria-live="polite"></div>
-          <div style="font-size:12px;color:#cfe8ff">
-            Events: <em>when ▶ start</em>, <em>when station (number) is scanned</em>, <em>when station (number) is scanned — then/else</em><br/>
-            Control: <em>wait</em>, <em>repeat</em>, <em>forever</em><br/>
-            Custom: <em>Define action</em> + <em>Do action</em>
+
+  <!-- AIR TAB -->
+  <div id="tab-air" class="tab-panel">
+    <div class="wrap">
+
+      <!-- Add effect form -->
+      <div class="scard" style="margin-bottom:16px">
+        <h3>💨 Air Effects</h3>
+        <p style="margin-bottom:14px">Each effect maps a name to a Pi GPIO pin. Pressing Fire sends a PULSE to that pin via the queue — the relay triggers the solenoid valve.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">Name</label>
+            <input type="text" id="airName" placeholder="e.g. Station 3 Blast" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:180px"/>
           </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">GPIO Pin (BCM)</label>
+            <input type="number" id="airPin" placeholder="18" min="2" max="27" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:90px"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">Pulse (ms)</label>
+            <input type="number" id="airPulseMs" placeholder="500" min="50" max="5000" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;width:90px"/>
+          </div>
+          <button class="on" onclick="addAirEffect()">+ Add</button>
         </div>
+        <div id="airAddStatus" class="status"></div>
+      </div>
+
+      <!-- Effect list -->
+      <div id="airEffectList" style="display:flex;flex-direction:column;gap:10px"></div>
+
+    </div>
+  </div>
+
+  <!-- AUTOMATION TAB -->
+  <div id="tab-automation" class="tab-panel">
+    <div class="wrap">
+
+      <!-- QLab Computers Registry -->
+      <div class="scard" style="margin-bottom:16px">
+        <h3>🖥️ QLab Computers</h3>
+        <p style="margin-bottom:12px">Register each Mac running QLab. Give each one a name — you'll pick from this list when assigning OSC cues below.</p>
+        <div id="qlabComputerList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <input type="text" id="newCompName" placeholder="Name (e.g. Lobby Mac)" style="flex:2;min-width:110px;padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px"/>
+          <input type="text" id="newCompIp" placeholder="192.168.1.50" style="flex:2;min-width:100px;padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px"/>
+          <input type="number" id="newCompPort" value="53000" min="1" max="65535" style="width:76px;padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px"/>
+          <button class="on" onclick="addQlabComputer()" style="white-space:nowrap">+ Add</button>
+        </div>
+        <div id="qlabComputerStatus" class="status"></div>
+      </div>
+
+      <!-- GPIO Quick Fire -->
+      <div class="scard" style="margin-bottom:16px">
+        <h3>🔌 GPIO Quick Fire</h3>
+        <p>Fire any Pi GPIO pin directly. Good for testing LEDs, relays, or air blasts by pin number.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">PIN (BCM)</label>
+            <input type="number" id="mcGpioPin" min="2" max="27" placeholder="e.g. 18" style="width:90px;padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">STATE</label>
+            <select id="mcGpioState" style="padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px">
+              <option value="PULSE">PULSE</option>
+              <option value="HIGH">HIGH (on)</option>
+              <option value="LOW">LOW (off)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px;color:var(--muted)">PULSE MS</label>
+            <input type="number" id="mcGpioPulseMs" min="50" max="10000" value="500" style="width:90px;padding:8px 10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px"/>
+          </div>
+          <button class="on" onclick="mcFireGpio()">⚡ Fire</button>
+        </div>
+        <div id="mcGpioStatus" class="status"></div>
+      </div>
+
+      <!-- AI Quick Sequence -->
+      <div class="scard" style="margin-bottom:16px">
+        <h3>🤖 AI Quick Sequence</h3>
+        <p>Describe a sequence in plain English — AI converts it to steps and runs them live on the Pi.</p>
+        <textarea id="quickSeqText" rows="4" placeholder="e.g. Start cue 11, wait 2 seconds, turn on outlet 3 and flash GPIO pin 26 for 5 seconds with 0.1 second delay between each flash, start cue 12 and wait 10 seconds, then start cue 18 and turn off outlet 3" style="width:100%;padding:10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;resize:vertical;line-height:1.5;margin-bottom:10px"></textarea>
+        <div class="row" style="margin-bottom:10px">
+          <button class="on" onclick="parseQuickSeq()">✨ Parse</button>
+          <button id="btnRunQuickSeq" class="toggle" onclick="runQuickSeq()" disabled>▶ Run Now</button>
+        </div>
+        <pre id="quickSeqPreview" style="display:none;background:#f5ecd5;border:2px solid var(--ink);border-radius:4px;padding:12px;font-size:12px;white-space:pre-wrap;margin-bottom:8px"></pre>
+        <div id="quickSeqStatus" class="status"></div>
+      </div>
+
+      <!-- Station OSC Events -->
+      <div class="scard" style="margin-bottom:16px">
+        <h3>📡 Station OSC Events</h3>
+        <p style="margin-bottom:14px">For every event, pick which computer to target and the OSC address to send. ▶ fires a live test. Or use the AI box to auto-fill.</p>
+        <div id="stationOscEventsRoot"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="on" onclick="saveStationOscCues()">💾 Save OSC Events</button>
+        </div>
+        <div id="stationOscStatus" class="status"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- HEALTH TAB -->
+  <div id="tab-health" class="tab-panel">
+    <div class="wrap">
+      <div class="scard">
+        <h3>🩺 Switch Health</h3>
+        <div class="row" style="margin-bottom:14px;gap:10px">
+          <span class="pill" id="currentStatusPill" style="background:rgba(0,0,0,.1);border:1px solid #c0b8a0;color:var(--ink)">Status: <strong id="currentStatusText">—</strong></span>
+          <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px">
+            Window:
+            <select id="healthWindow">
+              <option value="24">Last 24 h</option>
+              <option value="72">Last 72 h</option>
+              <option value="168">Last 7 days</option>
+            </select>
+          </label>
+          <button id="btnExportHealth" class="toggle">Export CSV</button>
+        </div>
+        <div class="health-legend">
+          <span><span class="leg-dot leg-on"></span>Online</span>
+          <span><span class="leg-dot leg-off"></span>Offline</span>
+        </div>
+        <canvas id="healthCanvas" width="1200" height="160" aria-label="Uptime timeline"></canvas>
+        <div id="healthStats"></div>
+        <div id="healthMsg" class="status"></div>
       </div>
     </div>
   </div>
 
-  <!-- ===== HEALTH BUTTON + OVERLAY ===== -->
-  <button id="btnHealth" class="toggle" title="View Health">Health</button>
-
-  <div id="healthOverlay" class="overlay" aria-hidden="true">
-    <div class="panel" role="dialog" aria-label="Health">
-      <header style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px">
-        <div class="title" style="font-size:18px">Switch Health</div>
-        <div class="btnRow"><button id="btnHealthClose" class="off">Close</button></div>
-      </header>
-      <div class="body">
-        <div class="healthWrap">
-          <div class="healthControls">
-            <span class="pill" id="currentStatusPill">Status: <strong id="currentStatusText">—</strong></span>
-            <label class="pill" style="display:flex;gap:8px;align-items:center">
-              Window:
-              <select id="healthWindow" style="background:transparent;border:none;color:var(--ink);font-weight:600">
-                <option value="24">Last 24 hours</option>
-                <option value="72">Last 72 hours</option>
-                <option value="168">Last 7 days</option>
-              </select>
-            </label>
-            <button id="btnExportHealth" class="toggle" title="Export events CSV">Export CSV</button>
-          </div>
-
-          <div class="healthRow">
-            <div>
-              <div><span class="legendDot dotOnline"></span>Online</div>
-              <div><span class="legendDot dotOffline"></span>Offline</div>
-            </div>
-            <canvas id="healthCanvas" width="1200" height="160" aria-label="Uptime timeline"></canvas>
-          </div>
-
-          <div class="healthStats" id="healthStats"></div>
-          <div class="status" id="healthMsg"></div>
-        </div>
-      </div>
-    </div>
+  <!-- Hidden stubs for JS compatibility -->
+  <button id="btnHealth" style="display:none">Health</button>
+  <div id="healthOverlay" style="display:none" aria-hidden="true">
+    <button id="btnHealthClose" style="display:none">Close</button>
   </div>
-
-  <!-- Overlay-specific styles -->
-  <style>
-    .overlay{
-      position:fixed;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(6px);
-      display:none;align-items:center;justify-content:center;padding:20px;z-index:99990;
-    }
-    .panel{
-      width:min(1200px,95vw);height:min(90vh,980px);background:#0b1130;border:1px solid #1d2b5c;border-radius:16px;
-      display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 80px rgba(0,0,0,.6)
-    }
-    .panel header{background:linear-gradient(180deg,#0b1330,#0a0f26);border-bottom:1px solid #1d2b5c}
-    .panel .body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0;}
-    #blocklyDiv{width:100%;height:100%;min-width:0;min-height:0}
-    .side{
-      width:320px;border-left:1px solid #1d2b5c;background:#0b1435;padding:12px;display:flex;flex-direction:column;gap:8px
-    }
-    .side h4{margin:4px 0 2px;font-size:13px;color:#9fb6d4}
-    .side .log{
-      flex:1;background:#0a1230;border:1px solid #203064;border-radius:12px;padding:8px;font-family:ui-monospace,monospace;
-      white-space:pre-wrap;overflow:auto;font-size:12px;color:#cfe8ff
-    }
-    .btnRow{display:flex;gap:8px;flex-wrap:wrap}
-    .blocklyWidgetDiv, .blocklyDropDownDiv { z-index: 100002 !important; }
-
-    /* Health layout adjustments */
-    #btnHealth{
-      position:fixed;right:16px;bottom:16px;z-index:100003;
-      padding:12px 14px;border-radius:999px;font-weight:700;
-      box-shadow:0 10px 30px rgba(0,0,0,.35)
-    }
-    #healthOverlay .panel .body{ grid-template-columns:1fr; }
-    .healthWrap{padding:16px;display:flex;flex-direction:column;gap:12px}
-    .healthControls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .healthRow{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center}
-    .legendDot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
-    .dotOnline{background:#34d399}
-    .dotOffline{background:#f87171}
-    #healthCanvas{width:100%;height:160px;background:#0a1230;border:1px solid #203064;border-radius:12px}
-    .healthStats{display:flex;gap:16px;flex-wrap:wrap;color:#cfe8ff;font-size:13px}
-  </style>
 <script>
 /* ==== Firebase init ==== */
 const firebaseConfig = {
@@ -216,8 +350,6 @@ const db   = firebase.firestore();
 const CONFIG_DOC       = db.collection("webswitch").doc("config");
 const CONTROL_DOC      = db.collection("webswitch").doc("control");
 const QUEUE_COL        = db.collection("webswitch").doc("queueRoot").collection("queue");
-const PHONE_RULES_DOC  = db.collection("webswitch").doc("phoneRules");
-const BLOCKS_DOC       = db.collection("webswitch").doc("blocks");
 const UPTIME_COL       = db.collection("webswitch").doc("health").collection("uptimeEvents");
 const HEARTBEAT_DOC    = db.collection("webswitch").doc("agentHeartbeat");
 const UI_HEARTBEAT_DOC = db.collection("webswitch").doc("uiHeartbeat");
@@ -229,8 +361,6 @@ const cardsEl = $("#cards");
 const ipSpan = $("#switchIp");
 const authSpan = $("#authStatus");
 const globalStatus = $("#globalStatus");
-const nightBadge = $("#nightBadge");
-const runStatus = $("#runStatus");
 const errEl = $("#err");
 const netStatus = $("#netStatus");
 const netStatusText = $("#netStatusText");
@@ -242,15 +372,11 @@ const mkNonce = () => Math.random().toString(36).slice(2) + "-" + Date.now();
 function setError(e){ const msg = (e && e.message) ? e.message : String(e); errEl.textContent = `Error: ${msg}`; console.error(e); }
 function log(msg){ const el = document.getElementById('log'); if(!el) return; el.textContent += msg + "\n"; el.scrollTop = el.scrollHeight; }
 
-/* ==== Night badge + ACKs ==== */
+/* ==== ACKs ==== */
 CONTROL_DOC.onSnapshot(snap=>{
   const d = snap.data()||{};
-  if (typeof d.nightMode === 'boolean') nightBadge.textContent = d.nightMode ? "ON" : "OFF";
-  if (d.ack && d.ack.tsAck) globalStatus.textContent = d.ack.ok ? '✅ Switch OK' : `❌ ${d.ack.detail || 'Failed'}`;
+  if (d.ack && d.ack.tsAck && globalStatus) globalStatus.textContent = d.ack.ok ? '✅ Switch OK' : `❌ ${d.ack.detail || 'Failed'}`;
 });
-async function setNight(on){
-  await CONTROL_DOC.set({ nightMode: !!on, ts: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
-}
 
 /* ==== Auth + config ==== */
 let BASE_URL = "";
@@ -262,8 +388,6 @@ auth.onAuthStateChanged(async user => {
       return;
     }
     authSpan.textContent = `uid: ${user.uid.slice(0,6)}…`;
-    ["openBlocks","resetBlocks","btnSaveCloud","btnSavePhones","btnLoadCloud","btnRunNight","btnStopNight"]
-      .forEach(id=>{ const b = document.getElementById(id); if(b) b.disabled=false; });
     await loadConfig();
     // later sections start monitors + overlays
     subscribeState(); // per-outlet LEDs
@@ -292,46 +416,53 @@ async function loadConfig(){
 function renderCards(names){
   const entries = Object.entries(names).sort((a,b)=>Number(a[0])-Number(b[0]));
   cardsEl.innerHTML = entries.map(([n,label])=>`
-    <div class="card" data-n="${n}">
-      <h3>#${n} — ${escapeHtml(label||("Outlet "+n))}</h3>
-      <div class="row with-led">
-        <div class="row" role="group" aria-label="Outlet ${n} controls">
-          <button class="on" data-cmd="on">ON</button>
-          <button class="off" data-cmd="off">OFF</button>
-          <button class="toggle" data-cmd="toggle">Toggle</button>
+    <div class="card" id="card-${n}" data-n="${n}">
+      <div class="card-top">
+        <div>
+          <div class="card-num">#${n}</div>
+          <div class="card-name">${escapeHtml(label||("Outlet "+n))}</div>
         </div>
-        <div class="led" aria-live="polite" title="Outlet state">
-          <span id="led-dot-${n}" class="led-dot led-unknown"></span>
-          <span id="led-text-${n}" class="led-text">unknown</span>
+        <div class="card-state">
+          <span id="led-dot-${n}" class="state-dot"></span>
+          <span id="led-text-${n}" class="state-label">—</span>
         </div>
       </div>
-      <div class="status" id="status-${n}"></div>
+      <div class="card-btns">
+        <button class="btn-on" data-cmd="on">ON</button>
+        <button class="btn-off" data-cmd="off">OFF</button>
+        <button class="btn-tog" data-cmd="toggle">⇄</button>
+      </div>
+      <div class="card-status" id="status-${n}"></div>
     </div>
   `).join("");
 
-  cardsEl.querySelectorAll("button").forEach(btn=>{
+  cardsEl.querySelectorAll("button[data-cmd]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const card = btn.closest(".card");
       const n = Number(card.getAttribute("data-n"));
       const cmd = btn.getAttribute("data-cmd");
-      // optimistic LED: on → green, off → red, toggle → gray (until agent confirms)
-      if (cmd === 'on') setLed(n,'on');
-      else if (cmd === 'off') setLed(n,'off');
-      else setLed(n,'unknown');
-      await sendCommand(n, cmd, $("#status-"+n));
-      recordUptimeEvent({type:"outlet", outlet:n, state:cmd}); // health log
+      await sendCommand(n, cmd, document.getElementById("status-"+n));
+      recordUptimeEvent({type:"outlet", outlet:n, state:cmd});
     });
   });
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function setLed(n, state){
-  const dot = document.getElementById(`led-dot-${n}`);
-  const txt = document.getElementById(`led-text-${n}`);
+  const card = document.getElementById(`card-${n}`);
+  const dot  = document.getElementById(`led-dot-${n}`);
+  const txt  = document.getElementById(`led-text-${n}`);
   if (!dot || !txt) return;
-  dot.classList.remove('led-on','led-off','led-unknown');
-  if (state === true || state === 'on') { dot.classList.add('led-on'); txt.textContent = 'on'; }
-  else if (state === false || state === 'off'){ dot.classList.add('led-off'); txt.textContent = 'off'; }
-  else { dot.classList.add('led-unknown'); txt.textContent = 'unknown'; }
+  dot.classList.remove('state-on','state-off','led-on','led-off','led-unknown');
+  if (state === true || state === 'on'){
+    dot.classList.add('state-on'); txt.textContent = 'ON';
+    if(card) card.classList.add('outlet-on');
+  } else if (state === false || state === 'off'){
+    dot.classList.add('state-off'); txt.textContent = 'OFF';
+    if(card) card.classList.remove('outlet-on');
+  } else {
+    txt.textContent = '—';
+    if(card) card.classList.remove('outlet-on');
+  }
 }
 
 /* Agent-provided state → LEDs */
@@ -357,7 +488,7 @@ async function sendCommand(outlet, state, statusEl){
   if (!user) return setError("Not signed in");
   const payload = { outlet, state, nonce: mkNonce(), ts: firebase.firestore.FieldValue.serverTimestamp(), uid: user.uid };
   if (statusEl) statusEl.textContent = "Sending…";
-  globalStatus.textContent = "Sending command…";
+  if (globalStatus) globalStatus.textContent = "Sending command…";
   try{
     if (USE_QUEUE) {
       await QUEUE_COL.add({ ...payload, processed:false });
@@ -365,12 +496,12 @@ async function sendCommand(outlet, state, statusEl){
       await CONTROL_DOC.set(payload, { merge: true });
     }
     if (statusEl) statusEl.textContent = `Sent: outlet ${outlet} → ${state} (${new Date().toLocaleTimeString()})`;
-    globalStatus.textContent = "Sent ✓";
+    if (globalStatus) globalStatus.textContent = "Sent ✓";
     log(`➡️ ${state} outlet ${outlet}`);
   }catch(e){
     setError(e);
     if (statusEl) statusEl.textContent = "Failed to send";
-    globalStatus.textContent = "Send failed";
+    if (globalStatus) globalStatus.textContent = "Send failed";
   }
 }
 
@@ -401,8 +532,10 @@ let onlineCheckTimer = null;
 
 HEARTBEAT_DOC.onSnapshot(s=>{
   const d = s.data()||{};
-  const ts = d.ts && d.ts.toDate ? d.ts.toDate().getTime() : 0;
-  if (ts) lastAgentSeen = ts;
+  const ts = d.ts
+    ? (d.ts.toDate ? d.ts.toDate().getTime() : new Date(d.ts).getTime())
+    : 0;
+  if (ts && !isNaN(ts)) lastAgentSeen = ts;
   lastAgentOnlineFlag = !!d.online;
 });
 
@@ -486,11 +619,8 @@ function startOnlineMonitor(){
   onlineCheckTimer = setInterval(loop, 10_000);
 }
 
-/* ===== HEALTH overlay wiring ===== */
-btnHealth.onclick = ()=>{ healthOverlay.style.display="flex"; healthOverlay.setAttribute("aria-hidden","false"); drawHealth(); };
-btnHealthClose.onclick = ()=>{ healthOverlay.style.display="none"; healthOverlay.setAttribute("aria-hidden","true"); };
-healthWindowSel.onchange = ()=> drawHealth();
-document.getElementById("btnExportHealth").onclick = async ()=> exportHealthCsv();
+/* ===== HEALTH overlay wiring (overridden by tab switching script below) ===== */
+// btnHealth / btnHealthClose / healthWindowSel wired in tab-switching script at bottom
 
 /* Build online/offline timeline from events within window */
 async function drawHealth(){
@@ -527,10 +657,10 @@ async function drawHealth(){
   segs.push({ start:curStart, end:endMs, type:cur });
 
   // background + hour ticks
-  ctx.fillStyle = '#0a1128';
+  ctx.fillStyle = '#f5ecd5';
   ctx.fillRect(0,0,W,H);
   ctx.font = '12px Inter, sans-serif';
-  ctx.fillStyle = '#9fb6d4';
+  ctx.fillStyle = '#8b6040';
   ctx.textAlign = 'center';
   const tickEvery = Math.max(1, Math.floor(hours/12));
   for (let h=0; h<=hours; h+=tickEvery){
@@ -546,7 +676,7 @@ async function drawHealth(){
     const x1 = ((s.start - startMs)/(endMs - startMs))*W;
     const x2 = ((s.end   - startMs)/(endMs - startMs))*W;
     const y  = 16, h  = H-36;
-    ctx.fillStyle = (s.type==='online') ? '#34d399' : '#f87171';
+    ctx.fillStyle = (s.type==='online') ? '#248a26' : '#e52521';
     ctx.fillRect(x1, y, Math.max(1,x2-x1), h);
   }
 
@@ -587,407 +717,6 @@ async function exportHealthCsv(){
 window.startOnlineMonitor = startOnlineMonitor;
 window.startUiHeartbeatLoop = startUiHeartbeatLoop;
 </script>
-<script>
-/* Blocks + generators */
-let workspace = null;
-const jsGen = Blockly.JavaScript;
-const hasBlock = t => !!(Blockly.Blocks && Blockly.Blocks[t]);
-const hasGen   = t => !!(jsGen && jsGen.forBlock && jsGen.forBlock[t]);
-
-function defineBlocksOnce(){
-  const defs = [];
-  if (!hasBlock('when_start')) defs.push({type:"when_start",message0:"when ▶ start",nextStatement:null,colour:210,hat:"cap"});
-  if (!hasBlock('when_station_scanned')) defs.push({
-    type:"when_station_scanned",message0:"when station %1 is scanned",
-    args0:[{type:"field_number",name:"STATION",value:1,min:1,precision:1}],
-    message1:"then %1",args1:[{type:"input_statement",name:"DO"}],
-    inputsInline:false,colour:160,hat:"cap",nextStatement:null
-  });
-  if (!hasBlock('when_station_scanned_else')) defs.push({
-    type:"when_station_scanned_else",message0:"when station %1 is scanned",
-    args0:[{type:"field_number",name:"STATION",value:1,min:1,precision:1}],
-    message1:"then %1",args1:[{type:"input_statement",name:"THEN"}],
-    message2:"else %1",args2:[{type:"input_statement",name:"ELSE"}],
-    inputsInline:false,colour:165,hat:"cap",nextStatement:null
-  });
-  if (!hasBlock('power_set')) defs.push({
-    type:"power_set",message0:"outlet %1 set %2",
-    args0:[
-      {type:"field_number",name:"OUTLET",value:1,min:1,max:32,precision:1},
-      {type:"field_dropdown",name:"STATE",options:[["on","on"],["off","off"],["toggle","toggle"]]}
-    ],
-    previousStatement:null,nextStatement:null,colour:200
-  });
-  if (!hasBlock('wait_seconds')) defs.push({
-    type:"wait_seconds",message0:"wait %1 seconds",
-    args0:[{type:"field_number",name:"SECS",value:1,min:0}],
-    previousStatement:null,nextStatement:null,colour:120
-  });
-  if (!hasBlock('repeat_n')) defs.push({
-    type:"repeat_n",message0:"repeat %1 times %2 %3",
-    args0:[
-      {type:"field_number",name:"N",value:3,min:0,precision:1},
-      {type:"input_dummy"},
-      {type:"input_statement",name:"DO"}
-    ],
-    previousStatement:null,nextStatement:null,colour:60
-  });
-  if (!hasBlock('forever')) defs.push({
-    type:"forever",message0:"forever %1 %2",
-    args0:[{type:"input_dummy"},{type:"input_statement",name:"DO"}],
-    previousStatement:null,nextStatement:null,colour:30
-  });
-  if (!hasBlock('define_action')) defs.push({
-    type:"define_action",message0:"Define action %1 %2 do %3",
-    args0:[
-      {type:"field_input",name:"NAME",text:"ScanBlink"},
-      {type:"input_dummy"},
-      {type:"input_statement",name:"DO"}
-    ],
-    colour:290
-  });
-  if (!hasBlock('do_action')) defs.push({
-    type:"do_action",message0:"Do %1",
-    args0:[{type:"field_dropdown",name:"ACTION",options:[["(no defines yet)","__none__"]]}],
-    previousStatement:null,nextStatement:null,colour:300
-  });
-  if (defs.length) Blockly.defineBlocksWithJsonArray(defs);
-
-  if (!hasGen('when_start')) jsGen.forBlock.when_start = ()=>'';
-  if (!hasGen('when_station_scanned')) jsGen.forBlock.when_station_scanned = ()=>'';
-  if (!hasGen('when_station_scanned_else')) jsGen.forBlock.when_station_scanned_else = ()=>'';
-
-  if (!hasGen('power_set')) jsGen.forBlock.power_set = (b,g)=>{
-    const outlet=b.getFieldValue('OUTLET'); const state=b.getFieldValue('STATE');
-    const code=`await __cmd(${outlet},"${state}");\n`;
-    const next=b.getNextBlock(); if(!next) return code;
-    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
-  };
-  if (!hasGen('wait_seconds')) jsGen.forBlock.wait_seconds = (b,g)=>{
-    const secs=Number(b.getFieldValue('SECS'))||0;
-    const code=`await __wait(${secs});\n`;
-    const next=b.getNextBlock(); if(!next) return code;
-    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
-  };
-  if (!hasGen('repeat_n')) jsGen.forBlock.repeat_n = (b,g)=>{
-    const n=Math.max(0,Number(b.getFieldValue('N'))||0);
-    const body=g.statementToCode(b,'DO');
-    let code=`for(let __i=0;__i<${n};__i++){ ${body} }\n`;
-    const next=b.getNextBlock(); if(!next) return code;
-    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
-  };
-  if (!hasGen('forever')) jsGen.forBlock.forever = (b,g)=>{
-    const body=g.statementToCode(b,'DO');
-    let code=`while(true){ ${body} }\n`;
-    const next=b.getNextBlock(); if(!next) return code;
-    const out=g.blockToCode(next); return code+(Array.isArray(out)?(out[0]||''):(out||''));
-  };
-  if (!hasGen('do_action')) jsGen.forBlock.do_action = (b,g)=>{
-    const name=(b.getFieldValue('ACTION')||'').trim();
-    const call=(name==='__none__')?`/* no action selected */\n`:`await __call(${JSON.stringify(name)});\n`;
-    const next=b.getNextBlock(); if(!next) return call;
-    const out=g.blockToCode(next); return call+(Array.isArray(out)?(out[0]||''):(out||''));
-  };
-}
-
-/* Toolbox XML */
-function toolboxXml(){ return `
-<xml id="toolbox" style="display:none">
-  <category name="Events" colour="210">
-    <block type="when_start"></block>
-    <block type="when_station_scanned"><field name="STATION">1</field></block>
-    <block type="when_station_scanned_else"><field name="STATION">1</field></block>
-  </category>
-  <category name="Control" colour="20">
-    <block type="wait_seconds"></block>
-    <block type="repeat_n"></block>
-    <block type="forever"></block>
-  </category>
-  <category name="Power" colour="200">
-    <block type="power_set"></block>
-  </category>
-  <category name="My Actions" colour="290">
-    <block type="define_action"></block>
-    <block type="do_action"></block>
-  </category>
-</xml>`; }
-
-/* Exec helpers for generated code */
-async function __wait(secs){ return new Promise(r=>setTimeout(r, Math.max(0,secs*1000))); }
-async function __cmd(outlet,state){ log(`cmd: ${state} ${outlet}`); await sendCommand(outlet,state,null); }
-async function __call(name){ const fn=__A_DEFS[name]; if(fn) await fn(); }
-const __A_DEFS = {};
-
-/* Migration: move NEXT into inner sockets */
-function migrateOldEventBlocks(workspace){
-  const tops = workspace.getTopBlocks(false) || [];
-  for (const b of tops){
-    if (b.type === 'when_station_scanned'){
-      const nxt=b.getNextBlock?.(); const hasBody=!!b.getInputTargetBlock?.('DO');
-      if (nxt && !hasBody && nxt.previousConnection){
-        nxt.previousConnection.disconnect();
-        const input=b.getInput('DO'); if(input && input.connection) input.connection.connect(nxt.previousConnection);
-      }
-    }
-    if (b.type === 'when_station_scanned_else'){
-      const nxt=b.getNextBlock?.(); const hasThen=!!b.getInputTargetBlock?.('THEN');
-      if (nxt && !hasThen && nxt.previousConnection){
-        nxt.previousConnection.disconnect();
-        const input=b.getInput('THEN'); if(input && input.connection) input.connection.connect(nxt.previousConnection);
-      }
-    }
-  }
-}
-
-/* Workspace lifecycle + buttons */
-const overlay = document.getElementById('overlay');
-const blocklyDiv = document.getElementById('blocklyDiv');
-const btnClose = document.getElementById('btnClose');
-const openBlocksBtn = document.getElementById('openBlocks');
-const resetBlocksBtn = document.getElementById('resetBlocks');
-const btnSaveCloud = document.getElementById('btnSaveCloud');
-const btnSavePhones = document.getElementById('btnSavePhones');
-const btnLoadCloud = document.getElementById('btnLoadCloud');
-const btnRunNight = document.getElementById('btnRunNight');
-const btnStopNight = document.getElementById('btnStopNight');
-
-function resizeBlockly(){ if (workspace) Blockly.svgResize(workspace); }
-function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
-
-openBlocksBtn.onclick = async ()=>{
-  overlay.style.display="flex"; overlay.setAttribute("aria-hidden","false");
-  await ensureWorkspace();
-  const tb = workspace.getToolbox?.();
-  if (tb && tb.getToolboxItems){ const items=tb.getToolboxItems(); if (items && items[0]?.setSelected) items[0].setSelected(true); }
-  requestAnimationFrame(resizeBlockly);
-  requestAnimationFrame(()=>workspace.scrollCenter());
-};
-btnClose.onclick = ()=>{ overlay.style.display="none"; overlay.setAttribute("aria-hidden","true"); };
-window.addEventListener('resize', ()=>{ if (overlay.style.display==='flex') resizeBlockly(); });
-resetBlocksBtn.onclick = ()=>{ if (workspace) workspace.clear(); log("🧹 Cleared workspace."); };
-
-btnSaveCloud.onclick = async ()=>{
-  try{
-    await ensureWorkspace();
-    const state = Blockly.serialization.workspaces.save(workspace);
-    await BLOCKS_DOC.set({ state, ts: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
-    log("💾 Saved workspace to Firestore.");
-  }catch(e){ log("❌ Save failed: " + (e?.message||e)); }
-};
-btnLoadCloud.onclick = async ()=>{
-  try{
-    await ensureWorkspace();
-    const snap = await BLOCKS_DOC.get(); const data = snap.data();
-    if (workspace && data && data.state){
-      workspace.clear();
-      Blockly.serialization.workspaces.load(data.state, workspace);
-      migrateOldEventBlocks(workspace);
-      refreshAllActionDropdowns();
-      log("📥 Loaded workspace.");
-      resizeBlockly(); workspace.scrollCenter();
-    }else{ log("ℹ️ No saved workspace found."); }
-  }catch(e){ log("❌ Load failed: " + (e?.message||e)); }
-};
-btnSavePhones.onclick = async ()=>{
-  try{
-    await ensureWorkspace();
-    const rules = compilePhoneRules();
-    await PHONE_RULES_DOC.set({ version:3, updatedTs: firebase.firestore.FieldValue.serverTimestamp(), rules }, { merge:true });
-    log(`📲 Saved ${rules.length} station rule(s) for phones.`);
-  }catch(e){ log("❌ Save for Phones failed: " + (e?.message||e)); }
-};
-btnRunNight.onclick = async ()=>{
-  try{
-    await ensureWorkspace();
-    runStatus.textContent = "Running night defaults…";
-    await setNight(true);
-    const defaults = collectNightDefaults();
-    for (const fn of defaults){ await fn(); }
-    runStatus.textContent = "Night defaults applied.";
-    log("🌙 Night defaults executed.");
-  }catch(e){ setError(e); runStatus.textContent = "Night start failed."; }
-};
-btnStopNight.onclick = async ()=>{
-  try{ await setNight(false); runStatus.textContent = "Night stopped."; log("🛑 Night stopped."); }
-  catch(e){ setError(e); runStatus.textContent = "Failed to stop night."; }
-};
-
-/* Ensure workspace + seed demo */
-async function ensureWorkspace(){
-  if (workspace) return;
-  if (!window.Blockly || !Blockly.serialization) throw new Error('Blockly failed to load');
-  defineBlocksOnce();
-  if (!document.getElementById('toolbox')){
-    const wrap=document.createElement('div'); wrap.innerHTML=toolboxXml(); document.body.appendChild(wrap);
-  }
-  await nextFrame(); await nextFrame();
-  workspace = Blockly.inject('blocklyDiv', {
-    toolbox: document.getElementById('toolbox'),
-    renderer:'geras', theme: Blockly.Themes.Classic, trashcan:true,
-    move:{wheel:true,drag:true}, zoom:{controls:true,wheel:true,startScale:1,maxScale:3,minScale:0.25},
-    toolboxPosition:'start', sounds:false, scrollbars:true
-  });
-  workspace.addChangeListener(()=>{ enforceUniqueDefineNames(); refreshAllActionDropdowns(); });
-
-  if (workspace.getTopBlocks(false).length === 0){
-    const def = workspace.newBlock('define_action'); def.setFieldValue('ScanBlink','NAME');
-    const rpt = workspace.newBlock('repeat_n'); rpt.setFieldValue(3,'N');
-    const on  = workspace.newBlock('power_set'); on.setFieldValue('1','OUTLET'); on.setFieldValue('on','STATE');
-    const wait= workspace.newBlock('wait_seconds'); wait.setFieldValue('0.1','SECS');
-    const off = workspace.newBlock('power_set'); off.setFieldValue('1','OUTLET'); off.setFieldValue('off','STATE');
-    rpt.getInput('DO').connection.connect(on.previousConnection);
-    on.nextConnection.connect(wait.previousConnection);
-    wait.nextConnection.connect(off.previousConnection);
-    def.getInput('DO').connection.connect(rpt.previousConnection);
-    [def,rpt,on,wait,off].forEach(b=>{ b.initSvg(); b.render(); });
-
-    const evtElse = workspace.newBlock('when_station_scanned_else'); evtElse.setFieldValue('1','STATION');
-    const doActThen = workspace.newBlock('do_action'); doActThen.setFieldValue('ScanBlink','ACTION');
-    const doActElse = workspace.newBlock('do_action'); doActElse.setFieldValue('ScanBlink','ACTION');
-    evtElse.getInput('THEN').connection.connect(doActThen.previousConnection);
-    evtElse.getInput('ELSE').connection.connect(doActElse.previousConnection);
-    evtElse.initSvg(); evtElse.render();
-  }
-  migrateOldEventBlocks(workspace);
-  resizeBlockly(); workspace.scrollCenter();
-}
-
-/* Night defaults executor sourced from ELSE branch bodies */
-function collectNightDefaults(){
-  const fns = [];
-  const tops = workspace.getTopBlocks(true) || [];
-  for (const b of tops){
-    if (b.type === 'when_station_scanned_else'){
-      const elseFirst = b.getInputTargetBlock('ELSE');
-      if (elseFirst){
-        const defsMap = collectDefinitions();
-        const codeA = buildDefinitionFunctions(defsMap);
-        const code = codeFromChain(elseFirst);
-        fns.push(async ()=>{
-          const __A_DEFS = {};
-          await (new Function("__cmd","__wait","__A_DEFS",`${codeA} return (async()=>{ ${code} })();`))(__cmd,__wait,__A_DEFS);
-        });
-      }
-    }
-  }
-  return fns;
-}
-
-/* Compile rules for phones from event blocks */
-function compilePhoneRules(){
-  if (!workspace) throw new Error("Workspace not initialized");
-  const top = workspace.getTopBlocks(true);
-  const defs = collectDefinitions();
-  const rules = [];
-
-  function visit(block, steps, tRef, guard){
-    if (!block) return;
-    const type = block.type;
-    if (type === "power_set"){
-      const outlet = Number(block.getFieldValue('OUTLET'));
-      const state  = block.getFieldValue('STATE');
-      steps.push({ tMs:tRef.t, type:"power", outlet, state });
-      return visit(block.getNextBlock(), steps, tRef, guard);
-    }
-    if (type === "wait_seconds"){
-      const secs = Number(block.getFieldValue('SECS'))||0;
-      tRef.t += Math.max(0, secs*1000);
-      return visit(block.getNextBlock(), steps, tRef, guard);
-    }
-    if (type === "repeat_n"){
-      const n = Math.max(0, Number(block.getFieldValue('N'))||0);
-      const stm = block.getInputTargetBlock('DO');
-      for (let i=0;i<n;i++){ visit(stm, steps, tRef, guard); }
-      return visit(block.getNextBlock(), steps, tRef, guard);
-    }
-    if (type === "forever"){
-      return visit(block.getNextBlock(), steps, tRef, guard); // phones ignore infinite loops
-    }
-    if (type === "do_action"){
-      const name = (block.getFieldValue('ACTION')||'').trim();
-      if (!name || name === '__none__') return visit(block.getNextBlock(), steps, tRef, guard);
-      if (guard.has(name)) { return visit(block.getNextBlock(), steps, tRef, guard); }
-      const bodyFirst = defs[name];
-      if (bodyFirst){ guard.add(name); visit(bodyFirst, steps, tRef, guard); guard.delete(name); }
-      return visit(block.getNextBlock(), steps, tRef, guard);
-    }
-    return visit(block.getNextBlock(), steps, tRef, guard);
-  }
-
-  for (const b of top){
-    if (b.type === 'when_station_scanned'){
-      const station = Number(b.getFieldValue('STATION') || 1);
-      const steps = []; const tRef = { t:0 };
-      visit(b.getInputTargetBlock('DO'), steps, tRef, new Set());
-      rules.push({ station, steps });
-      continue;
-    }
-    if (b.type === 'when_station_scanned_else'){
-      const station = Number(b.getFieldValue('STATION') || 1);
-      const firstSteps = []; const elseSteps = [];
-      const t1 = { t:0 }, t2 = { t:0 };
-      visit(b.getInputTargetBlock('THEN'), firstSteps, t1, new Set());
-      visit(b.getInputTargetBlock('ELSE'), elseSteps,  t2, new Set());
-      rules.push({ station, firstSteps, elseSteps });
-      continue;
-    }
-  }
-  return rules;
-}
-
-/* Definitions and helpers */
-function collectDefinitions(){
-  const map = {};
-  (workspace.getTopBlocks(false) || []).forEach(b=>{
-    if (b.type !== 'define_action') return;
-    const name=(b.getFieldValue('NAME')||'').trim();
-    if (!name) return;
-    const bodyFirst=b.getInputTargetBlock('DO');
-    if (bodyFirst) map[name]=bodyFirst;
-  });
-  return map;
-}
-function codeFromChain(first){
-  const out = Blockly.JavaScript.blockToCode(first);
-  return (Array.isArray(out) ? (out[0] || '') : (out || '')) || '';
-}
-function jsIdent(s){ return s.replace(/[^a-zA-Z0-9_$]/g,'_'); }
-function buildDefinitionFunctions(defsMap){
-  let js = '';
-  Object.entries(defsMap).forEach(([name, first])=>{
-    const fn='__A_'+jsIdent(name);
-    const body=codeFromChain(first);
-    js += `__A_DEFS[${JSON.stringify(name)}]=async function ${fn}(){\n${body}}\n`;
-  });
-  return js;
-}
-function enforceUniqueDefineNames(){
-  const seen=new Set();
-  (workspace.getTopBlocks(false) || []).forEach(b=>{
-    if (b.type !== 'define_action') return;
-    let n=(b.getFieldValue('NAME')||'').trim();
-    if (!n) { b.setFieldValue('myAction','NAME'); n='myAction'; }
-    let base=n, idx=2;
-    while(seen.has(n)){ n=`${base} (${idx++})`; }
-    if (n!==b.getFieldValue('NAME')) b.setFieldValue(n,'NAME');
-    seen.add(n);
-  });
-}
-function refreshAllActionDropdowns(){
-  const names=new Set();
-  (workspace.getTopBlocks(false) || []).forEach(b=>{
-    if (b.type==='define_action'){ const n=(b.getFieldValue('NAME')||'').trim(); if(n) names.add(n); }
-  });
-  const opts = names.size ? Array.from(names).sort((a,b)=>a.localeCompare(b)).map(n=>[n,n]) : [["(no defines yet)","__none__"]];
-  (workspace.getAllBlocks(false) || []).forEach(b=>{
-    if (b.type!=='do_action') return;
-    const fld=b.getField('ACTION'); const cur=fld.getValue();
-    fld.menuGenerator_ = opts;
-    const valid=new Set(opts.map(x=>x[1]));
-    if (!valid.has(cur)) fld.setValue(opts[0][1]);
-  });
-}
-</script>
 <!-- Final wire-up: start online monitor + UI heartbeat after auth is ready -->
 <script>
 (function wireUpMonitors(){
@@ -1018,6 +747,536 @@ function refreshAllActionDropdowns(){
     tryStart();
   }, 500);
 })();
+
+/* ==== Tab switching ==== */
+/* ===== AIR EFFECTS ===== */
+const AIR_DOC = db.collection('webswitch').doc('airEffects');
+let _airUnsub = null;
+
+function startAirTab(){
+  if(_airUnsub) return;
+  _airUnsub = AIR_DOC.onSnapshot(snap=>{
+    const effects = snap.exists ? (snap.data().effects || []) : [];
+    renderAirEffects(effects);
+  });
+}
+
+function renderAirEffects(effects){
+  const el = document.getElementById('airEffectList');
+  if(!el) return;
+  if(!effects.length){
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">No air effects configured yet. Add one above.</div>';
+    return;
+  }
+  el.innerHTML = effects.map((e,i)=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 var(--ink);flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <div style="font-weight:700;font-size:14px">${escSafe(e.name||'Effect')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">GPIO pin ${e.pin} · ${e.pulseMs||500} ms pulse</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="on" style="background:#248a26" onclick="fireAirEffect(${e.pin},${e.pulseMs||500},'${escSafe(e.name||'')}')">💨 Fire</button>
+        <button class="off" onclick="deleteAirEffect(${i})">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+async function addAirEffect(){
+  const name    = (document.getElementById('airName').value||'').trim();
+  const pin     = parseInt(document.getElementById('airPin').value,10);
+  const pulseMs = parseInt(document.getElementById('airPulseMs').value,10)||500;
+  const st      = document.getElementById('airAddStatus');
+  if(!name||!pin||pin<2||pin>27){ st.textContent='Name and a valid BCM pin (2–27) are required.'; return; }
+  const snap = await AIR_DOC.get();
+  const existing = snap.exists ? (snap.data().effects||[]) : [];
+  existing.push({ name, pin, pulseMs });
+  await AIR_DOC.set({ effects: existing },{merge:true});
+  document.getElementById('airName').value='';
+  document.getElementById('airPin').value='';
+  document.getElementById('airPulseMs').value='';
+  st.textContent='✅ Added "'+name+'"';
+  setTimeout(()=>st.textContent='',2500);
+}
+
+async function deleteAirEffect(index){
+  if(!confirm('Delete this air effect?')) return;
+  const snap = await AIR_DOC.get();
+  const effects = snap.exists ? (snap.data().effects||[]) : [];
+  effects.splice(index,1);
+  await AIR_DOC.set({ effects },{merge:true});
+}
+
+async function fireAirEffect(pin, pulseMs, name){
+  try{
+    await QUEUE_COL.add({
+      type:'gpio', gpioPin:pin, gpioState:'PULSE', gpioPulseMs:pulseMs,
+      processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(),
+      uid:'air:pin'+pin
+    });
+    const btns = document.querySelectorAll('#airEffectList button.on');
+    btns.forEach(b=>{ if(b.textContent.includes('Fire')&&b.onclick?.toString().includes('pin:'+pin)) b.textContent='✅ Fired'; });
+    console.log('Air fired: pin',pin,pulseMs+'ms');
+  }catch(e){ alert('Queue error: '+e.message); }
+}
+
+function escSafe(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
+  if(name==='health') setTimeout(()=>{ try{ drawHealth(); }catch{} }, 60);
+  if(name==='air') startAirTab();
+}
+document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+/* Override health overlay wiring to use tabs instead */
+document.getElementById('btnHealth').onclick = ()=>switchTab('health');
+document.getElementById('btnHealthClose').onclick = ()=>{};
+(()=>{
+  const sel=document.getElementById('healthWindow'); if(sel) sel.onchange=()=>{ try{ drawHealth(); }catch{} };
+  const exp=document.getElementById('btnExportHealth'); if(exp) exp.onclick=()=>{ try{ exportHealthCsv(); }catch{} };
+})();
+
+/* ==== Per-event AI text ==== */
+let _oscAiText = {};  // key → plain-English description staff typed
+
+async function parseAiForEvent(key){
+  const ta   = document.querySelector(`.osc-ai-ta[data-key="${key}"]`);
+  const stEl = document.querySelector(`.osc-ai-st[data-key="${key}"]`);
+  if(!ta || !stEl) return;
+  const text = ta.value.trim();
+  if(!text){ stEl.textContent = 'Type a description first.'; return; }
+  stEl.textContent = 'Parsing…';
+  try{
+    const apiKey = await getAnthropicKey();
+    const ev = getOscEvents().find(e=>e.key===key) || {label:key,hint:''};
+    const compList = _qlabComputers.length
+      ? _qlabComputers.map(c=>`"${c.name}" id:${c.id}`).join(', ')
+      : 'none';
+    const system = `You fill in show-control fields for a maze event running on a Raspberry Pi.
+Return ONLY valid JSON, no prose, no markdown.
+Format:
+{"cue":"<cue number only, e.g. 15, or number+action e.g. '15 pause' or '15 stop'; leave empty if none>","computerId":"<id from list or empty>","gpioPin":<BCM pin 2-27 or null>,"gpioState":"none"|"HIGH"|"LOW"|"PULSE","gpioPulseMs":<ms>}
+The system auto-formats cue numbers: 15 → /cue/15/start, 15 pause → /cue/15/pause.
+QLab computers: ${compList}`;
+    const userMsg = `Event: "${ev.label}"${ev.hint?'\nHint: "'+ev.hint+'"':''}
+Staff note: "${text}"
+Fill in the fields.`;
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:256,system,messages:[{role:'user',content:userMsg}]})
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error?.message||resp.status);
+    const raw = data.content[0].text.trim();
+    const match = raw.match(/\{[\s\S]*\}/);
+    if(!match) throw new Error('No JSON in response');
+    const parsed = JSON.parse(match[0]);
+    // Apply to DOM fields
+    const sel      = document.querySelector(`.osc-comp-sel[data-key="${key}"]`);
+    const inp      = document.querySelector(`.osc-cue-inp[data-key="${key}"]`);
+    const gpioPin   = document.querySelector(`.osc-gpio-pin[data-key="${key}"]`);
+    const gpioState = document.querySelector(`.osc-gpio-state[data-key="${key}"]`);
+    const gpioMs    = document.querySelector(`.osc-gpio-ms[data-key="${key}"]`);
+    if(sel && parsed.computerId !== undefined) sel.value = parsed.computerId || '';
+    if(inp && parsed.cue        !== undefined) inp.value = parsed.cue || '';
+    if(gpioPin   && parsed.gpioPin   != null)  gpioPin.value   = parsed.gpioPin;
+    if(gpioState && parsed.gpioState !== undefined) gpioState.value = parsed.gpioState || 'none';
+    if(gpioMs    && parsed.gpioPulseMs != null) gpioMs.value = parsed.gpioPulseMs;
+    _oscAiText[key] = text;
+    stEl.textContent = '✅ Fields filled — review then Save OSC Cues.';
+  }catch(e){ stEl.textContent = '❌ '+e.message; }
+}
+
+/* ==== AI Automation Rules ==== */
+let _parsedAIRules = null;
+
+async function getAnthropicKey(){
+  const snap = await db.collection('config').doc('config').get();
+  const key = snap.exists ? (snap.data().anthropicApiKey||'') : '';
+  if(!key) throw new Error('No Anthropic API key set. Add one in Admin → Settings → AI API Key.');
+  return key;
+}
+
+async function parseAIRules(){
+  const text = (document.getElementById('aiRulesText').value||'').trim();
+  if(!text){ document.getElementById('aiStatus').textContent='Enter some rules first.'; return; }
+  const statusEl = document.getElementById('aiStatus');
+  const previewEl = document.getElementById('aiPreview');
+  const saveRow = document.getElementById('aiSaveRow');
+  statusEl.textContent='Parsing…'; previewEl.style.display='none'; saveRow.style.display='none';
+  try{
+    const apiKey = await getAnthropicKey();
+    const system = `You are an automation rule parser for a physical power switch with outlets numbered 1-8 and a QLab show control system.
+Parse the user's plain English description into JSON. Respond with ONLY valid JSON, no explanation, no markdown.
+
+Format:
+{
+  "rules": [
+    {
+      "station": <number>,
+      "when": "code_entry"|"game_start"|"game_end"|"always",
+      "steps": [
+        {"tMs": <milliseconds_from_trigger>, "type": "power", "outlet": <1-8>, "state": "on"|"off"},
+        {"tMs": <milliseconds_from_trigger>, "type": "osc", "address": "/go"}
+      ]
+    }
+  ],
+  "summary": "<one sentence describing what the rules do>"
+}
+
+"when" timing values:
+- "code_entry" - fires the moment the participant types their code (before the game starts)
+- "game_start" - fires when the Mario game animation begins
+- "game_end" - fires when the game result is revealed (default if not specified)
+- "always" - fires at both code_entry AND game_end
+
+Timing keywords to recognize:
+- "when they enter their code", "on code entry", "before the game", "as soon as they scan" → "code_entry"
+- "when the game starts", "at game start", "when Mario appears" → "game_start"
+- "when the game ends", "on result", "at the end", "after the game", "when they hit the box" → "game_end"
+- "every time", "always", "all the time", "throughout" → "always"
+- No timing mentioned → default to "game_end"
+
+Other rules:
+- tMs=0 means fire immediately at the trigger moment
+- "for X seconds" = turn on at tMs=0, turn off at tMs=X*1000
+- "wait X seconds then" = add X*1000ms to the next action's tMs
+- "flash N times with X second gaps" = alternate on/off N times, each X*1000ms apart
+- Multiple outlets can share the same tMs value
+- A station can have multiple rules with different "when" values (one rule per station+timing combination)
+- "send OSC /go", "trigger QLab", "go QLab", "fire QLab" = {"tMs":0, "type":"osc", "address":"/go"}
+- Any "/address" mentioned becomes the OSC address field
+- OSC commands go to the QLab Mac configured in the web-switch settings`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:1024,
+        system,
+        messages:[
+          {role:'user', content:text}
+        ]
+      })
+    });
+    if(!resp.ok){ const e=await resp.text(); throw new Error('API '+resp.status+': '+e); }
+    const data = await resp.json();
+    const raw = data.content[0].text;
+    const match = raw.match(/\{[\s\S]*\}/);
+    if(!match) throw new Error('Could not parse response from AI');
+    const parsed = JSON.parse(match[0]);
+    _parsedAIRules = parsed.rules||[];
+
+    // Pretty preview
+    const whenLabel={'code_entry':'on code entry','game_start':'on game start','game_end':'on game end','always':'always (code entry + game end)'};
+    let preview = (parsed.summary ? '// '+parsed.summary+'\n\n' : '');
+    _parsedAIRules.forEach(r=>{
+      preview += `Station ${r.station} [${whenLabel[r.when]||r.when||'on game end'}]:\n`;
+      (r.steps||[]).forEach(s=>{
+        if(s.type === 'osc'){
+          preview += `  ${s.tMs}ms → OSC ${s.address||'/go'} → QLab\n`;
+        } else {
+          preview += `  ${s.tMs}ms → outlet ${s.outlet} ${(s.state||'').toUpperCase()}\n`;
+        }
+      });
+      preview += '\n';
+    });
+    previewEl.textContent = preview.trim();
+    previewEl.style.display='block';
+    saveRow.style.display='block';
+    statusEl.textContent='✅ Parsed '+_parsedAIRules.length+' rule(s). Review above, then save.';
+
+    // Auto-save text to Firestore so it reloads next time
+    await db.collection('webswitch').doc('aiRules').set({text, summary:parsed.summary||'', ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  }catch(e){ statusEl.textContent='❌ '+e.message; console.error(e); }
+}
+
+async function saveAIRules(){
+  const statusEl=document.getElementById('aiStatus');
+  if(!_parsedAIRules||!_parsedAIRules.length){ statusEl.textContent='Nothing to save — parse first.'; return; }
+  try{
+    statusEl.textContent='Saving…';
+    // Convert to phone-rules format (version 4 — includes "when" timing)
+    const rules = _parsedAIRules.map(r=>({
+      station:r.station,
+      when: r.when||'game_end',
+      steps:(r.steps||[]).map(s=>{
+        if(s.type === 'osc') return {tMs:s.tMs, type:'osc', address:s.address||'/go'};
+        return {tMs:s.tMs, type:'power', outlet:s.outlet, state:s.state};
+      })
+    }));
+    await db.collection('webswitch').doc('phoneRules').set({version:4, updatedTs:firebase.firestore.FieldValue.serverTimestamp(), rules});
+    statusEl.textContent='✅ Rules saved! Station devices will use them immediately.';
+  }catch(e){ statusEl.textContent='❌ Save failed: '+e.message; }
+}
+
+// Load previously saved AI text on startup
+(async()=>{
+  try{
+    const snap = await db.collection('webswitch').doc('aiRules').get();
+    if(snap.exists){
+      const d=snap.data()||{};
+      if(d.text){ document.getElementById('aiRulesText').value=d.text; }
+      if(d.summary){ document.getElementById('aiStatus').textContent='Last saved: '+d.summary; }
+    }
+  }catch{}
+})();
+
+/* ==== Air Tab — Rescue Stations ==== */
+(function(){
+  const listEl = document.getElementById('airRescueList');
+  const stEl   = document.getElementById('airRescueStatus');
+
+  db.collection('rescueStations').onSnapshot(snap=>{
+    if(!listEl) return;
+    if(snap.empty){ listEl.innerHTML='<div style="color:var(--muted);font-size:12px">No rescue stations configured. Add them in Admin → Rescue Stations.</div>'; return; }
+    listEl.innerHTML='';
+    snap.forEach(doc=>{
+      const d = doc.data();
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = d.rescued ? 'border-left-color:var(--green);background:#f2fdf3' : '';
+      card.innerHTML = `
+        <div class="card-top">
+          <div>
+            <div class="card-num">${doc.id}</div>
+            <div class="card-name">${escapeHtml(d.name||doc.id)}</div>
+          </div>
+          <div class="card-state">
+            <span class="state-dot ${d.rescued?'state-on':'state-off'}"></span>
+            <span class="state-label">${d.rescued?'RESCUED':'LOCKED'}</span>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${d.pointCost||0} pts &nbsp;·&nbsp; Outlet ${d.outlet||'—'}${d.rescued&&d.rescuedByName?' &nbsp;·&nbsp; by '+escapeHtml(d.rescuedByName):''}</div>
+        <div class="card-btns">
+          <button class="btn-on" onclick="fireRescue('${doc.id}',${d.outlet||1})">🔩 Fire</button>
+          <button class="btn-off" onclick="resetRescue('${doc.id}')">🔒 Reset</button>
+        </div>
+        <div class="card-status" id="air-st-${doc.id}"></div>`;
+      listEl.appendChild(card);
+    });
+  });
+
+  window.fireRescue = async function(id, outlet){
+    const st = document.getElementById('air-st-'+id);
+    if(st) st.textContent='Firing…';
+    try{
+      await QUEUE_COL.add({type:'air',outlet:Number(outlet),state:'pulse',processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual:'+id});
+      if(st) st.textContent='✅ Pulse sent ('+new Date().toLocaleTimeString()+')';
+    }catch(e){ if(st) st.textContent='❌ '+e.message; }
+  };
+
+  window.resetRescue = async function(id){
+    await db.collection('rescueStations').doc(id).update({rescued:false,rescuedBy:null,rescuedByName:null,rescuedAt:null});
+  };
+})();
+
+async function fireSolenoidPulse(){
+  const outlet  = Number(document.getElementById('airOutletSel').value);
+  const ms      = Number(document.getElementById('airPulseMs').value)||500;
+  const stEl    = document.getElementById('airPulseStatus');
+  stEl.textContent = 'Sending…';
+  try{
+    await QUEUE_COL.add({type:'air',outlet,state:'pulse',pulseMs:ms,processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'});
+    stEl.textContent = '✅ Pulse sent to outlet '+outlet+' ('+ms+'ms)';
+  }catch(e){ stEl.textContent = '❌ '+e.message; }
+}
+
+/* ==== AI Quick Sequence ==== */
+let _parsedQuickSeq = null;
+
+async function parseQuickSeq(){
+  const text = (document.getElementById('quickSeqText').value||'').trim();
+  const stEl = document.getElementById('quickSeqStatus');
+  const preEl = document.getElementById('quickSeqPreview');
+  if(!text){ stEl.textContent='Enter a description first.'; return; }
+  stEl.textContent='Parsing…'; preEl.style.display='none';
+  document.getElementById('btnRunQuickSeq').disabled=true;
+  try{
+    const apiKey = await getAnthropicKey();
+    const sysPrompt = `You are a show-control sequence parser for a Raspberry Pi-based maze event system. Convert the user's plain-English description into a JSON array of steps. Each step is one of:
+{"type":"osc","address":"/cue/NUM/start"}
+{"type":"power","outlet":N,"state":"on"|"off"|"toggle"}
+{"type":"gpio","pin":N,"state":"HIGH"|"LOW"}
+{"type":"gpio_flash","pin":N,"durationMs":NUMBER,"intervalMs":NUMBER}
+{"type":"delay","ms":NUMBER}
+
+GPIO rules (Raspberry Pi BCM pin numbers 2–27):
+- "turn on/high gpio pin N" or "gpio pin N on" → {"type":"gpio","pin":N,"state":"HIGH"}
+- "turn off/low gpio pin N" or "gpio pin N off" → {"type":"gpio","pin":N,"state":"LOW"}
+- "flash gpio pin N on and off for X seconds with Y second delay" → {"type":"gpio_flash","pin":N,"durationMs":X*1000,"intervalMs":Y*1000}
+- "flash gpio pin N for X seconds" (no delay given) → intervalMs defaults to 100
+- intervalMs is the duration of each HIGH pulse AND the gap between pulses
+
+OSC rules:
+- "start cue N" / "fire cue N" / "cue N" → {"type":"osc","address":"/cue/N/start"}
+- "wait X seconds for cue to finish" after a cue → add a {"type":"delay","ms":X*1000} immediately after the OSC step
+
+Sequencing rules:
+- Steps with "and" in the same clause (e.g. "turn on outlet 3 and flash pin 26") → list them back-to-back with NO delay in between
+- "wait X seconds" / "after X seconds" → {"type":"delay","ms":X*1000}
+- A gpio_flash step blocks until the full durationMs has elapsed — no extra delay needed after it
+
+Return ONLY a JSON array, no prose, no markdown fences.`;
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,system:sysPrompt,messages:[{role:'user',content:text}]})
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error?.message||resp.status);
+    const raw = data.content[0].text.trim();
+    const match = raw.match(/\[[\s\S]*\]/);
+    if(!match) throw new Error('No JSON array in response');
+    _parsedQuickSeq = JSON.parse(match[0]);
+    let preview = '';
+    _parsedQuickSeq.forEach((s,i)=>{
+      if(s.type==='osc')        preview+=`${i+1}. OSC → ${s.address}\n`;
+      if(s.type==='power')      preview+=`${i+1}. Outlet ${s.outlet} → ${(s.state||'').toUpperCase()}\n`;
+      if(s.type==='gpio')       preview+=`${i+1}. GPIO pin ${s.pin} → ${s.state}\n`;
+      if(s.type==='gpio_flash') preview+=`${i+1}. Flash GPIO pin ${s.pin} for ${s.durationMs}ms (${s.intervalMs}ms on/off interval → ~${Math.floor(s.durationMs/(s.intervalMs*2))} flashes)\n`;
+      if(s.type==='arduino')    preview+=`${i+1}. Arduino pin ${s.pin} → ${s.state}${s.state==='PULSE'?' ('+(s.pulseMs||500)+'ms)':''}\n`;
+      if(s.type==='delay')      preview+=`${i+1}. Wait ${s.ms}ms\n`;
+    });
+    preEl.textContent=preview.trim(); preEl.style.display='block';
+    document.getElementById('btnRunQuickSeq').disabled=false;
+    stEl.textContent=`✅ ${_parsedQuickSeq.length} steps — hit Run Now to execute.`;
+  }catch(e){ stEl.textContent='❌ '+e.message; }
+}
+
+async function runQuickSeq(){
+  const stEl = document.getElementById('quickSeqStatus');
+  if(!_parsedQuickSeq||!_parsedQuickSeq.length){ stEl.textContent='Parse a sequence first.'; return; }
+  stEl.textContent='Running…';
+  document.getElementById('btnRunQuickSeq').disabled=true;
+  try{
+    for(const step of _parsedQuickSeq){
+      const doc={processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'};
+      if(step.type==='osc')     await QUEUE_COL.add({...doc,type:'osc',address:normalizeOsc(step.address)});
+      if(step.type==='power')   await QUEUE_COL.add({...doc,type:'power',outlet:step.outlet,state:step.state});
+      if(step.type==='gpio')    await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:step.state});
+      if(step.type==='arduino') await QUEUE_COL.add({...doc,type:'arduino',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
+      if(step.type==='delay')   await new Promise(r=>setTimeout(r,step.ms||0));
+      if(step.type==='gpio_flash'){
+        const intMs   = step.intervalMs || 100;
+        const cycles  = Math.floor((step.durationMs || 1000) / (intMs * 2));
+        const seqEl   = document.getElementById('quickSeqStatus');
+        for(let i=0; i<cycles; i++){
+          await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'HIGH'});
+          await new Promise(r=>setTimeout(r,intMs));
+          await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
+          if(i < cycles-1) await new Promise(r=>setTimeout(r,intMs));
+          if(seqEl) seqEl.textContent=`Flashing pin ${step.pin}… ${i+1}/${cycles}`;
+        }
+        await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
+      }
+    }
+    stEl.textContent='✅ Done!';
+  }catch(e){ stEl.textContent='❌ '+e.message; }
+  document.getElementById('btnRunQuickSeq').disabled=false;
+}
+
+/* ==== GPIO Quick Fire (Automation tab) ==== */
+async function mcFireGpio(){
+  const pin  = parseInt(document.getElementById('mcGpioPin').value);
+  const state= document.getElementById('mcGpioState').value;
+  const ms   = parseInt(document.getElementById('mcGpioPulseMs').value)||500;
+  const st   = document.getElementById('mcGpioStatus');
+  if(!pin||isNaN(pin)){ st.textContent='⚠️ Enter a pin number.'; return; }
+  st.textContent='Sending…';
+  try{
+    await QUEUE_COL.add({type:'gpio', pin, state, pulseMs:ms, processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'mc-gpio'});
+    st.textContent=`✅ Pin ${pin} ${state}${state==='PULSE'?' for '+ms+'ms':''}`;
+  }catch(e){ st.textContent='❌ '+e.message; }
+}
+
+/* ==== OSC address normalizer ==== */
+function normalizeOsc(raw){
+  raw = (raw||'').trim();
+  if(!raw) return '';
+  if(raw.startsWith('/')) return raw; // already full address
+  const m = raw.match(/^(\d+)\s*(\w+)?$/);
+  if(m){
+    const num = m[1];
+    const action = (m[2]||'start').toLowerCase();
+    return `/cue/${num}/${action}`;
+  }
+  return '/'+raw; // fallback
+}
+
+/* ==== QLab OSC Test ==== */
+async function testOscCue(inputId, statusId){
+  const address = normalizeOsc(document.getElementById(inputId).value||'');
+  const stEl = document.getElementById(statusId);
+  if(!address){ stEl.textContent='Enter a cue address first.'; return; }
+  stEl.textContent='Sending…';
+  try{
+    await QUEUE_COL.add({type:'osc', address, processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'manual'});
+    stEl.textContent='✅ Sent '+address;
+  }catch(e){ stEl.textContent='❌ '+e.message; }
+}
+
+/* ==== QLab OSC Settings ==== */
+async function saveQlabSettings(){
+  const ip          = (document.getElementById('qlabIpInput').value||'').trim();
+  const port        = Number(document.getElementById('qlabPortInput').value)||53000;
+  const shellCue    = (document.getElementById('qlabShellCueInput').value||'').trim();
+  const mushroomCue = (document.getElementById('qlabMushroomCueInput').value||'').trim();
+  const statusEl = document.getElementById('qlabStatus');
+  if(!ip){ statusEl.textContent='Enter an IP address.'; return; }
+  try{
+    await CONFIG_DOC.set({qlabIp:ip, qlabPort:port, shellQlabCue:shellCue, mushroomQlabCue:mushroomCue}, {merge:true});
+    statusEl.textContent = `✅ Saved — QLab at ${ip}:${port}`;
+  }catch(e){ statusEl.textContent='❌ Save failed: '+e.message; }
+}
+
+(async()=>{
+  try{
+    const snap = await CONFIG_DOC.get();
+    if(snap.exists){
+      const d=snap.data()||{};
+      if(d.qlabIp)          document.getElementById('qlabIpInput').value = d.qlabIp;
+      if(d.qlabPort)        document.getElementById('qlabPortInput').value = d.qlabPort;
+      if(d.shellQlabCue)    document.getElementById('qlabShellCueInput').value = d.shellQlabCue;
+      if(d.mushroomQlabCue) document.getElementById('qlabMushroomCueInput').value = d.mushroomQlabCue;
+      if(d.qlabIp)          document.getElementById('qlabStatus').textContent = `QLab: ${d.qlabIp}:${d.qlabPort||53000}`;
+    }
+  }catch{}
+})();
+
+/* ==== Red Shell Alert ==== */
+(function(){
+  const SHELL_DOC = db.collection('config').doc('shellBroadcast');
+  let _lastShellTs = null;
+
+SHELL_DOC.onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d = snap.data()||{};
+    const ts = d.triggeredAt ? d.triggeredAt.toMillis() : null;
+    if(!ts || ts === _lastShellTs) return;
+    _lastShellTs = ts;
+    if(Date.now() - ts > 120_000) return;
+
+    const alertEl = document.getElementById('shellAlert');
+    const msgEl   = document.getElementById('shellAlertMsg');
+    const subEl   = document.getElementById('shellAlertSub');
+    if(!alertEl) return;
+
+    msgEl.innerHTML = '<img src="icons/red_shell.webp" style="height:.9em;width:auto;vertical-align:middle"> RED SHELL — ' + (d.byName || 'Someone') + ' fired it!';
+    subEl.textContent = (d.affectedCount||0) + ' players hit · ' + (d.shieldedCount||0) + ' shielded · -' + (d.penalty||0) + ' coins';
+
+    alertEl.style.display = 'flex';
+    setTimeout(()=>{ alertEl.style.display='none'; }, 8000);
+  });
+})();
 </script>
 
 <!-- Optional tiny utility styles (used by some subtle UI bits) -->
@@ -1025,6 +1284,260 @@ function refreshAllActionDropdowns(){
 /* soft pulse for attention (can be applied if you want): .pulse { animation: pulse 2s infinite; } */
 @keyframes pulse { 0%{opacity:.8} 50%{opacity:1} 100%{opacity:.8} }
 </style>
+
+<script>
+/* ===== QLab Computers & Station OSC Events ===== */
+let _qlabComputers = [];
+let _stationOscCues = {};
+let _stationCount = 0;
+
+const OSC_EVENTS_STATIC_PRE = [
+  { key:'maze_start', label:'Maze Entry', group:'Maze', hint:'' },
+];
+const OSC_EVENTS_STATIC_POST = [
+  { key:'bowser_start',    label:'Bowser: Battle Begins', group:'Bowser', hint:'' },
+  { key:'bowser_fire',     label:'Bowser: Fireball',      group:'Bowser', hint:'' },
+  { key:'bowser_defeated', label:'Bowser: Defeated',      group:'Bowser', hint:'' },
+  { key:'peach_rescue',    label:'Peach Rescued',         group:'Peach',  hint:'' },
+  { key:'land_ice',        label:'Land: Ice World',       group:'Lands',  hint:'Music / lighting theme' },
+  { key:'land_water',      label:'Land: Water World',     group:'Lands',  hint:'' },
+  { key:'land_fire',       label:'Land: Fire World',      group:'Lands',  hint:'' },
+  { key:'land_lava',       label:'Land: Lava World',      group:'Lands',  hint:'' },
+  { key:'shell_fired',     label:'Red Shell Fired',       group:'Game',   hint:'' },
+  { key:'mushroom_used',   label:'Mushroom Used',         group:'Game',   hint:'' },
+];
+
+function buildOscEvents(){
+  const stations = Array.from({length:_stationCount},(_,i)=>({
+    key:'station_'+(i+1), label:'Station '+(i+1), group:'Stations', hint:''
+  }));
+  return [...OSC_EVENTS_STATIC_PRE, ...stations, ...OSC_EVENTS_STATIC_POST];
+}
+// Live alias used everywhere
+function getOscEvents(){ return buildOscEvents(); }
+
+function genCompId(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+function saveDomOscCues(){
+  getOscEvents().forEach(ev=>{
+    const sel      = document.querySelector(`.osc-comp-sel[data-key="${ev.key}"]`);
+    const inp      = document.querySelector(`.osc-cue-inp[data-key="${ev.key}"]`);
+    const gpioPin   = document.querySelector(`.osc-gpio-pin[data-key="${ev.key}"]`);
+    const gpioState = document.querySelector(`.osc-gpio-state[data-key="${ev.key}"]`);
+    const gpioMs    = document.querySelector(`.osc-gpio-ms[data-key="${ev.key}"]`);
+    if(!sel||!inp) return;
+    const computerId = sel.value;
+    const cue        = normalizeOsc(inp.value||'');
+    const pin        = gpioPin   ? parseInt(gpioPin.value)   : NaN;
+    const state      = gpioState ? (gpioState.value||'')     : '';
+    const ms         = gpioMs    ? parseInt(gpioMs.value)||500 : 500;
+    const hasOsc  = computerId || cue;
+    const hasGpio = !isNaN(pin) && pin >= 2 && state && state !== 'none';
+    if(hasOsc || hasGpio){
+      _stationOscCues[ev.key] = {
+        computerId, cue,
+        ...(hasGpio ? {arduinoPin:pin, arduinoState:state, arduinoPulseMs:ms} : {})
+      };
+    } else { delete _stationOscCues[ev.key]; }
+  });
+}
+
+function renderQlabComputers(){
+  const el = document.getElementById('qlabComputerList');
+  if(!el) return;
+  if(!_qlabComputers.length){
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No computers added yet.</div>';
+  } else {
+    el.innerHTML = _qlabComputers.map(c=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#f5ecd5;border:2px solid var(--ink);border-radius:4px">
+        <strong style="min-width:90px;font-size:13px">${escapeHtml(c.name)}</strong>
+        <span style="font-size:12px;color:var(--muted);flex:1">${escapeHtml(c.ip)}:${c.port||53000}</span>
+        <button onclick="deleteQlabComputer('${c.id}')" style="background:var(--red);color:#fff;border:2px solid var(--ink);padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer;box-shadow:none">✕</button>
+      </div>`).join('');
+  }
+  saveDomOscCues();
+  renderStationOscEvents();
+}
+
+async function addQlabComputer(){
+  const name = (document.getElementById('newCompName').value||'').trim();
+  const ip   = (document.getElementById('newCompIp').value||'').trim();
+  const port = Number(document.getElementById('newCompPort').value)||53000;
+  const stEl = document.getElementById('qlabComputerStatus');
+  if(!name){ stEl.textContent='Enter a name for this computer.'; return; }
+  if(!ip){ stEl.textContent='Enter an IP address.'; return; }
+  _qlabComputers.push({id: genCompId(), name, ip, port});
+  document.getElementById('newCompName').value = '';
+  document.getElementById('newCompIp').value = '';
+  document.getElementById('newCompPort').value = '53000';
+  renderQlabComputers();
+  try{
+    await CONFIG_DOC.set({qlabComputers: _qlabComputers}, {merge:true});
+    stEl.textContent = '✅ Added ' + name;
+  }catch(e){ stEl.textContent = '❌ ' + e.message; }
+}
+
+async function deleteQlabComputer(id){
+  _qlabComputers = _qlabComputers.filter(c=>c.id!==id);
+  renderQlabComputers();
+  try{
+    await CONFIG_DOC.set({qlabComputers: _qlabComputers}, {merge:true});
+    document.getElementById('qlabComputerStatus').textContent = 'Computer removed.';
+  }catch(e){ document.getElementById('qlabComputerStatus').textContent = '❌ ' + e.message; }
+}
+
+const GROUP_COLORS = {
+  'Maze':'#dbeafe', 'Stations':'#dcfce7', 'Bowser':'#fee2e2',
+  'Peach':'#fce7f3', 'Lands':'#ede9fe', 'Game':'#fef9c3'
+};
+const GROUP_ACCENTS = {
+  'Maze':'#3b82f6', 'Stations':'#16a34a', 'Bowser':'#dc2626',
+  'Peach':'#db2777', 'Lands':'#7c3aed', 'Game':'#d97706'
+};
+
+function renderStationOscEvents(){
+  const root = document.getElementById('stationOscEventsRoot');
+  if(!root) return;
+  let currentGroup = '';
+  let html = '';
+  const inp = 'padding:7px 9px;border:2px solid var(--ink);border-radius:4px;font-family:"Inter",sans-serif;font-size:13px;background:#fff;';
+  getOscEvents().forEach(ev=>{
+    if(ev.group !== currentGroup){
+      currentGroup = ev.group;
+      const accent = GROUP_ACCENTS[currentGroup]||'#888';
+      html += `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${accent};flex-shrink:0"></div>
+        <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${accent};letter-spacing:.05em">${escapeHtml(currentGroup.toUpperCase())}</span>
+        <div style="flex:1;height:2px;background:${accent};opacity:.25;border-radius:1px"></div>
+      </div>`;
+    }
+    const saved   = _stationOscCues[ev.key] || {};
+    const selVal  = saved.computerId || '';
+    const cueVal  = escapeHtml(saved.cue||'');
+    const gpioPin   = saved.arduinoPin   != null ? saved.arduinoPin   : '';
+    const gpioState = saved.arduinoState || 'none';
+    const gpioMs    = saved.arduinoPulseMs || 500;
+    const aiVal   = escapeHtml(_oscAiText[ev.key]||'');
+    const hasCue  = !!(saved.cue);
+    const hasGpio = !!(saved.arduinoPin && saved.arduinoState && saved.arduinoState !== 'none');
+    const dotColor = hasCue ? '#16a34a' : (hasGpio ? '#d97706' : '#c0b8a0');
+    const bgColor  = GROUP_COLORS[ev.group] || '#f9f9f9';
+    const opts = _qlabComputers.map(c=>
+      `<option value="${c.id}"${c.id===selVal?' selected':''}>${escapeHtml(c.name)}</option>`
+    ).join('');
+    html += `
+      <div style="margin-bottom:8px;border:2px solid var(--ink);border-radius:6px;box-shadow:2px 2px 0 var(--ink);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:${bgColor};border-bottom:2px solid rgba(35,18,7,.1)">
+          <span style="width:10px;height:10px;border-radius:50%;background:${dotColor};border:2px solid rgba(35,18,7,.2);flex-shrink:0" title="${hasCue?'OSC configured':hasGpio?'GPIO only':'Not configured'}"></span>
+          <span style="font-size:14px;font-weight:800;flex:1;color:var(--ink)">${escapeHtml(ev.label)}</span>
+          ${ev.hint?`<span style="font-size:11px;color:var(--muted);font-style:italic;margin-right:4px">${escapeHtml(ev.hint)}</span>`:''}
+          <button onclick="testOscEvent('${ev.key}')" style="padding:5px 12px;font-size:12px;font-weight:700;white-space:nowrap;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)">▶ Test</button>
+        </div>
+        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:#fff">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px">QLab</label>
+            <select class="osc-comp-sel" data-key="${ev.key}" style="${inp}flex:0 0 auto;min-width:120px">
+              <option value="">— none —</option>${opts}
+            </select>
+            <input type="text" class="osc-cue-inp" data-key="${ev.key}" value="${cueVal}" placeholder="e.g. 15 or 15 pause" style="${inp}flex:1;min-width:140px"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px">GPIO</label>
+            <input type="number" class="osc-gpio-pin" data-key="${ev.key}" value="${gpioPin}" placeholder="pin" min="2" max="27"
+              style="${inp}width:60px" title="Pi GPIO BCM pin (2–27), leave blank to skip"/>
+            <select class="osc-gpio-state" data-key="${ev.key}" style="${inp}">
+              <option value="none"${gpioState==='none'?' selected':''}>— off —</option>
+              <option value="HIGH"${gpioState==='HIGH'?' selected':''}>HIGH</option>
+              <option value="LOW"${gpioState==='LOW'?' selected':''}>LOW</option>
+              <option value="PULSE"${gpioState==='PULSE'?' selected':''}>PULSE</option>
+            </select>
+            <input type="number" class="osc-gpio-ms" data-key="${ev.key}" value="${gpioMs}" placeholder="ms" min="50"
+              style="${inp}width:72px" title="Pulse duration in ms"/>
+            <span style="font-size:12px;color:var(--muted)">ms</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:flex-start">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px;padding-top:8px">AI</label>
+            <textarea class="osc-ai-ta" data-key="${ev.key}" rows="2" placeholder="Describe what should happen in plain English…" style="flex:1;padding:7px 9px;border:2px solid rgba(35,18,7,.25);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4">${aiVal}</textarea>
+            <button onclick="parseAiForEvent('${ev.key}')" style="padding:7px 11px;font-size:13px;white-space:nowrap;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0;margin-top:0" title="Auto-fill fields with AI">✨</button>
+          </div>
+          <div class="osc-ai-st" data-key="${ev.key}" style="font-size:11px;color:var(--muted);min-height:14px;margin-top:-4px"></div>
+        </div>
+      </div>`;
+  });
+  root.innerHTML = html;
+}
+
+async function saveStationOscCues(){
+  const stEl = document.getElementById('stationOscStatus');
+  stEl.textContent = 'Saving…';
+  saveDomOscCues();
+  // Persist AI text from textareas
+  document.querySelectorAll('.osc-ai-ta').forEach(ta=>{
+    const k = ta.dataset.key;
+    const v = ta.value.trim();
+    if(v) _oscAiText[k] = v;
+    else  delete _oscAiText[k];
+  });
+  try{
+    await CONFIG_DOC.set({stationOscCues: _stationOscCues, stationOscAiText: _oscAiText}, {merge:true});
+    stEl.textContent = '✅ OSC cues saved.';
+  }catch(e){ stEl.textContent = '❌ ' + e.message; }
+}
+
+async function testOscEvent(key){
+  const stEl = document.getElementById('stationOscStatus');
+  saveDomOscCues();
+  const cfg = _stationOscCues[key] || {};
+  const address = normalizeOsc(cfg.cue||'');
+  const hasGpio = cfg.arduinoPin && cfg.arduinoState && cfg.arduinoState !== 'none';
+  if(!address && !hasGpio){ stEl.textContent = 'Configure an OSC cue or GPIO pin for this event first.'; return; }
+  const comp = _qlabComputers.find(c=>c.id===cfg.computerId);
+  stEl.textContent = 'Sending…';
+  try{
+    const base = {processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'test:'+key};
+    const sent = [];
+    if(address){
+      const payload = {...base, type:'osc', address};
+      if(comp){ payload.qlabIp=comp.ip; payload.qlabPort=comp.port||53000; }
+      await QUEUE_COL.add(payload);
+      sent.push(`OSC ${address}${comp?' → '+comp.name:''}`);
+    }
+    if(hasGpio){
+      await QUEUE_COL.add({...base, type:'gpio', pin:Number(cfg.arduinoPin), state:cfg.arduinoState, pulseMs:cfg.arduinoPulseMs||500});
+      sent.push(`GPIO pin ${cfg.arduinoPin} ${cfg.arduinoState}`);
+    }
+    stEl.textContent = '✅ Sent: ' + sent.join(' + ');
+  }catch(e){ stEl.textContent = '❌ ' + e.message; }
+}
+
+async function loadQlabConfig(){
+  try{
+    // Count actual registered stations (numeric IDs only) from stations collection
+    const stSnap = await db.collection('stations').get();
+    _stationCount = 0;
+    stSnap.forEach(doc=>{ if(/^\d+$/.test(doc.id)) _stationCount = Math.max(_stationCount, Number(doc.id)); });
+
+    const snap = await CONFIG_DOC.get();
+    const d = snap.exists ? (snap.data()||{}) : {};
+    _qlabComputers  = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
+    _stationOscCues = d.stationOscCues || {};
+    _oscAiText      = d.stationOscAiText || {};
+    renderQlabComputers();
+    // Legacy backwards compat fields
+    if(d.qlabIp)          { const el=document.getElementById('qlabIpInput');          if(el) el.value=d.qlabIp; }
+    if(d.qlabPort)        { const el=document.getElementById('qlabPortInput');        if(el) el.value=d.qlabPort; }
+    if(d.shellQlabCue)    { const el=document.getElementById('qlabShellCueInput');    if(el) el.value=d.shellQlabCue; }
+    if(d.mushroomQlabCue) { const el=document.getElementById('qlabMushroomCueInput'); if(el) el.value=d.mushroomQlabCue; }
+  }catch(e){ console.error('loadQlabConfig:', e); }
+}
+
+(function(){
+  let _done = false;
+  firebase.auth().onAuthStateChanged(u=>{
+    if(u && !_done){ _done=true; loadQlabConfig(); }
+  });
+})();
+</script>
 
 </body>
 </html>

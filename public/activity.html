@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Light the Night — Live Activity</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="/pw.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: #5c94fc;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #fff;
+  }
+
+  #bgCanvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    image-rendering: pixelated;
+  }
+
+  #app {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+  }
+
+  /* ── Header ── */
+  .topbar {
+    flex-shrink: 0;
+    background: #e52521;
+    border-bottom: 3px solid #231207;
+    display: flex; align-items: center;
+    padding: clamp(8px,1.4vh,14px) clamp(20px,3vw,40px);
+    gap: 14px;
+    position: relative;
+    box-shadow: 0 3px 0 #1a0d04;
+  }
+  .topbar-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 1.8vw, 20px);
+    color: #fff;
+    text-shadow: 2px 2px 0 #231207;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+    letter-spacing: .04em;
+  }
+  .topbar-coin {
+    display: inline-block;
+    width: clamp(14px,2vw,20px); height: clamp(14px,2vw,20px);
+    background: #e8a000; border: 2px solid #fff; border-radius: 50%;
+    flex-shrink: 0;
+    animation: coinSpin 1.2s steps(4) infinite;
+  }
+  @keyframes coinSpin {
+    0%,100% { transform: scaleX(1);   background: #e8a000; }
+    25%,75%  { transform: scaleX(0.3); background: #c07800; }
+    50%      { transform: scaleX(0.1); background: #c07800; }
+  }
+  .topbar-count {
+    margin-left: auto;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, 1.2vw, 12px);
+    color: #fff;
+    background: rgba(0,0,0,.3);
+    border: 2px solid rgba(255,255,255,.25);
+    border-radius: 3px;
+    padding: 5px 14px;
+    white-space: nowrap;
+  }
+
+  /* ── Feed ── */
+  .feed {
+    flex: 1; min-height: 0;
+    overflow: hidden;
+    position: relative;
+    padding: clamp(10px,1.5vh,18px) 0;
+  }
+
+  /* ── Event rows ── */
+  .ev {
+    display: flex; align-items: center;
+    gap: clamp(14px,2vw,28px);
+    padding: clamp(12px,1.8vh,22px) clamp(20px,3vw,48px);
+    border-bottom: 2px solid rgba(35,18,7,.12);
+    background: rgba(255,255,255,.88);
+    animation: slideIn .35s ease-out;
+    overflow: hidden;
+  }
+  .ev:nth-child(even) { background: rgba(255,255,255,.72); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .ev-icon {
+    font-size: clamp(22px, 3.2vw, 48px);
+    flex-shrink: 0;
+    line-height: 1;
+    width: clamp(30px,4vw,56px);
+    text-align: center;
+  }
+  .ev-msg {
+    font-weight: 800;
+    font-size: clamp(15px, 2.4vw, 34px);
+    color: #231207;
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ev-time {
+    font-size: clamp(11px, 1.4vw, 18px);
+    color: #7a5c44; flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    min-width: clamp(50px,6vw,90px); text-align: right;
+  }
+
+  /* Special event colors */
+  .ev.ev-enter  { background: rgba(76,255,80,.20); }
+  .ev.ev-enter:nth-child(even) { background: rgba(76,255,80,.14); }
+  .ev.ev-finish { background: rgba(232,160,0,.45); border-bottom-color: rgba(232,160,0,.4); }
+  .ev.ev-finish:nth-child(even) { background: rgba(232,160,0,.35); }
+  .ev.ev-peach  { background: rgba(255,160,200,.40); border-bottom-color: rgba(255,130,180,.3); }
+  .ev.ev-peach:nth-child(even) { background: rgba(255,160,200,.30); }
+  .ev.ev-shell  { background: rgba(229,37,33,.18); }
+  .ev.ev-shell:nth-child(even) { background: rgba(229,37,33,.12); }
+  .ev.ev-mushroom { background: rgba(232,160,0,.18); }
+  .ev.ev-mushroom:nth-child(even) { background: rgba(232,160,0,.12); }
+
+  .empty-msg {
+    padding: 60px 24px;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px,1.6vw,16px);
+    color: #7a5c44;
+    line-height: 2.2;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-coin"></span>
+    <div class="topbar-title">LIVE ACTIVITY</div>
+    <div class="topbar-count" id="countEl">0 events</div>
+  </div>
+  <div class="feed" id="feed">
+    <div class="empty-msg">Waiting for activity…</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const bc = document.getElementById('bgCanvas');
+  const bx = bc.getContext('2d');
+  const img = new Image();
+  img.src = 'mario-tiles.png';
+  function drawCloud(cx,cy,ts){
+    const L=Math.round(cx-ts*1.5),T=Math.round(cy-ts);
+    [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+      bx.drawImage(img,sx,sy,16,16,L+(i%3)*ts,T+Math.floor(i/3)*ts,ts,ts);
+    });
+  }
+  function draw(){
+    const W=bc.width=window.innerWidth, H=bc.height=window.innerHeight;
+    bx.imageSmoothingEnabled=false;
+    bx.fillStyle='#5c94fc'; bx.fillRect(0,0,W,H);
+    const groundH=Math.round(H*0.055), gy=H-groundH;
+    if(img.complete&&img.naturalWidth>0){
+      const cs=Math.round(W*0.065);
+      drawCloud(W*0.13,H*0.12,cs);
+      drawCloud(W*0.50,H*0.09,Math.round(cs*1.2));
+      drawCloud(W*0.82,H*0.14,Math.round(cs*0.85));
+      const gt=Math.round(groundH/2),cols=Math.ceil(W/gt)+1;
+      for(let c=0;c<cols;c++) bx.drawImage(img,16,0,16,16,c*gt,gy,gt,gt);
+      for(let c=0;c<cols;c++) bx.drawImage(img,0,0,16,16,c*gt,gy+gt,gt,gt);
+    } else {
+      bx.fillStyle='#c8601c'; bx.fillRect(0,gy,W,groundH);
+      bx.fillStyle='#231207'; bx.fillRect(0,gy,W,3);
+    }
+  }
+  img.onload=draw; draw();
+  window.addEventListener('resize',draw);
+})();
+
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db = firebase.firestore();
+
+const feed    = document.getElementById('feed');
+const countEl = document.getElementById('countEl');
+
+const EVENT_CONFIG = {
+  start:        { icon:'🏁', cls:'ev-enter',    msg: d => `${d.name} entered the maze!` },
+  coin:         { icon:'🪙', cls:'',            msg: d => `${d.name} collected ${d.coins} coins` },
+  coin_direct:  { icon:'🪙', cls:'',            msg: d => `${d.name} collected ${d.coins} coins` },
+  shell:        { icon:'🐢', cls:'ev-shell',    msg: d => `${d.name} earned a Red Shell!` },
+  shell_frozen: { icon:'🐢', cls:'ev-shell',    msg: d => `${d.name} earned a Frozen Shell!` },
+  shell_station:{ icon:'💥', cls:'ev-shell',    msg: d => `${d.name} fired a Red Shell!` },
+  mushroom:     { icon:'🍄', cls:'ev-mushroom', msg: d => `${d.name} used a Mushroom! (+${d.coins} coins)` },
+  rescue:       { icon:'👸', cls:'ev-peach',    msg: d => `${d.name} rescued Princess Peach!` },
+  bowser:       { icon:'🏰', cls:'ev-finish',   msg: d => `${d.name} defeated Bowser! 🎉` },
+  timed_out:    { icon:'⏱', cls:'',            msg: d => `${d.name} timed out` },
+};
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+let totalCount = 0;
+
+firebase.auth().signInAnonymously().catch(() => {});
+firebase.auth().onAuthStateChanged(user => {
+  if (!user) return;
+
+  db.collection('scans')
+    .orderBy('timestamp', 'desc')
+    .limit(30)
+    .onSnapshot(snap => {
+      // Filter out boring events
+      const docs = snap.docs.filter(d => d.data().gameType !== 'timed_out');
+      totalCount = docs.length;
+      countEl.textContent = totalCount + (totalCount === 1 ? ' event' : ' events');
+
+      if (!docs.length) {
+        feed.innerHTML = '<div class="empty-msg">Waiting for activity…</div>';
+        return;
+      }
+
+      feed.innerHTML = docs.map((doc, i) => {
+        const d = doc.data();
+        const cfg = EVENT_CONFIG[d.gameType] || { icon:'🎮', cls:'', msg: d => `${d.name} scanned a station` };
+        const msg = cfg.msg(d);
+        const alt = i % 2 === 1 ? '' : '';
+        return `<div class="ev${cfg.cls ? ' '+cfg.cls : ''}">
+          <div class="ev-icon">${cfg.icon}</div>
+          <div class="ev-msg">${escHtml(msg)}</div>
+          <div class="ev-time">${fmtTime(d.timestamp)}</div>
+        </div>`;
+      }).join('');
+    });
+});
+</script>
+</body>
+</html>

@@ -16,21 +16,20 @@
   html, body {
     height: 100%; width: 100%;
     background: #5c94fc;
-    background-image:
-      radial-gradient(ellipse 90px 48px at 10% 6%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse 65px 38px at  7% 6%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse 75px 44px at 14% 4%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse 130px 62px at 55%  4%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse  95px 52px at 51%  4%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse  75px 42px at 88% 5%, #fff 50%, transparent 51%),
-      radial-gradient(ellipse  55px 34px at 85% 5%, #fff 50%, transparent 51%);
-    background-attachment: fixed;
-    font-family: 'Inter', system-ui, sans-serif;
-    color: #231207;
     overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #fff;
+  }
+
+  #bgCanvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    image-rendering: pixelated;
   }
 
   #app {
+    position: relative; z-index: 1;
     display: flex; flex-direction: column;
     height: 100vh; height: 100dvh;
   }
@@ -41,31 +40,35 @@
     background: #e52521;
     border-bottom: 3px solid #231207;
     display: flex; align-items: center;
-    padding: 10px 32px;
-    gap: 16px;
+    padding: clamp(8px,1.4vh,14px) clamp(20px,3vw,40px);
+    gap: 14px;
     position: relative;
+    box-shadow: 0 3px 0 #1a0d04;
   }
   .topbar-title {
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(10px, 1.8vw, 16px);
+    font-size: clamp(11px, 1.8vw, 20px);
     color: #fff;
     text-shadow: 2px 2px 0 #231207;
     position: absolute; left: 50%; transform: translateX(-50%);
     white-space: nowrap;
+    letter-spacing: .04em;
   }
-  .topbar-count { margin-left: auto; }
   .topbar-count {
+    margin-left: auto;
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(9px, 1.4vw, 13px);
+    font-size: clamp(8px, 1.2vw, 12px);
     color: #fff;
-    background: rgba(0,0,0,.25);
-    border: 1px solid rgba(255,255,255,.4);
+    background: rgba(0,0,0,.3);
+    border: 2px solid rgba(255,255,255,.25);
     border-radius: 3px;
-    padding: 4px 12px;
+    padding: 5px 14px;
+    white-space: nowrap;
   }
   .topbar-coin {
     display: inline-block;
-    width: 16px; height: 16px;
+    width: clamp(14px,2vw,20px);
+    height: clamp(14px,2vw,20px);
     background: #e8a000; border: 2px solid #fff; border-radius: 50%;
     animation: coinSpin 1.2s steps(4) infinite; flex-shrink: 0;
   }
@@ -85,6 +88,7 @@
     position: absolute;
     width: 100%;
     will-change: transform;
+    padding: clamp(10px,1.5vh,18px) 0 clamp(8px,1.2vh,14px);
   }
 
   /* ── Rows ── */
@@ -93,8 +97,9 @@
     padding: clamp(12px,1.8vh,22px) clamp(20px,3vw,48px);
     border-bottom: 2px solid rgba(35,18,7,.12);
     background: rgba(255,255,255,.88);
+    position: relative; overflow: hidden;
   }
-  .im-row:nth-child(even) { background: rgba(255,255,255,.72); }
+  .im-row.im-row-alt { background: rgba(255,255,255,.72); }
 
   .im-dot {
     width: clamp(10px,1.4vw,16px); height: clamp(10px,1.4vw,16px);
@@ -114,9 +119,9 @@
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
   }
   .im-powerups img {
-    height: clamp(20px, 2.8vw, 38px); width: auto;
+    height: clamp(18px, 2.8vh, 34px); width: auto;
     image-rendering: pixelated;
-    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.4));
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.35));
   }
   .im-coins {
     font-family: 'Press Start 2P', monospace;
@@ -151,17 +156,12 @@
   .qr-text { font-family: 'Press Start 2P', monospace; color: #e8a000; line-height: 2; text-align: left; }
   .qr-text .qr-headline { font-size: clamp(11px,1.8vw,18px); }
   .qr-text .qr-sub { font-size: clamp(8px,1.1vw,12px); color: rgba(255,255,255,.5); margin-top: 6px; }
-
-  /* ── Ground bar ── */
-  .ground {
-    flex-shrink: 0;
-    height: 14px;
-    background: #c8601c;
-    border-top: 3px solid #231207;
-  }
 </style>
 </head>
 <body>
+
+<canvas id="bgCanvas"></canvas>
+
 <div id="app">
   <div class="topbar">
     <span class="topbar-coin"></span>
@@ -175,10 +175,55 @@
     </div>
   </div>
 
-  <div class="ground"></div>
 </div>
 
 <script>
+// ── Background canvas ─────────────────────────────────────
+(function(){
+  const bc  = document.getElementById('bgCanvas');
+  const bx  = bc.getContext('2d');
+  const img = new Image();
+  img.src   = 'mario-tiles.png';
+
+  function drawCloud(cx, cy, ts){
+    const L = Math.round(cx - ts * 1.5);
+    const T = Math.round(cy - ts);
+    [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+      bx.drawImage(img, sx, sy, 16, 16, L+(i%3)*ts, T+Math.floor(i/3)*ts, ts, ts);
+    });
+  }
+
+  function draw(){
+    const W = bc.width  = window.innerWidth;
+    const H = bc.height = window.innerHeight;
+    bx.imageSmoothingEnabled = false;
+    bx.fillStyle = '#5c94fc';
+    bx.fillRect(0, 0, W, H);
+    const groundH = Math.round(H * 0.055);
+    const gy = H - groundH;
+    if(img.complete && img.naturalWidth > 0){
+      const cs = Math.round(W * 0.065);
+      drawCloud(W * 0.13, H * 0.12, cs);
+      drawCloud(W * 0.50, H * 0.09, Math.round(cs * 1.2));
+      drawCloud(W * 0.82, H * 0.14, Math.round(cs * 0.85));
+      const gt   = Math.round(groundH / 2);
+      const cols = Math.ceil(W / gt) + 1;
+      for(let c = 0; c < cols; c++) bx.drawImage(img, 16, 0, 16, 16, c*gt, gy,    gt, gt);
+      for(let c = 0; c < cols; c++) bx.drawImage(img,  0, 0, 16, 16, c*gt, gy+gt, gt, gt);
+    } else {
+      bx.fillStyle = '#c8601c';
+      bx.fillRect(0, gy, W, groundH);
+      bx.fillStyle = '#231207';
+      bx.fillRect(0, gy, W, 3);
+    }
+  }
+
+  img.onload = draw;
+  draw();
+  window.addEventListener('resize', draw);
+})();
+
+// ── Firebase ──────────────────────────────────────────────
 firebase.initializeApp({
   apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
   authDomain:"light-the-night-2025.firebaseapp.com",
@@ -202,9 +247,6 @@ function escHtml(s) {
 }
 
 // ── Auto-scroll ──────────────────────────────────────────
-// Content is rendered twice (duplicated). Scroll through the first copy,
-// then silently reset to 0 — the second copy looks identical so there's
-// no visible jump. Loops forever with no gaps.
 let scrollPos = 0, scrollAnim = null;
 function stopScroll() {
   if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
@@ -234,14 +276,23 @@ function maybeScroll() {
 // ── Render ───────────────────────────────────────────────
 let latestKids = [];
 
+const QR_URL = 'https://light-the-night.web.app/participant.html';
+const QR_IMG = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=ffe896&bgcolor=231207&data=${encodeURIComponent(QR_URL)}`;
+const QR_ROW = `<div class="qr-row">
+  <img src="${QR_IMG}" width="140" height="140" alt="QR code to guest leaderboard">
+  <div class="qr-text">
+    <div class="qr-headline">See the scores!</div>
+    <div class="qr-sub">Scan to view the<br>live leaderboard</div>
+  </div>
+</div>`;
+
 function render() {
-  // Only show kids who have scanned at the start station (mazeStartTime set) and haven't finished
   const inMaze = latestKids
     .filter(k => k.mazeStartTime && !k.mazeEndTime)
     .sort((a, b) => {
       const ta = a.mazeStartTime?.toMillis?.() ?? 0;
       const tb = b.mazeStartTime?.toMillis?.() ?? 0;
-      return ta - tb; // earliest start first = longest in maze at top
+      return ta - tb;
     });
 
   countEl.textContent = inMaze.length + (inMaze.length === 1 ? ' player' : ' players');
@@ -252,27 +303,15 @@ function render() {
     return;
   }
 
-  const qrUrl = 'https://light-the-night.web.app/participant.html';
-  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=231207&bgcolor=ffffff&data=${encodeURIComponent(qrUrl)}`;
-  const qrRow = `<div class="qr-row">
-    <img src="${qrImg}" width="clamp(100px,12vw,160px)" height="auto" alt="QR code to guest leaderboard">
-    <div class="qr-text">
-      <div class="qr-headline">See the scores!</div>
-      <div class="qr-sub">Scan to view the<br>live leaderboard</div>
-    </div>
-  </div>`;
-
-  const rows = inMaze.map(k => {
+  const rows = inMaze.map((k, i) => {
     const startMs = k.mazeStartTime.toMillis();
-    const hasMushroom = !!k.usedMushroom;
-    const hasShell    = k.shellStation && !k.usedShell;
-    const savedPeach  = !!k.savedPeach;
     const powerups = [
-      hasMushroom ? `<img src="icons/mushroom.png"        alt="Mushroom" title="Has Mushroom">` : '',
-      hasShell    ? `<img src="icons/red_shell.webp"      alt="Red Shell" title="Has Red Shell">` : '',
-      savedPeach  ? `<img src="icons/princess_peach.png"  alt="Saved Peach" title="Rescued Princess Peach">` : '',
+      k.superMarioActive ? `<img src="icons/mushroom.png" alt="Mushroom" title="Has Mushroom">` : '',
+      (k.shellStation && !k.usedShell) ? `<img src="icons/red_shell.webp" alt="Red Shell" title="Has Red Shell">` : '',
+      k.savedPeach ? `<img src="icons/princess_peach.png" alt="Saved Peach" title="Rescued Princess Peach">` : '',
     ].join('');
-    return `<div class="im-row" data-start="${startMs}">
+    const alt = i % 2 === 1 ? ' im-row-alt' : '';
+    return `<div class="im-row${alt}" data-start="${startMs}">
       <div class="im-dot"></div>
       <div class="im-name">${escHtml(k.name || '?')}</div>
       ${powerups ? `<div class="im-powerups">${powerups}</div>` : ''}
@@ -281,15 +320,16 @@ function render() {
     </div>`;
   }).join('');
   stopScroll();
-  scrollInner.innerHTML = rows + qrRow;
+  scrollInner.innerHTML = rows + QR_ROW;
   requestAnimationFrame(() => maybeScroll());
 }
 
 // Tick elapsed times every second
 setInterval(() => {
   scrollInner.querySelectorAll('[data-start]').forEach(row => {
+    const ms = Date.now() - parseInt(row.dataset.start, 10);
     const el = row.querySelector('.im-elapsed');
-    if (el) el.textContent = fmtTime(Date.now() - parseInt(row.dataset.start, 10));
+    if (el) el.textContent = fmtTime(ms);
   });
 }, 1000);
 

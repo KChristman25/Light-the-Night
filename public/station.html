@@ -424,7 +424,6 @@
       html, body { height: 100svh; overflow: hidden; }
       body { display: flex; flex-direction: column; }
       header { position: static; flex-shrink: 0; }
-      #broadcastBanner { flex-shrink: 0; }
 
       header .h {
         padding: clamp(2px, 0.8svh, 8px) var(--pad);
@@ -458,7 +457,7 @@
         border: 2px solid #e8a000; border-radius: 4px;
         box-shadow: 3px 3px 0 #e8a000;
         padding: clamp(4px, 0.8svh, 12px) clamp(8px, 1.4vw, 18px);
-        position: relative; z-index: 2;
+        position: relative; z-index: 10;
         overflow: hidden;
       }
 
@@ -472,7 +471,7 @@
       }
 
       body.kiosk .keypad {
-        flex: 1; min-height: 0;
+        flex: 1; min-height: clamp(180px, 38svh, 400px);
         grid-template-rows: repeat(4, 1fr);
         gap: clamp(3px, 0.6svh, 8px);
       }
@@ -484,6 +483,8 @@
         background: #3a1f0a; color: #fff; border-color: #e8a000;
         border-width: 2px;
         box-shadow: 2px 2px 0 #e8a000;
+        width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
       }
       body.kiosk .key-clear { background: #4a1212; color: #ff8080; border-color: #e52521; }
       body.kiosk .key-enter { background: #1a4a1a; color: #80ff80; border-color: #248a26; }
@@ -567,6 +568,7 @@
       border: 3px solid #e8a000; border-radius: 4px;
       box-shadow: 6px 6px 0 #e8a000;
       padding: clamp(16px,2.5vh,28px) clamp(16px,3vw,28px);
+      position: relative; z-index: 10;
     }
     #view-control .key-btn {
       background: #3a1f0a;
@@ -947,7 +949,7 @@
 
 
   <!-- Broadcast banner (shown when admin sends a message) -->
-  <div id="broadcastBanner" style="display:none;margin:14px auto;max-width:min(860px,92vw);background:#e8a000;border:3px solid #231207;border-radius:4px;box-shadow:4px 4px 0 #231207;padding:14px 20px;text-align:center">
+  <div id="broadcastBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99000;background:#e8a000;border-bottom:3px solid #231207;box-shadow:0 4px 0 #231207;padding:14px 20px;text-align:center">
     <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#231207;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📢 Admin Message</div>
     <div id="broadcastText" style="font-size:clamp(14px,2.2vw,18px);font-weight:700;color:#231207;font-family:'Inter',sans-serif;line-height:1.4"></div>
   </div>
@@ -1299,8 +1301,7 @@ const EVENT_GROUP_MAP = {
 let _lastJumpOscTs = 0;
 function sendJumpOsc(){
   const cfg = _qlabCues['jump'];
-  if(!cfg || !cfg.cue) return;
-  const cooldownMs = cfg.cooldownMs != null ? cfg.cooldownMs : 2000;
+  const cooldownMs = cfg?.cooldownMs != null ? cfg.cooldownMs : 2000;
   const now = Date.now();
   if(now - _lastJumpOscTs < cooldownMs) return;
   _lastJumpOscTs = now;

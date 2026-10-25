@@ -209,6 +209,32 @@
     line-height: 2;
   }
 
+  /* ── Follow bar ── */
+  .follow-bar {
+    flex-shrink: 0;
+    background: #231207;
+    padding: 7px 24px;
+    display: flex; justify-content: center;
+    border-bottom: 2px solid rgba(232,160,0,.3);
+  }
+  .follow-bar input {
+    width: 100%; max-width: 380px;
+    padding: 6px 14px;
+    border: 2px solid #e8a000;
+    border-radius: 3px;
+    background: #3a1f0a;
+    color: #fff;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    outline: none;
+  }
+  .follow-bar input::placeholder { color: rgba(232,160,0,.45); }
+  .lb-row.follow, .im-row.follow {
+    background: rgba(232,160,0,.6) !important;
+    outline: 3px solid #e8a000;
+    outline-offset: -3px;
+  }
+
   /* ── Ground bar ── */
   .ground {
     flex-shrink: 0;
@@ -232,6 +258,10 @@
     <span class="topbar-coin"></span>
     <div class="topbar-title">Light the Night 2026 — Live Leaderboard</div>
     <span class="topbar-coin"></span>
+  </div>
+
+  <div class="follow-bar">
+    <input id="followSearch" type="text" placeholder="Type your kid's name to follow them…" oninput="applyFollow()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
   </div>
 
   <div class="panels">
@@ -407,6 +437,7 @@ function boot() {
     }).join('');
 
     lbScroller.reset();
+    applyFollow();
   }
 
   function renderInMaze(kids) {
@@ -438,12 +469,21 @@ function boot() {
     }).join('');
 
     imScroller.reset();
+    applyFollow();
   }
 }
 
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, m =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function applyFollow() {
+  const q = (document.getElementById('followSearch')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('.lb-row, .im-row').forEach(row => {
+    const name = (row.querySelector('.lb-name, .im-name')?.textContent || '').toLowerCase();
+    row.classList.toggle('follow', !!(q && name.includes(q)));
+  });
 }
 </script>
 </body>

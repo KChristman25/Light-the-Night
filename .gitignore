@@ -72,3 +72,7 @@ node_modules/
 service-account.json
 *service-account*.json
 *serviceAccount*.json
+
+# Large files
+public/LTN-Overlay.zip
+*.zip

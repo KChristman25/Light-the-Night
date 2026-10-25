@@ -363,16 +363,61 @@ def get_local_ip():
         return "127.0.0.1"
 
 
-# ── Tiny HTTP health server ───────────────────────────────────────────────────
+# ── HTTP command server (health + direct OSC/GPIO from tablets) ───────────────
 class _HealthHandler(BaseHTTPRequestHandler):
+    def _cors(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._cors()
+        self.end_headers()
+
     def do_GET(self):
         body = b'{"ok":true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._cors()
         self.end_headers()
         self.wfile.write(body)
+
+    def do_POST(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            cmd_type = body.get("type", "osc")
+
+            if cmd_type == "osc":
+                send_osc(
+                    str(body.get("qlabIp", "127.0.0.1")),
+                    int(body.get("qlabPort", 53000)),
+                    str(body.get("address", "/go"))
+                )
+            elif cmd_type == "gpio":
+                send_gpio(
+                    int(body.get("pin", 2)),
+                    str(body.get("state", "PULSE")).upper(),
+                    int(body.get("pulseMs", 500))
+                )
+            elif cmd_type == "power":
+                control_outlet(int(body.get("outlet", 1)), str(body.get("state", "on")).lower())
+
+            resp = b'{"ok":true}'
+            self.send_response(200)
+        except Exception as e:
+            print(f"[http] error: {e}")
+            resp = json.dumps({"ok": False, "error": str(e)}).encode()
+            self.send_response(500)
+
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(resp)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(resp)
+
     def log_message(self, *_):
         pass  # suppress access logs
 
@@ -380,7 +425,7 @@ def start_health_server():
     srv = HTTPServer(("0.0.0.0", HEALTH_PORT), _HealthHandler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    print(f"[health] HTTP server listening on :{HEALTH_PORT}")
+    print(f"[http] command server listening on :{HEALTH_PORT}")
     return srv
 
 

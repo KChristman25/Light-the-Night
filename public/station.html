@@ -948,11 +948,6 @@
   <header><div class="h" id="title">Stations</div></header>
 
 
-  <!-- Broadcast banner (shown when admin sends a message) -->
-  <div id="broadcastBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99000;background:#e8a000;border-bottom:3px solid #231207;box-shadow:0 4px 0 #231207;padding:14px 20px;text-align:center">
-    <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#231207;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📢 Admin Message</div>
-    <div id="broadcastText" style="font-size:clamp(14px,2.2vw,18px);font-weight:700;color:#231207;font-family:'Inter',sans-serif;line-height:1.4"></div>
-  </div>
 
   <div class="wrap">
     <!-- List -->
@@ -1290,6 +1285,20 @@ let _qlabCues = {};
 let _aiParsedGroups = {};   // groupId → steps[]
 let _aiGroupComp    = {};   // groupId → computerId
 let _mcComputers    = [];   // qlabComputers array
+let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "http://192.168.8.106:8080"
+
+// Send a command directly to the Pi over HTTP (sub-millisecond vs 100ms Firestore poll).
+// Falls back to the Firestore queue if the Pi is unreachable.
+async function _sendViaPi(payload) {
+  if (!_piBaseUrl) throw new Error('no pi url');
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    const r = await fetch(_piBaseUrl + '/cmd', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
+    if (!r.ok) throw new Error('pi ' + r.status);
+  } finally { clearTimeout(t); }
+}
 
 // Maps sendConfiguredOsc event keys → Mission Control group IDs
 const EVENT_GROUP_MAP = {
@@ -1506,7 +1515,6 @@ let wakeLockObj=null, noSleep=null;
 async function kioskEnter(){
   try{const el=document.documentElement;if(!document.fullscreenElement){if(el.requestFullscreen)await el.requestFullscreen();else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();}if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(_){}
   try{if('wakeLock'in navigator&&navigator.wakeLock&&navigator.wakeLock.request){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj&&wakeLockObj.addEventListener){wakeLockObj.addEventListener('release',function(){wakeLockObj=null;});}}else{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}}catch(_){try{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}}
-document.addEventListener('visibilitychange',async function(){if(document.visibilityState==='visible'){try{if('wakeLock'in navigator&&navigator.wakeLock&&navigator.wakeLock.request&&!wakeLockObj){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj&&wakeLockObj.addEventListener){wakeLockObj.addEventListener('release',function(){wakeLockObj=null;});}}else{if(noSleep&&noSleep.enable)noSleep.enable();}}catch(_){}}});
 }
 async function kioskExit(){
   try{if(wakeLockObj&&wakeLockObj.release)await wakeLockObj.release();wakeLockObj=null;}catch(_){}
@@ -1655,6 +1663,7 @@ function startList(){
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
   if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
   show('list');
+  window.scrollTo(0,0);
   if(listUnsub)listUnsub();
   const startSnap=()=>{
     listUnsub=db.collection('stations').orderBy(firebase.firestore.FieldPath.documentId()).onSnapshot((snap)=>{
@@ -2255,12 +2264,18 @@ function closeBowserOverlay(){
 }
 
 async function sendSwitchCommand(outlet,state){
-  await QUEUE_COL.add({type:'power',outlet:Number(outlet),state:String(state).toLowerCase(),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')});
+  const p={type:'power',outlet:Number(outlet),state:String(state).toLowerCase()};
+  try{ await _sendViaPi(p); }
+  catch(e){ await QUEUE_COL.add({...p,processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')}); }
 }
 async function sendOscQueueCommand(address){
-  await QUEUE_COL.add({type:'osc',address:String(address),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')});
+  const payload={type:'osc',address:String(address)};
+  try{ await _sendViaPi(payload); }
+  catch(e){ await QUEUE_COL.add({...payload,processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')}); }
 }
 async function loadQlabCues(){
+  // Keep _piBaseUrl live so we always send to the Pi's current IP
+  db.collection('webswitch').doc('config').onSnapshot(s=>{ _piBaseUrl=(s.data()||{}).baseUrl||null; });
   const snap = await db.collection('webswitch').doc('config').get();
   if(!snap.exists) return;
   const d = snap.data()||{};
@@ -2290,20 +2305,23 @@ async function loadQlabCues(){
 }
 async function sendConfiguredOsc(key){
   const cfg = _qlabCues[key];
-  const base = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
+  const qBase = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
   if(cfg){
-    // Fire OSC to QLab if configured in the cue # field
     if(cfg.cue){
-      const payload = {...base, type:'osc', address:cfg.cue};
-      if(cfg.qlabIp){ payload.qlabIp=cfg.qlabIp; payload.qlabPort=cfg.qlabPort||53000; }
-      await QUEUE_COL.add(payload);
+      const p = {type:'osc', address:cfg.cue, qlabIp:cfg.qlabIp||undefined, qlabPort:cfg.qlabPort||53000};
+      try{ await _sendViaPi(p); }
+      catch(e){
+        const qp={...qBase,type:'osc',address:cfg.cue};
+        if(cfg.qlabIp){qp.qlabIp=cfg.qlabIp;qp.qlabPort=cfg.qlabPort||53000;}
+        await QUEUE_COL.add(qp);
+      }
     }
-    // Fire GPIO command if configured
     if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
-      await QUEUE_COL.add({...base, type:'gpio', pin:cfg.gpioPin, state:cfg.gpioState, pulseMs:cfg.gpioPulseMs||500});
+      const p={type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500};
+      try{ await _sendViaPi(p); }
+      catch(e){ await QUEUE_COL.add({...qBase,...p}); }
     }
   }
-  // Always also run the AI sequence for this event if one is configured
   runAiGroup(key).catch(()=>{});
 }
 async function runPhoneRuleForStation(stationNum,timing){
@@ -2525,7 +2543,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
 
 (function boot(){
   startHub();
-  document.addEventListener('visibilitychange',()=>{
+  document.addEventListener('visibilitychange',async()=>{
     if(document.visibilityState==='visible'){
       // Screen woke up — fire immediately so admin sees online right away
       if(_lastBeatFn){
@@ -2534,6 +2552,8 @@ function showScanMsg(msg,color,border,bg,hint,dur){
         if(heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval=setInterval(_lastBeatFn,10000);
       }
+      // Re-acquire wake lock if it was released while hidden
+      try{if('wakeLock'in navigator&&navigator.wakeLock&&!wakeLockObj){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj)wakeLockObj.addEventListener('release',()=>{wakeLockObj=null;});}else if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}
     }
     // Do NOT clear the interval on hide — let the browser throttle it;
     // it will still fire occasionally and keeps the last-seen timestamp fresher.
@@ -2619,6 +2639,7 @@ const SFX = (function(){
     g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+startT+dur);
     o.start(c.currentTime+startT);
     o.stop(c.currentTime+startT+dur+0.01);
+    o.onended=()=>{try{o.disconnect();g.disconnect();}catch(_){}};
   }
   return {
     jump(){
@@ -2716,7 +2737,7 @@ const SFX = (function(){
   const MARIO_W=64, MARIO_H=64, BOX_SIZE=96;
 
   // ── Game state ──
-  let G=null;
+  let G=null, _onTap=null;
 
   // ── Sprite sheets from meth-meth-method/super-mario ──
   const spritesImg = new Image(); spritesImg.src = 'mario-sprites.png';
@@ -2962,6 +2983,7 @@ const SFX = (function(){
   // ── Game loop ──
   function loop(ts){
     if(!G||!G.active)return;
+    if(G.lastTs && (ts-G.lastTs)<30){G.animId=requestAnimationFrame(loop);return;}
     const dt=Math.min((ts-(G.lastTs||ts))/1000,0.05);
     G.lastTs=ts;
     const W=canvas.width, H=canvas.height, gy=H-74;
@@ -2970,7 +2992,7 @@ const SFX = (function(){
     if(G.phase==='walk'){
       G.mario.x += G.mario.dir*G.speed*dt;
       G.mario.wt += dt;
-      if(G.mario.wt>0.10){G.mario.frame=(G.mario.frame+1)%3;G.mario.wt=0;if(G.mario.frame===0||G.mario.frame===2)SFX.step();}
+      if(G.mario.wt>0.10){G.mario.frame=(G.mario.frame+1)%3;G.mario.wt=0;}
       if(G.mario.x<8){G.mario.x=8;G.mario.dir=1;}
       if(G.mario.x>W-MARIO_W-8){G.mario.x=W-MARIO_W-8;G.mario.dir=-1;}
     }
@@ -3030,7 +3052,7 @@ const SFX = (function(){
 
     // Draw
     ctx.clearRect(0,0,W,H);
-    drawScene(W,H);
+    if(_bgCache) ctx.drawImage(_bgCache,0,0); else drawScene(W,H);
     for(const b of G.boxes) drawBox(b);
     if(G.particles) drawParticles(G.particles);
     drawMario(G.mario.x, G.mario.y, G.mario.dir, G.mario.frame, G.phase==='jump');
@@ -3329,11 +3351,34 @@ const SFX = (function(){
     cancelAnimationFrame(G.animId);
     stopGameTimer();
     if(_countdownTO){clearTimeout(_countdownTO);_countdownTO=null;}
+    if(_onTap){overlay.removeEventListener('touchstart',_onTap);overlay.removeEventListener('click',_onTap);_onTap=null;}
     overlay.classList.remove('active');
     resultEl.classList.add('hide');
     tapHintEl.style.display='block';
     timerEl.style.display='none';
     G=null;
+  }
+
+  // ── Pre-bake static background to offscreen canvas ──
+  let _bgCache=null;
+  function prebakeScene(W,H){
+    const oc=document.createElement('canvas');
+    oc.width=W; oc.height=H;
+    const bx=oc.getContext('2d');
+    bx.imageSmoothingEnabled=false;
+    const gy=H-74;
+    bx.fillStyle='#5c94fc'; bx.fillRect(0,0,W,H);
+    if(tilesImg.complete&&tilesImg.naturalWidth>0){
+      const cs=Math.round(W*0.065);
+      const drawCloud=(cx,cy,ts)=>{const L=Math.round(cx-ts*1.5),T=Math.round(cy-ts);[[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{bx.drawImage(tilesImg,sx,sy,16,16,L+(i%3)*ts,T+Math.floor(i/3)*ts,ts,ts);});};
+      drawCloud(W*0.13,H*0.10,cs); drawCloud(W*0.50,H*0.07,Math.round(cs*1.2)); drawCloud(W*0.82,H*0.13,Math.round(cs*0.85));
+      const gTile=Math.round(74/2); const cols=Math.ceil(W/gTile)+1;
+      for(let c=0;c<cols;c++) bx.drawImage(tilesImg,16,0,16,16,c*gTile,gy,gTile,gTile);
+      for(let c=0;c<cols;c++) bx.drawImage(tilesImg,0,0,16,16,c*gTile,gy+gTile,gTile,gTile);
+    } else {
+      bx.fillStyle='#231207'; bx.fillRect(0,gy,W,H-gy);
+    }
+    _bgCache=oc;
   }
 
   // ── Entry point ──
@@ -3344,6 +3389,7 @@ const SFX = (function(){
     canvas.width=window.innerWidth;
     canvas.height=window.innerHeight;
     const W=canvas.width, H=canvas.height, gy=H-74;
+    prebakeScene(W,H);
     const bSize=Math.min(BOX_SIZE, Math.max(72, Math.floor(H*0.12)));
     const boxY=H*0.42;
 
@@ -3413,6 +3459,7 @@ const SFX = (function(){
       G.mario.vy=G.jumpVY;
       G.phase='jump';
     };
+    _onTap=onTap;
     overlay.addEventListener('touchstart',onTap,{passive:false});
     overlay.addEventListener('click',onTap);
 
@@ -3423,5 +3470,11 @@ const SFX = (function(){
 <video id="_camVideo" autoplay playsinline muted style="display:none;position:fixed;pointer-events:none;width:1px;height:1px"></video>
 <canvas id="_camCanvas" style="display:none"></canvas>
 <div id="micDot" style="display:none;position:fixed;bottom:10px;left:10px;z-index:200;width:8px;height:8px;border-radius:50%;background:#e8a000;box-shadow:0 0 6px currentColor;pointer-events:none"></div>
+
+<!-- Broadcast banner — last in body so no ancestor style can clip it -->
+<div id="broadcastBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#e8a000;border-bottom:3px solid #231207;box-shadow:0 4px 0 #231207;padding:clamp(10px,1.8svh,16px) 20px;text-align:center;padding-top:max(clamp(10px,1.8svh,16px),env(safe-area-inset-top))">
+  <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#231207;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">📢 Admin Message</div>
+  <div id="broadcastText" style="font-size:clamp(14px,2.2vw,18px);font-weight:700;color:#231207;font-family:'Inter',sans-serif;line-height:1.4"></div>
+</div>
 </body>
 </html>

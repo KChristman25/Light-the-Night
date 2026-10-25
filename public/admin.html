@@ -1150,6 +1150,19 @@
     </div>
   </div>
 
+  <!-- Station confirm/prompt modal (works on tablets where native confirm/prompt are blocked) -->
+  <div class="modal-bg" id="stActionModalBg" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:340px">
+      <h3 id="stActionTitle"></h3>
+      <div id="stActionMsg" class="muted"></div>
+      <input id="stActionInput" type="text" style="width:100%;margin-top:8px;padding:8px 10px;font-size:14px;border:2px solid var(--border);border-radius:4px;background:var(--panel);color:var(--text);display:none">
+      <div class="actions" style="margin-top:14px">
+        <button class="btn" onclick="closeStActionModal()">Cancel</button>
+        <button class="btn btn-danger" id="stActionOk">OK</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   /* ── Firebase ─────────────────────────────────────────────────────────── */
   firebase.initializeApp({
@@ -1163,7 +1176,6 @@
   let passwordCache   = {};
   let currentConfig   = {};
   let stationLabels   = {};
-  let autoCompleteUnsub = null;
   let totalStationsCache = 0;
   // Keep totalStationsCache in sync with the stations collection globally
   db.collection('stations').onSnapshot(snap=>{
@@ -1171,7 +1183,6 @@
     snap.forEach(doc=>{ if(/^\d+$/.test(doc.id)) max=Math.max(max,Number(doc.id)); });
     totalStationsCache=max;
   },()=>{});
-  const _autoCompleteBusy = new Set();
 
   function clearListeners(){
     listeners.forEach(u => { try { u(); } catch(e){} });
@@ -1259,7 +1270,6 @@
     document.getElementById("sidebar").classList.add('shown');
     document.getElementById("main").style.display = "block";
     showSection('live');
-    startAutoCompleteWatcher();
     startConnectionMonitor();
   }
 
@@ -1885,18 +1895,35 @@ if(id==='allvisitors')  initAllVisitors();
       .then(()=>{ stEl.textContent='✅ Added station '+num; numEl.value=''; lblEl.value=''; setTimeout(()=>stEl.textContent='',2000); })
       .catch(e=>{ stEl.textContent='❌ '+e.message; });
   }
+  let _stActionCb=null;
+  function _showStModal(title, msg, isPrompt, defaultVal, okLabel, okStyle, cb){
+    document.getElementById('stActionTitle').textContent=title;
+    document.getElementById('stActionMsg').textContent=msg;
+    const inp=document.getElementById('stActionInput');
+    if(isPrompt){ inp.style.display='block'; inp.value=defaultVal||''; setTimeout(()=>inp.focus(),80); }
+    else { inp.style.display='none'; }
+    const okBtn=document.getElementById('stActionOk');
+    okBtn.textContent=okLabel||'OK';
+    okBtn.className='btn '+(okStyle||'btn-danger');
+    _stActionCb=cb;
+    okBtn.onclick=()=>{ closeStActionModal(); if(_stActionCb) _stActionCb(isPrompt?inp.value:true); };
+    document.getElementById('stActionModalBg').style.display='flex';
+  }
+  function closeStActionModal(){ document.getElementById('stActionModalBg').style.display='none'; _stActionCb=null; }
   function stRename(id){
     const current = document.getElementById('st-name-'+id);
-    const newName = prompt('New name for station '+id+':', current ? current.textContent : '');
-    if(!newName) return;
-    db.collection('stations').doc(id).set({label:newName},{merge:true});
+    _showStModal('Rename Station '+id,'New name:',true,current?current.textContent:'','Save','btn',(val)=>{
+      if(!val||!val.trim()) return;
+      db.collection('stations').doc(id).set({label:val.trim()},{merge:true});
+    });
   }
   function stToggle(id, currentlyActive){
     db.collection('stations').doc(id).set({active:!currentlyActive},{merge:true});
   }
   function stDelete(id){
-    if(!confirm('Delete station '+id+'? This only removes the config — scan history is kept.')) return;
-    db.collection('stations').doc(id).delete();
+    _showStModal('Delete Station '+id,'This only removes the config — scan history is kept.',false,'','Delete','btn-danger',()=>{
+      db.collection('stations').doc(id).delete();
+    });
   }
   function setLandStation(){
     const id   = document.getElementById('landStationSelect').value;
@@ -2461,42 +2488,6 @@ if(id==='allvisitors')  initAllVisitors();
   function closeScanModal() {
     document.getElementById('scanModalBg').style.display = 'none';
     _scanModalKidId = null;
-  }
-
-  /* ── Auto-complete watcher ────────────────────────────────────────────── */
-  function startAutoCompleteWatcher(){
-    if(autoCompleteUnsub){try{autoCompleteUnsub();}catch(e){} autoCompleteUnsub=null;}
-    autoCompleteUnsub=db.collection("kids").onSnapshot(snap=>{
-      if(!totalStationsCache||totalStationsCache<=0) return;
-      snap.forEach(doc=>{
-        const id=doc.id, data=doc.data()||{};
-        if(data.completed===true) return;
-        if(_autoCompleteBusy.has(id)) return;
-        const scansArr=Array.isArray(data.scans)?data.scans:[];
-        const uniqueStations=[...new Set(scansArr.map(s=>{
-          if(s&&typeof s==='object'&&typeof s.station!=='undefined') return String(s.station);
-          return String(s);
-        }))];
-        if(uniqueStations.length>=totalStationsCache){
-          _autoCompleteBusy.add(id);
-          const start=safeTS(data.mazeStartTime)||safeTS(data.startMaze)||safeTS(data.startCheckIn)||safeTS(data.checkinTime)||new Date();
-          const end=new Date();
-          const now=firebase.firestore.Timestamp.now();
-          const durationMs=Math.max(0,end.getTime()-start.getTime());
-          const autoUpdates={
-            completed:true,completionTime:now,
-            mazeEndTime:now,
-            durationMs,completedBy:"auto",completedReason:"allStationsScanned",next:"leaderboard"
-          };
-          if(!data.mazeStartTime) autoUpdates.mazeStartTime=firebase.firestore.Timestamp.fromDate(start);
-          db.collection("kids").doc(id).set(autoUpdates,{merge:true}).then(()=>{
-            return db.collection("leaderboard").doc("control").set({lastCompletedId:id,ping:Date.now()},{merge:true});
-          }).catch(console.error).finally(()=>{
-            setTimeout(()=>_autoCompleteBusy.delete(id),1500);
-          });
-        }
-      });
-    });
   }
 
   /* ── Broadcast ───────────────────────────────────────────────────────── */

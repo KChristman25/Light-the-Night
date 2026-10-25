@@ -1844,10 +1844,13 @@ async function submitStationCode(code){
   if(!docRef){codeBuffer='';updateDisplay();shakeDisplay();setStatus('Code not found');setTimeout(()=>setStatus(''),2500);return;}
   const name=kidData.name||kidData.displayName||'Participant';
 
-  // Block completed players except at the start station (where they can re-run)
+  // Block completed players except at the start station (where they can re-run).
+  // Bowser always blocks even in multi-scan mode — re-scanning would instantly re-complete them.
   if((kidData.completed===true||kidData.mazeEndTime) && currentStationMode!=='start'){
-    showScanMsg(name+' already finished!','#88d8ff','#88d8ff','rgba(136,216,255,.12)','',3000);
-    return;
+    if(!allowMultiScan || currentStationMode==='bowser'){
+      showScanMsg(name+' already finished!','#88d8ff','#88d8ff','rgba(136,216,255,.12)','',3000);
+      return;
+    }
   }
 
   // Block duplicate scans; in testing mode (allowMultiScan) allow re-entry everywhere including start

@@ -248,23 +248,10 @@
         <div id="mcGpioStatus" class="status"></div>
       </div>
 
-      <!-- AI Quick Sequence -->
-      <div class="scard" style="margin-bottom:16px">
-        <h3>🤖 AI Quick Sequence</h3>
-        <p>Describe a sequence in plain English — AI converts it to steps and runs them live on the Pi.</p>
-        <textarea id="quickSeqText" rows="4" placeholder="e.g. Start cue 11, wait 2 seconds, turn on outlet 3 and flash GPIO pin 26 for 5 seconds with 0.1 second delay between each flash, start cue 12 and wait 10 seconds, then start cue 18 and turn off outlet 3" style="width:100%;padding:10px;border:2px solid var(--ink);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;resize:vertical;line-height:1.5;margin-bottom:10px"></textarea>
-        <div class="row" style="margin-bottom:10px">
-          <button class="on" onclick="parseQuickSeq()">✨ Parse</button>
-          <button id="btnRunQuickSeq" class="toggle" onclick="runQuickSeq()" disabled>▶ Run Now</button>
-        </div>
-        <pre id="quickSeqPreview" style="display:none;background:#f5ecd5;border:2px solid var(--ink);border-radius:4px;padding:12px;font-size:12px;white-space:pre-wrap;margin-bottom:8px"></pre>
-        <div id="quickSeqStatus" class="status"></div>
-      </div>
-
       <!-- Station OSC Events -->
       <div class="scard" style="margin-bottom:16px">
         <h3>📡 Station OSC Events</h3>
-        <p style="margin-bottom:14px">For every event, pick which computer to target and the OSC address to send. ▶ fires a live test. Or use the AI box to auto-fill.</p>
+        <p style="margin-bottom:14px">Each station/event is its own row. Set QLab cue and/or GPIO action, then ▶ to test live.</p>
         <div id="stationOscEventsRoot"></div>
         <div class="row" style="margin-top:14px">
           <button class="on" onclick="saveStationOscCues()">💾 Save OSC Events</button>
@@ -490,7 +477,7 @@ async function emergencyAllOff(){
   const stEl = document.getElementById('emergencyStatus');
   if(stEl) stEl.textContent = 'Sending…';
   try{
-    const outlets = Object.keys(OUTLET_NAMES || {});
+    const outlets = Object.keys(window.OUTLET_NAMES || {});
     await Promise.all(outlets.map(n =>
       QUEUE_COL.add({ outlet:Number(n), state:'off', nonce:mkNonce(),
         ts:firebase.firestore.FieldValue.serverTimestamp(), uid:user.uid, processed:false })
@@ -819,19 +806,12 @@ async function getAnthropicKey(){
   return key;
 }
 
-/* ==== AI Quick Sequence ==== */
-let _parsedQuickSeq = null;
+/* ==== Per-station AI Sequence ==== */
+let _stationGroupAiText = {};   // groupId → plain-English text
+let _stationGroupAiComp = {};   // groupId → computerId for OSC routing
+let _parsedGroupSeqs    = {};   // groupId → parsed steps[]
 
-async function parseQuickSeq(){
-  const text = (document.getElementById('quickSeqText').value||'').trim();
-  const stEl = document.getElementById('quickSeqStatus');
-  const preEl = document.getElementById('quickSeqPreview');
-  if(!text){ stEl.textContent='Enter a description first.'; return; }
-  stEl.textContent='Parsing…'; preEl.style.display='none';
-  document.getElementById('btnRunQuickSeq').disabled=true;
-  try{
-    const apiKey = await getAnthropicKey();
-    const sysPrompt = `You are a show-control sequence parser for a Raspberry Pi-based maze event system. Convert the user's plain-English description into a JSON array of steps. Each step is one of:
+const _SEQ_SYS_PROMPT = `You are a show-control sequence parser for a Raspberry Pi-based maze event system. Convert the user's plain-English description into a JSON array of steps. Each step is one of:
 {"type":"osc","address":"/cue/NUM/start"}
 {"type":"power","outlet":N,"state":"on"|"off"|"toggle"}
 {"type":"gpio","pin":N,"state":"HIGH"|"LOW"}
@@ -839,78 +819,116 @@ async function parseQuickSeq(){
 {"type":"delay","ms":NUMBER}
 
 GPIO rules (Raspberry Pi BCM pin numbers 2–27):
-- "turn on/high gpio pin N" or "gpio pin N on" → {"type":"gpio","pin":N,"state":"HIGH"}
-- "turn off/low gpio pin N" or "gpio pin N off" → {"type":"gpio","pin":N,"state":"LOW"}
-- "flash gpio pin N on and off for X seconds with Y second delay" → {"type":"gpio_flash","pin":N,"durationMs":X*1000,"intervalMs":Y*1000}
-- "flash gpio pin N for X seconds" (no delay given) → intervalMs defaults to 100
-- intervalMs is the duration of each HIGH pulse AND the gap between pulses
+- "turn on/high gpio pin N" → {"type":"gpio","pin":N,"state":"HIGH"}
+- "turn off/low gpio pin N" → {"type":"gpio","pin":N,"state":"LOW"}
+- "flash gpio pin N for X seconds" (no interval given) → intervalMs defaults to 100
+- "flash gpio pin N for X seconds with Y second delay" → {"type":"gpio_flash","pin":N,"durationMs":X*1000,"intervalMs":Y*1000}
 
 OSC rules:
 - "start cue N" / "fire cue N" / "cue N" → {"type":"osc","address":"/cue/N/start"}
-- "wait X seconds for cue to finish" after a cue → add a {"type":"delay","ms":X*1000} immediately after the OSC step
+- "wait X seconds for cue to finish" → add {"type":"delay","ms":X*1000} right after
 
-Sequencing rules:
-- Steps with "and" in the same clause (e.g. "turn on outlet 3 and flash pin 26") → list them back-to-back with NO delay in between
-- "wait X seconds" / "after X seconds" → {"type":"delay","ms":X*1000}
-- A gpio_flash step blocks until the full durationMs has elapsed — no extra delay needed after it
+Sequencing:
+- "turn on outlet 3 and flash pin 26" → list back-to-back with NO delay
+- "wait X seconds" → {"type":"delay","ms":X*1000}
+- gpio_flash blocks for its full durationMs — no extra delay needed after it
 
 Return ONLY a JSON array, no prose, no markdown fences.`;
+
+function _seqPreview(steps){
+  return steps.map((s,i)=>{
+    if(s.type==='osc')        return `${i+1}. OSC → ${s.address}`;
+    if(s.type==='power')      return `${i+1}. Outlet ${s.outlet} → ${(s.state||'').toUpperCase()}`;
+    if(s.type==='gpio')       return `${i+1}. GPIO pin ${s.pin} → ${s.state}`;
+    if(s.type==='gpio_flash') return `${i+1}. Flash pin ${s.pin} ${s.durationMs}ms (${s.intervalMs}ms interval)`;
+    if(s.type==='delay')      return `${i+1}. Wait ${s.ms}ms`;
+    return `${i+1}. ${s.type}`;
+  }).join('\n');
+}
+
+async function _runSteps(steps, stEl, compId){
+  const comp = compId ? (_qlabComputers.find(c=>c.id===compId)||_qlabComputers[0]) : _qlabComputers[0];
+  for(const step of steps){
+    const doc={processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'};
+    if(step.type==='osc'){
+      const oscPayload={...doc,type:'osc',address:normalizeOsc(step.address)};
+      if(comp){oscPayload.qlabIp=comp.ip;oscPayload.qlabPort=comp.port||53000;}
+      await QUEUE_COL.add(oscPayload);
+    }
+    if(step.type==='power')   await QUEUE_COL.add({...doc,type:'power',outlet:step.outlet,state:step.state});
+    if(step.type==='gpio')    await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:step.state});
+    if(step.type==='delay')   await new Promise(r=>setTimeout(r,step.ms||0));
+    if(step.type==='gpio_flash'){
+      const intMs  = step.intervalMs || 100;
+      const cycles = Math.floor((step.durationMs || 1000) / (intMs * 2));
+      for(let i=0; i<cycles; i++){
+        await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'HIGH'});
+        await new Promise(r=>setTimeout(r,intMs));
+        await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
+        if(i < cycles-1) await new Promise(r=>setTimeout(r,intMs));
+        if(stEl) stEl.textContent=`Flashing pin ${step.pin}… ${i+1}/${cycles}`;
+      }
+      await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
+    }
+  }
+}
+
+async function parseGroupAi(groupId){
+  const ta     = document.querySelector(`.grp-ai-ta[data-grp="${groupId}"]`);
+  const stEl   = document.querySelector(`.grp-ai-st[data-grp="${groupId}"]`);
+  const runBtn = document.querySelector(`.grp-ai-run[data-grp="${groupId}"]`);
+  const preEl  = document.querySelector(`.grp-ai-pre[data-grp="${groupId}"]`);
+  if(!ta) return;
+  const text = ta.value.trim();
+  if(!text){ if(stEl) stEl.textContent='Type a description first.'; return; }
+  if(stEl) stEl.textContent='Parsing…';
+  if(runBtn) runBtn.disabled=true;
+  if(preEl) preEl.style.display='none';
+  try{
+    const apiKey = await getAnthropicKey();
     const resp = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,system:sysPrompt,messages:[{role:'user',content:text}]})
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,system:_SEQ_SYS_PROMPT,messages:[{role:'user',content:text}]})
     });
     const data = await resp.json();
     if(!resp.ok) throw new Error(data.error?.message||resp.status);
-    const raw = data.content[0].text.trim();
+    const raw   = data.content[0].text.trim();
     const match = raw.match(/\[[\s\S]*\]/);
     if(!match) throw new Error('No JSON array in response');
-    _parsedQuickSeq = JSON.parse(match[0]);
-    let preview = '';
-    _parsedQuickSeq.forEach((s,i)=>{
-      if(s.type==='osc')        preview+=`${i+1}. OSC → ${s.address}\n`;
-      if(s.type==='power')      preview+=`${i+1}. Outlet ${s.outlet} → ${(s.state||'').toUpperCase()}\n`;
-      if(s.type==='gpio')       preview+=`${i+1}. GPIO pin ${s.pin} → ${s.state}\n`;
-      if(s.type==='gpio_flash') preview+=`${i+1}. Flash GPIO pin ${s.pin} for ${s.durationMs}ms (${s.intervalMs}ms on/off interval → ~${Math.floor(s.durationMs/(s.intervalMs*2))} flashes)\n`;
-      if(s.type==='arduino')    preview+=`${i+1}. Arduino pin ${s.pin} → ${s.state}${s.state==='PULSE'?' ('+(s.pulseMs||500)+'ms)':''}\n`;
-      if(s.type==='delay')      preview+=`${i+1}. Wait ${s.ms}ms\n`;
+    const parsed = JSON.parse(match[0]);
+    _parsedGroupSeqs[groupId]    = parsed;
+    _stationGroupAiText[groupId] = text;
+    const compSelParse = document.querySelector(`.grp-ai-comp[data-grp="${groupId}"]`);
+    if(compSelParse&&compSelParse.value) _stationGroupAiComp[groupId]=compSelParse.value;
+    // Save parsed steps to Firestore so station/rescue pages can auto-execute them
+    const _saveData = {
+      ['stationGroupAiText.'+groupId]:   text,
+      ['stationGroupAiParsed.'+groupId]: parsed,
+    };
+    if(_stationGroupAiComp[groupId]) _saveData['stationGroupAiComp.'+groupId] = _stationGroupAiComp[groupId];
+    CONFIG_DOC.update(_saveData).catch(()=>{
+      CONFIG_DOC.set({stationGroupAiText:{[groupId]:text},stationGroupAiParsed:{[groupId]:parsed}},{merge:true}).catch(()=>{});
     });
-    preEl.textContent=preview.trim(); preEl.style.display='block';
-    document.getElementById('btnRunQuickSeq').disabled=false;
-    stEl.textContent=`✅ ${_parsedQuickSeq.length} steps — hit Run Now to execute.`;
-  }catch(e){ stEl.textContent='❌ '+e.message; }
+    if(preEl){ preEl.textContent=_seqPreview(parsed); preEl.style.display='block'; }
+    if(stEl)  stEl.textContent=`✅ ${parsed.length} steps — hit ▶ to run`;
+    if(runBtn) runBtn.disabled=false;
+  }catch(e){ if(stEl) stEl.textContent='❌ '+e.message; }
 }
 
-async function runQuickSeq(){
-  const stEl = document.getElementById('quickSeqStatus');
-  if(!_parsedQuickSeq||!_parsedQuickSeq.length){ stEl.textContent='Parse a sequence first.'; return; }
-  stEl.textContent='Running…';
-  document.getElementById('btnRunQuickSeq').disabled=true;
+async function runGroupAi(groupId){
+  const stEl    = document.querySelector(`.grp-ai-st[data-grp="${groupId}"]`);
+  const runBtn  = document.querySelector(`.grp-ai-run[data-grp="${groupId}"]`);
+  const compSel = document.querySelector(`.grp-ai-comp[data-grp="${groupId}"]`);
+  const steps   = _parsedGroupSeqs[groupId];
+  if(!steps||!steps.length){ if(stEl) stEl.textContent='Parse first.'; return; }
+  if(stEl) stEl.textContent='Running…';
+  if(runBtn) runBtn.disabled=true;
   try{
-    for(const step of _parsedQuickSeq){
-      const doc={processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'};
-      if(step.type==='osc')     await QUEUE_COL.add({...doc,type:'osc',address:normalizeOsc(step.address)});
-      if(step.type==='power')   await QUEUE_COL.add({...doc,type:'power',outlet:step.outlet,state:step.state});
-      if(step.type==='gpio')    await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:step.state});
-      if(step.type==='arduino') await QUEUE_COL.add({...doc,type:'arduino',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
-      if(step.type==='delay')   await new Promise(r=>setTimeout(r,step.ms||0));
-      if(step.type==='gpio_flash'){
-        const intMs   = step.intervalMs || 100;
-        const cycles  = Math.floor((step.durationMs || 1000) / (intMs * 2));
-        const seqEl   = document.getElementById('quickSeqStatus');
-        for(let i=0; i<cycles; i++){
-          await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'HIGH'});
-          await new Promise(r=>setTimeout(r,intMs));
-          await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
-          if(i < cycles-1) await new Promise(r=>setTimeout(r,intMs));
-          if(seqEl) seqEl.textContent=`Flashing pin ${step.pin}… ${i+1}/${cycles}`;
-        }
-        await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:'LOW'});
-      }
-    }
-    stEl.textContent='✅ Done!';
-  }catch(e){ stEl.textContent='❌ '+e.message; }
-  document.getElementById('btnRunQuickSeq').disabled=false;
+    await _runSteps(steps, stEl, compSel?compSel.value:'');
+    if(stEl) stEl.textContent='✅ Done!';
+  }catch(e){ if(stEl) stEl.textContent='❌ '+e.message; }
+  if(runBtn) runBtn.disabled=false;
 }
 
 /* ==== GPIO Quick Fire (Automation tab) ==== */
@@ -948,7 +966,10 @@ async function testOscCue(inputId, statusId){
   if(!address){ stEl.textContent='Enter a cue address first.'; return; }
   stEl.textContent='Sending…';
   try{
-    await QUEUE_COL.add({type:'osc', address, processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'manual'});
+    const oscDoc={type:'osc',address,processed:false,ts:firebase.firestore.FieldValue.serverTimestamp(),uid:'manual'};
+    const comp=_qlabComputers[0];
+    if(comp){oscDoc.qlabIp=comp.ip;oscDoc.qlabPort=comp.port||53000;}
+    await QUEUE_COL.add(oscDoc);
     stEl.textContent='✅ Sent '+address;
   }catch(e){ stEl.textContent='❌ '+e.message; }
 }
@@ -1020,30 +1041,46 @@ let _qlabComputers = [];
 let _stationOscCues = {};
 let _stationCount = 0;
 
-const OSC_EVENTS_STATIC_PRE = [
-  { key:'maze_start', label:'Maze Entry', group:'Maze', hint:'' },
-];
-const OSC_EVENTS_STATIC_POST = [
-  { key:'bowser_start',    label:'Bowser: Battle Begins', group:'Bowser', hint:'' },
-  { key:'bowser_fire',     label:'Bowser: Fireball',      group:'Bowser', hint:'' },
-  { key:'bowser_defeated', label:'Bowser: Defeated',      group:'Bowser', hint:'' },
-  { key:'peach_rescue',    label:'Peach Rescued',         group:'Peach',  hint:'' },
-  { key:'land_ice',        label:'Land: Ice World',       group:'Lands',  hint:'Music / lighting theme' },
-  { key:'land_water',      label:'Land: Water World',     group:'Lands',  hint:'' },
-  { key:'land_fire',       label:'Land: Fire World',      group:'Lands',  hint:'' },
-  { key:'land_lava',       label:'Land: Lava World',      group:'Lands',  hint:'' },
-  { key:'shell_fired',     label:'Red Shell Fired',       group:'Game',   hint:'' },
-  { key:'mushroom_used',   label:'Mushroom Used',         group:'Game',   hint:'' },
+const STATION_GROUPS_DEF = [
+  { id:'maze',       label:'🏁 Maze Entry',     color:'#dbeafe', accent:'#3b82f6',
+    events:[ {key:'maze_start', label:'Entry Scan'} ] },
+  // Coin stations injected dynamically between maze and bowser
+  { id:'bowser_start',    label:'🦖 Bowser: Battle Begins', color:'#fee2e2', accent:'#dc2626',
+    events:[ {key:'bowser_start',    label:'Battle Begins'} ] },
+  { id:'bowser_fire',     label:'🔥 Bowser: Fireball',      color:'#ffedd5', accent:'#dc2626',
+    events:[ {key:'bowser_fire',     label:'Fireball'} ] },
+  { id:'bowser_defeated', label:'⭐ Bowser: Defeated',       color:'#fef9c3', accent:'#dc2626',
+    events:[ {key:'bowser_defeated', label:'Defeated'} ] },
+  { id:'peach',      label:'👸 Princess Peach',  color:'#fce7f3', accent:'#db2777',
+    events:[ {key:'peach_rescue', label:'Rescued'} ] },
+  { id:'land_ice',   label:'🧊 Ice World',        color:'#e0f2fe', accent:'#0284c7',
+    events:[ {key:'land_ice',   label:'Theme On'} ] },
+  { id:'land_water', label:'🌊 Water World',      color:'#dbeafe', accent:'#1d4ed8',
+    events:[ {key:'land_water', label:'Theme On'} ] },
+  { id:'land_fire',  label:'🔥 Fire World',       color:'#ffedd5', accent:'#ea580c',
+    events:[ {key:'land_fire',  label:'Theme On'} ] },
+  { id:'land_lava',  label:'🌋 Lava World',       color:'#fee2e2', accent:'#b91c1c',
+    events:[ {key:'land_lava',  label:'Theme On'} ] },
+  { id:'shell',      label:'🐚 Red Shell',        color:'#fce7f3', accent:'#be185d',
+    events:[ {key:'shell_fired',   label:'Fired'} ] },
+  { id:'mushroom',   label:'🍄 Mushroom',         color:'#fef9c3', accent:'#ca8a04',
+    events:[ {key:'mushroom_used', label:'Used'} ] },
 ];
 
-function buildOscEvents(){
-  const stations = Array.from({length:_stationCount},(_,i)=>({
-    key:'station_'+(i+1), label:'Station '+(i+1), group:'Stations', hint:''
+function buildStationGroups(){
+  const coinGroups = Array.from({length:_stationCount},(_,i)=>({
+    id:'station_'+(i+1),
+    label:'🪙 Station '+(i+1),
+    color:'#dcfce7', accent:'#16a34a',
+    events:[{key:'station_'+(i+1), label:'Coin Scan'}]
   }));
-  return [...OSC_EVENTS_STATIC_PRE, ...stations, ...OSC_EVENTS_STATIC_POST];
+  return [STATION_GROUPS_DEF[0], ...coinGroups, ...STATION_GROUPS_DEF.slice(1)];
 }
-// Live alias used everywhere
-function getOscEvents(){ return buildOscEvents(); }
+
+// Returns flat event list — used by saveDomOscCues and AI parser
+function getOscEvents(){
+  return buildStationGroups().flatMap(g=>g.events.map(ev=>({...ev, group:g.id})));
+}
 
 function genCompId(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -1115,83 +1152,79 @@ async function deleteQlabComputer(id){
   }catch(e){ document.getElementById('qlabComputerStatus').textContent = '❌ ' + e.message; }
 }
 
-const GROUP_COLORS = {
-  'Maze':'#dbeafe', 'Stations':'#dcfce7', 'Bowser':'#fee2e2',
-  'Peach':'#fce7f3', 'Lands':'#ede9fe', 'Game':'#fef9c3'
-};
-const GROUP_ACCENTS = {
-  'Maze':'#3b82f6', 'Stations':'#16a34a', 'Bowser':'#dc2626',
-  'Peach':'#db2777', 'Lands':'#7c3aed', 'Game':'#d97706'
-};
 
 function renderStationOscEvents(){
   const root = document.getElementById('stationOscEventsRoot');
   if(!root) return;
-  let currentGroup = '';
+  const groups = buildStationGroups();
+  const inp = 'padding:6px 8px;border:2px solid var(--ink);border-radius:4px;font-family:"Inter",sans-serif;font-size:12px;background:#fff;';
   let html = '';
-  const inp = 'padding:7px 9px;border:2px solid var(--ink);border-radius:4px;font-family:"Inter",sans-serif;font-size:13px;background:#fff;';
-  getOscEvents().forEach(ev=>{
-    if(ev.group !== currentGroup){
-      currentGroup = ev.group;
-      const accent = GROUP_ACCENTS[currentGroup]||'#888';
-      html += `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px">
-        <div style="width:10px;height:10px;border-radius:50%;background:${accent};flex-shrink:0"></div>
-        <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${accent};letter-spacing:.05em">${escapeHtml(currentGroup.toUpperCase())}</span>
-        <div style="flex:1;height:2px;background:${accent};opacity:.25;border-radius:1px"></div>
-      </div>`;
-    }
-    const saved   = _stationOscCues[ev.key] || {};
-    const selVal  = saved.computerId || '';
-    const cueVal  = escapeHtml(saved.cue||'');
-    const gpioPin   = saved.arduinoPin   != null ? saved.arduinoPin   : '';
-    const gpioState = saved.arduinoState || 'none';
-    const gpioMs    = saved.arduinoPulseMs || 500;
-    const aiVal   = escapeHtml(_oscAiText[ev.key]||'');
-    const hasCue  = !!(saved.cue);
-    const hasGpio = !!(saved.arduinoPin && saved.arduinoState && saved.arduinoState !== 'none');
-    const dotColor = hasCue ? '#16a34a' : (hasGpio ? '#d97706' : '#c0b8a0');
-    const bgColor  = GROUP_COLORS[ev.group] || '#f9f9f9';
-    const opts = _qlabComputers.map(c=>
-      `<option value="${c.id}"${c.id===selVal?' selected':''}>${escapeHtml(c.name)}</option>`
-    ).join('');
-    html += `
-      <div style="margin-bottom:8px;border:2px solid var(--ink);border-radius:6px;box-shadow:2px 2px 0 var(--ink);overflow:hidden">
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:${bgColor};border-bottom:2px solid rgba(35,18,7,.1)">
-          <span style="width:10px;height:10px;border-radius:50%;background:${dotColor};border:2px solid rgba(35,18,7,.2);flex-shrink:0" title="${hasCue?'OSC configured':hasGpio?'GPIO only':'Not configured'}"></span>
-          <span style="font-size:14px;font-weight:800;flex:1;color:var(--ink)">${escapeHtml(ev.label)}</span>
-          ${ev.hint?`<span style="font-size:11px;color:var(--muted);font-style:italic;margin-right:4px">${escapeHtml(ev.hint)}</span>`:''}
-          <button onclick="testOscEvent('${ev.key}')" style="padding:5px 12px;font-size:12px;font-weight:700;white-space:nowrap;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)">▶ Test</button>
+  groups.forEach(grp=>{
+    html += `<div style="margin-bottom:10px;border:2px solid var(--ink);border-radius:6px;box-shadow:2px 2px 0 var(--ink);overflow:hidden">`;
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:${grp.color};border-bottom:2px solid rgba(35,18,7,.15)">
+      <div style="width:8px;height:8px;border-radius:50%;background:${grp.accent};flex-shrink:0"></div>
+      <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${grp.accent}">${escapeHtml(grp.label)}</span>
+    </div>`;
+    grp.events.forEach((ev,idx)=>{
+      const saved     = _stationOscCues[ev.key]||{};
+      const selVal    = saved.computerId||'';
+      const cueVal    = escapeHtml(saved.cue||'');
+      const gpioPin   = saved.arduinoPin   != null ? saved.arduinoPin   : '';
+      const gpioState = saved.arduinoState || 'none';
+      const gpioMs    = saved.arduinoPulseMs || 500;
+      const hasCue    = !!saved.cue;
+      const hasGpio   = !!(saved.arduinoPin && saved.arduinoState && saved.arduinoState !== 'none');
+      const dot       = hasCue ? '#16a34a' : (hasGpio ? '#d97706' : '#c0b8a0');
+      const opts      = _qlabComputers.map(c=>
+        `<option value="${c.id}"${c.id===selVal?' selected':''}>${escapeHtml(c.name)}</option>`
+      ).join('');
+      const sep = idx > 0 ? 'border-top:1px solid rgba(35,18,7,.08);' : '';
+      html += `<div style="${sep}display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fff;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;min-width:100px;flex-shrink:0">
+          <span style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0" title="${hasCue?'OSC set':hasGpio?'GPIO only':'Not set'}"></span>
+          <span style="font-size:12px;font-weight:700;color:var(--ink)">${escapeHtml(ev.label)}</span>
         </div>
-        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:#fff">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px">QLab</label>
-            <select class="osc-comp-sel" data-key="${ev.key}" style="${inp}flex:0 0 auto;min-width:120px">
-              <option value="">— none —</option>${opts}
-            </select>
-            <input type="text" class="osc-cue-inp" data-key="${ev.key}" value="${cueVal}" placeholder="e.g. 15 or 15 pause" style="${inp}flex:1;min-width:140px"/>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px">GPIO</label>
-            <input type="number" class="osc-gpio-pin" data-key="${ev.key}" value="${gpioPin}" placeholder="pin" min="2" max="27"
-              style="${inp}width:60px" title="Pi GPIO BCM pin (2–27), leave blank to skip"/>
-            <select class="osc-gpio-state" data-key="${ev.key}" style="${inp}">
-              <option value="none"${gpioState==='none'?' selected':''}>— off —</option>
-              <option value="HIGH"${gpioState==='HIGH'?' selected':''}>HIGH</option>
-              <option value="LOW"${gpioState==='LOW'?' selected':''}>LOW</option>
-              <option value="PULSE"${gpioState==='PULSE'?' selected':''}>PULSE</option>
-            </select>
-            <input type="number" class="osc-gpio-ms" data-key="${ev.key}" value="${gpioMs}" placeholder="ms" min="50"
-              style="${inp}width:72px" title="Pulse duration in ms"/>
-            <span style="font-size:12px;color:var(--muted)">ms</span>
-          </div>
-          <div style="display:flex;gap:6px;align-items:flex-start">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;min-width:36px;padding-top:8px">AI</label>
-            <textarea class="osc-ai-ta" data-key="${ev.key}" rows="2" placeholder="Describe what should happen in plain English…" style="flex:1;padding:7px 9px;border:2px solid rgba(35,18,7,.25);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4">${aiVal}</textarea>
-            <button onclick="parseAiForEvent('${ev.key}')" style="padding:7px 11px;font-size:13px;white-space:nowrap;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0;margin-top:0" title="Auto-fill fields with AI">✨</button>
-          </div>
-          <div class="osc-ai-st" data-key="${ev.key}" style="font-size:11px;color:var(--muted);min-height:14px;margin-top:-4px"></div>
+        <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:200px">
+          <span style="font-size:10px;font-weight:700;color:var(--muted);flex-shrink:0">QLab</span>
+          <select class="osc-comp-sel" data-key="${ev.key}" style="${inp}min-width:90px;flex-shrink:0">
+            <option value="">&#8212; none &#8212;</option>${opts}
+          </select>
+          <input type="text" class="osc-cue-inp" data-key="${ev.key}" value="${cueVal}" placeholder="cue #" style="${inp}flex:1;min-width:60px"/>
         </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:10px;font-weight:700;color:var(--muted)">GPIO</span>
+          <input type="number" class="osc-gpio-pin" data-key="${ev.key}" value="${gpioPin}" placeholder="pin" min="2" max="27" style="${inp}width:52px" title="BCM pin 2-27"/>
+          <select class="osc-gpio-state" data-key="${ev.key}" style="${inp}width:72px">
+            <option value="none"${gpioState==='none'?' selected':''}>&#8212; off &#8212;</option>
+            <option value="HIGH"${gpioState==='HIGH'?' selected':''}>HIGH</option>
+            <option value="LOW" ${gpioState==='LOW' ?' selected':''}>LOW</option>
+            <option value="PULSE"${gpioState==='PULSE'?' selected':''}>PULSE</option>
+          </select>
+          <input type="number" class="osc-gpio-ms" data-key="${ev.key}" value="${gpioMs}" placeholder="ms" min="50" style="${inp}width:56px" title="Pulse ms"/>
+          <span style="font-size:11px;color:var(--muted)">ms</span>
+        </div>
+        <button onclick="testOscEvent('${ev.key}')" style="padding:5px 10px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0">&#9654;</button>
       </div>`;
+    });
+    // AI row at the bottom of each station card
+    const aiSaved    = escapeHtml(_stationGroupAiText[grp.id]||'');
+    const aiCompSel  = _stationGroupAiComp[grp.id]||'';
+    const hasSeq     = !!(_parsedGroupSeqs[grp.id]&&_parsedGroupSeqs[grp.id].length);
+    const aiCompOpts = _qlabComputers.map(c=>`<option value="${c.id}"${c.id===aiCompSel?' selected':''}>${escapeHtml(c.name)}</option>`).join('');
+    html += `<div style="border-top:2px solid rgba(35,18,7,.1);padding:8px 12px;background:#fffdf5;display:flex;gap:6px;align-items:flex-start">
+      <span style="font-size:10px;font-weight:700;color:#d97706;min-width:24px;padding-top:7px;flex-shrink:0">AI</span>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
+        ${_qlabComputers.length>1?`<select class="grp-ai-comp" data-grp="${grp.id}" onchange="_stationGroupAiComp['${grp.id}']=this.value" style="${inp}font-size:11px"><option value="">— any QLab —</option>${aiCompOpts}</select>`:`<select class="grp-ai-comp" data-grp="${grp.id}" style="display:none"><option value="${aiCompSel}">${aiCompSel}</option></select>`}
+        <textarea class="grp-ai-ta" data-grp="${grp.id}" rows="2" placeholder="Describe what should happen here in plain English…" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4;width:100%">${aiSaved}</textarea>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <button onclick="parseGroupAi('${grp.id}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Parse with AI">✨</button>
+        <button class="grp-ai-run" data-grp="${grp.id}" onclick="runGroupAi('${grp.id}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Run parsed sequence"${hasSeq?'':' disabled'}>▶</button>
+      </div>
+    </div>
+    <pre class="grp-ai-pre" data-grp="${grp.id}" style="display:none;margin:0;padding:8px 12px;font-size:11px;background:#f5ecd5;border-top:1px solid rgba(35,18,7,.1);white-space:pre-wrap"></pre>
+    <div class="grp-ai-st" data-grp="${grp.id}" style="font-size:11px;color:var(--muted);min-height:0;padding:0 12px 6px"></div>`;
+    html += `</div>`;
   });
   root.innerHTML = html;
 }
@@ -1200,15 +1233,20 @@ async function saveStationOscCues(){
   const stEl = document.getElementById('stationOscStatus');
   stEl.textContent = 'Saving…';
   saveDomOscCues();
-  // Persist AI text from textareas
-  document.querySelectorAll('.osc-ai-ta').forEach(ta=>{
-    const k = ta.dataset.key;
+  // Persist group AI text and computer selections from DOM
+  document.querySelectorAll('.grp-ai-ta').forEach(ta=>{
+    const g = ta.dataset.grp;
     const v = ta.value.trim();
-    if(v) _oscAiText[k] = v;
-    else  delete _oscAiText[k];
+    if(v) _stationGroupAiText[g] = v;
+    else  delete _stationGroupAiText[g];
+  });
+  document.querySelectorAll('.grp-ai-comp').forEach(sel=>{
+    const g = sel.dataset.grp;
+    if(sel.value) _stationGroupAiComp[g] = sel.value;
+    else delete _stationGroupAiComp[g];
   });
   try{
-    await CONFIG_DOC.set({stationOscCues: _stationOscCues, stationOscAiText: _oscAiText}, {merge:true});
+    await CONFIG_DOC.set({stationOscCues: _stationOscCues, stationGroupAiText: _stationGroupAiText, stationGroupAiComp: _stationGroupAiComp, stationGroupAiParsed: _parsedGroupSeqs}, {merge:true});
     stEl.textContent = '✅ OSC cues saved.';
   }catch(e){ stEl.textContent = '❌ ' + e.message; }
 }
@@ -1248,9 +1286,11 @@ async function loadQlabConfig(){
 
     const snap = await CONFIG_DOC.get();
     const d = snap.exists ? (snap.data()||{}) : {};
-    _qlabComputers  = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
-    _stationOscCues = d.stationOscCues || {};
-    _oscAiText      = d.stationOscAiText || {};
+    _qlabComputers       = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
+    _stationOscCues      = d.stationOscCues || {};
+    _oscAiText           = d.stationOscAiText || {};
+    _stationGroupAiText  = d.stationGroupAiText || {};
+    _stationGroupAiComp  = d.stationGroupAiComp || {};
     renderQlabComputers();
     // Legacy backwards compat fields
     if(d.qlabIp)          { const el=document.getElementById('qlabIpInput');          if(el) el.value=d.qlabIp; }

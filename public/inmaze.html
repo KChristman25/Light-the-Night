@@ -264,8 +264,8 @@ function render() {
 
   const rows = inMaze.map(k => {
     const startMs = k.mazeStartTime.toMillis();
-    const hasMushroom = k.mushroomStation && !k.usedMushroom;
-    const hasShell    = k.shellStation    && !k.usedShell;
+    const hasMushroom = !!k.usedMushroom;
+    const hasShell    = k.shellStation && !k.usedShell;
     const savedPeach  = !!k.savedPeach;
     const powerups = [
       hasMushroom ? `<img src="icons/mushroom.png"        alt="Mushroom" title="Has Mushroom">` : '',

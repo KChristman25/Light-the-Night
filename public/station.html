@@ -73,6 +73,11 @@
       position: sticky; top: 0; z-index: 2;
       background: #e52521;
       border-bottom: 3px solid #231207;
+      padding-top: clamp(12px,1.8svh,20px);
+    }
+    body.kiosk header {
+      background: linear-gradient(to bottom, #5c94fc 48px, #e52521 48px);
+      padding-top: 48px;
     }
     header .h {
       display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -133,9 +138,10 @@
       box-shadow: 3px 3px 0 #231207;
       padding: clamp(14px,2vw,18px) var(--pad);
       margin: 10px 0; cursor: pointer; min-height: var(--touch);
+      touch-action: manipulation; -webkit-tap-highlight-color: rgba(255,255,255,.12);
       transition: box-shadow .12s, transform .12s;
     }
-    .bar:hover  { box-shadow: 5px 5px 0 #231207; transform: translate(-1px,-1px); }
+    .bar:hover  { box-shadow: 5px 5px 0 #231207; }
     .bar:active { box-shadow: 1px 1px 0 #231207; transform: translate(1px,1px); }
     .id   { font-family: 'Press Start 2P', monospace; font-size: 12px; color: #e52521; min-width: 52px; }
     .name { font-family: 'Inter', sans-serif; font-size: var(--font-lg); font-weight: 600; color: #231207; flex: 1; }
@@ -174,25 +180,26 @@
     .keypad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: clamp(7px,1.8vw,12px);
+      gap: clamp(9px,2.2vw,16px);
       padding: 0 .25rem .25rem;
     }
     .key-btn {
-      padding: clamp(12px,2.8vw,20px) 8px;
+      padding: clamp(16px,3.4vw,26px) 8px;
       border-radius: 4px;
       border: 3px solid #231207;
       background: #ffffff;
       color: #231207;
       font-family: 'Press Start 2P', monospace;
-      font-size: clamp(14px,2.4vw,18px);
+      font-size: clamp(18px,3vw,24px);
       cursor: pointer;
       box-shadow: 4px 4px 0 #231207;
       transition: box-shadow .08s, transform .08s;
-      min-height: clamp(52px,9vw,68px);
+      min-height: clamp(68px,12vw,90px);
       user-select: none;
       -webkit-user-select: none;
       -webkit-appearance: none;
       appearance: none;
+      touch-action: manipulation;
     }
     .key-btn:hover { background: #f0e8d4; }
     .key-btn:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 #231207; }
@@ -444,7 +451,7 @@
 
       body.kiosk #view-control .keypad-section {
         flex: 0 0 auto;
-        width: clamp(220px, 38vw, 380px);
+        width: clamp(270px, 48vw, 480px);
         min-height: 0; max-height: 100%;
         display: flex; flex-direction: column;
         background: #231207;
@@ -473,7 +480,7 @@
       body.kiosk .key-btn {
         min-height: 0;
         padding: 0;
-        font-size: clamp(16px, 3.2svh, 24px);
+        font-size: clamp(26px, 5svh, 38px);
         background: #3a1f0a; color: #fff; border-color: #e8a000;
         border-width: 2px;
         box-shadow: 2px 2px 0 #e8a000;
@@ -488,13 +495,13 @@
     @media screen and (orientation: landscape) and (min-height: 500px) {
       header .h { padding: clamp(6px,1.2svh,12px) var(--pad); font-size: clamp(9px,1.1vw,13px); }
       body.kiosk #view-control .keypad-section {
-        width: clamp(280px, 40vw, 420px);
+        width: clamp(380px, 56vw, 600px);
         padding: clamp(10px,1.6svh,20px) clamp(14px,2vw,22px);
         border-width: 3px; box-shadow: 5px 5px 0 #e8a000;
       }
       .digit-slot { width: clamp(30px,5.5vw,58px); height: clamp(36px,6svh,58px); font-size: clamp(14px,2.8svh,26px); box-shadow: 3px 3px 0 #231207; }
-      body.kiosk .key-btn { font-size: clamp(16px,2.8svh,26px); border-width: 3px; box-shadow: 4px 4px 0 #e8a000; padding: clamp(4px,0.8svh,12px) 4px; }
-      body.kiosk .keypad { gap: clamp(5px,0.8svh,10px); }
+      body.kiosk .key-btn { font-size: clamp(26px,4.4svh,40px); border-width: 3px; box-shadow: 4px 4px 0 #e8a000; padding: clamp(8px,1.4svh,18px) 4px; }
+      body.kiosk .keypad { gap: clamp(8px,1.2svh,16px); }
       #statusMsg { font-size: 13px; padding: 6px 10px; }
     }
 
@@ -503,9 +510,9 @@
       header .h { font-size: 15px; padding: 14px var(--pad); }
       .wrap { max-width: min(780px, 65vw); }
       .bar { padding: 20px var(--pad); }
-      body.kiosk #view-control .keypad-section { width: clamp(340px,32vw,440px); }
+      body.kiosk #view-control .keypad-section { width: clamp(500px,44vw,660px); }
       .digit-slot { width: clamp(42px,5vw,62px); height: clamp(48px,6svh,68px); font-size: clamp(20px,3svh,30px); }
-      body.kiosk .key-btn { font-size: clamp(18px,2.8svh,28px); }
+      body.kiosk .key-btn { font-size: clamp(28px,4.2svh,42px); }
     }
 
     /* ── Background canvas (sky + SMB clouds + ground) ─────────────── */
@@ -576,9 +583,10 @@
 
     /* ── Station Hub ─────────────────────────────────────── */
     #view-hub, #view-rescue, #view-lands {
-      position: fixed; inset: 0; z-index: 2;
+      position: fixed; inset: 0; z-index: 3;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       overflow-y: auto; -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
       padding: clamp(8px,1.5svh,16px) clamp(16px,4vw,48px) clamp(12px,2svh,24px);
     }
     #view-hub.hide, #view-rescue.hide, #view-lands.hide { display: none; }
@@ -590,6 +598,8 @@
       gap: 16px; padding: clamp(10px,1.6svh,16px) clamp(16px,2.5vw,28px);
       border: 3px solid; border-radius: 4px;
       cursor: pointer; text-align: left; width: 100%; background: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(255,255,255,.12);
     }
     .hub-btn:active { transform: translate(2px,2px); }
     .hub-icon { font-size: clamp(28px,4vw,40px); line-height: 1; flex-shrink: 0; }
@@ -619,7 +629,7 @@
     .hub-btn.hub-lava:active    { box-shadow:1px 1px 0 #ff8800; }
     .hub-btn.hub-start   { background:#003314; border-color:#22c55e; box-shadow:4px 4px 0 #22c55e; }
     .hub-btn.hub-start:active   { box-shadow:1px 1px 0 #22c55e; }
-    .hub-back { font-family:'Press Start 2P',monospace; font-size:9px; background:#3a1f0a; color:#e8a000; border:2px solid #e8a000; border-radius:4px; padding:10px 18px; cursor:pointer; margin-bottom:10px; }
+    .hub-back { font-family:'Press Start 2P',monospace; font-size:9px; background:#3a1f0a; color:#e8a000; border:2px solid #e8a000; border-radius:4px; padding:10px 18px; cursor:pointer; margin-bottom:10px; touch-action: manipulation; }
 
     /* ── Start station countdown overlay ─────────────────────────────────── */
     #startCountdown {
@@ -681,10 +691,10 @@
     #startStatus { font-family:'Press Start 2P',monospace; font-size:9px; color:#f87171; min-height:16px; text-align:center; }
 
     /* Special station header tinting */
-    body.station-shell    header { background:#7a0000; }
-    body.station-mushroom header { background:#7a3300; }
-    body.station-rescue   header { background:#4a1a3a; }
-    body.station-bowser   header { background:#1a3a10; }
+    body.kiosk.station-shell    header { background: linear-gradient(to bottom, #5c94fc 48px, #7a0000 48px); }
+    body.kiosk.station-mushroom header { background: linear-gradient(to bottom, #5c94fc 48px, #7a3300 48px); }
+    body.kiosk.station-rescue   header { background: linear-gradient(to bottom, #5c94fc 48px, #4a1a3a 48px); }
+    body.kiosk.station-bowser   header { background: linear-gradient(to bottom, #5c94fc 48px, #1a3a10 48px); }
     body.station-shell   #view-control .keypad-section { border-color:#e52521 !important; box-shadow:6px 6px 0 #e52521 !important; }
     body.station-mushroom #view-control .keypad-section { border-color:#ff8800 !important; box-shadow:6px 6px 0 #ff8800 !important; }
     body.station-rescue  #view-control .keypad-section { border-color:#ff80cc !important; box-shadow:6px 6px 0 #ff80cc !important; }
@@ -698,10 +708,10 @@
     body.station-lava   #landBg { display:block; background:linear-gradient(180deg,#cc5500 0%,#882200 60%,#331100 100%); }
 
     /* Land station keypad theming */
-    body.station-ice  header { background:#1a6090 !important; }
-    body.station-water header { background:#001a66 !important; }
-    body.station-fire  header { background:#880000 !important; }
-    body.station-lava  header { background:#882200 !important; }
+    body.kiosk.station-ice   header { background: linear-gradient(to bottom, #5c94fc 48px, #1a6090 48px) !important; }
+    body.kiosk.station-water header { background: linear-gradient(to bottom, #5c94fc 48px, #001a66 48px) !important; }
+    body.kiosk.station-fire  header { background: linear-gradient(to bottom, #5c94fc 48px, #880000 48px) !important; }
+    body.kiosk.station-lava  header { background: linear-gradient(to bottom, #5c94fc 48px, #882200 48px) !important; }
 
     body.station-ice  #view-control .keypad-section { background:#071a2a !important; border-color:#88d8ff !important; box-shadow:6px 6px 0 #88d8ff !important; }
     body.station-water #view-control .keypad-section { background:#000d2a !important; border-color:#3366cc !important; box-shadow:6px 6px 0 #3366cc !important; }
@@ -986,7 +996,7 @@
             <button class="key-btn" data-key="9">9</button>
             <div></div>
             <button class="key-btn" data-key="0">0</button>
-            <div></div>
+            <button class="key-btn key-clear" data-key="backspace">⌫</button>
           </div>
 
           <div id="statusMsg"></div>
@@ -1275,6 +1285,43 @@ const QUEUE_COL       = db.collection("webswitch").doc("queueRoot").collection("
 const PHONE_RULES_DOC = db.collection("webswitch").doc("phoneRules");
 let PHONE_RULES = [];
 let _qlabCues = {};
+let _aiParsedGroups = {};   // groupId → steps[]
+let _aiGroupComp    = {};   // groupId → computerId
+let _mcComputers    = [];   // qlabComputers array
+
+// Maps sendConfiguredOsc event keys → Mission Control group IDs
+const EVENT_GROUP_MAP = {
+  maze_start:'maze', peach_rescue:'peach', shell_fired:'shell', mushroom_used:'mushroom',
+  bowser_start:'bowser_start', bowser_fire:'bowser_fire', bowser_defeated:'bowser_defeated',
+  land_ice:'land_ice', land_water:'land_water', land_fire:'land_fire', land_lava:'land_lava',
+};
+
+function _normalizeOsc(raw){
+  raw=(raw||'').trim(); if(!raw) return '';
+  if(raw.startsWith('/')) return raw;
+  const m=raw.match(/^(\d+)\s*(\w+)?$/);
+  if(m) return `/cue/${m[1]}/${(m[2]||'start').toLowerCase()}`;
+  return '/'+raw;
+}
+
+async function runAiGroup(key){
+  const groupId = EVENT_GROUP_MAP[key] || key;
+  const steps = _aiParsedGroups[groupId];
+  if(!steps||!steps.length) return;
+  const compId = _aiGroupComp[groupId];
+  const comp = compId ? (_mcComputers.find(c=>c.id===compId)||_mcComputers[0]) : _mcComputers[0];
+  const base = {processed:false, ts:FSV.serverTimestamp(), uid:'ai:'+key};
+  for(const step of steps){
+    if(step.type==='osc'){
+      const payload={...base,type:'osc',address:_normalizeOsc(step.address)};
+      if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
+      await QUEUE_COL.add(payload);
+    }
+    if(step.type==='gpio')  await QUEUE_COL.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
+    if(step.type==='power') await QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state});
+    if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
+  }
+}
 
 // Sign in anonymously, then start all Firestore listeners
 firebase.auth().signInAnonymously().catch(e=>console.error('anon auth failed',e));
@@ -1315,6 +1362,14 @@ firebase.auth().onAuthStateChanged(user=>{
   PHONE_RULES_DOC.onSnapshot((snap)=>{
     const d = snap.data() || {};
     PHONE_RULES = Array.isArray(d.rules) ? d.rules : [];
+  });
+
+  // Game settings (xray, multi-scan, countdown) — must be inside auth handler
+  db.collection('config').doc('gameSettings').onSnapshot(doc=>{
+    const d = doc.exists ? doc.data() : {};
+    xrayBoxes = d.xrayBoxes === true;
+    allowMultiScan = d.allowMultiScan === true;
+    window._countdownEnabled = d.countdownEnabled !== false;
   });
 });
 
@@ -1551,7 +1606,7 @@ async function pickSpecialStation(mode){
   titleEl.textContent=label;
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
-  const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now(),label},{merge:true}).catch(()=>{});
+  const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,10000);
   startAudioBroadcast(currentStationId);
   codeBuffer='';updateDisplay();setStatus('');
@@ -1575,7 +1630,7 @@ async function pickLandStation(theme){
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
   const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
-  const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now(),label},{merge:true}).catch(()=>{});
+  const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
   _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,10000);
   startAudioBroadcast(currentStationId);
   codeBuffer='';updateDisplay();setStatus('');
@@ -1633,7 +1688,7 @@ async function startControlForStation(){
       if(_lastBeatFn) _lastBeatFn();
     }
   });
-  const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.Timestamp.now()},{merge:true}).catch(()=>{});
+  const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
   _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,10000);
   captureSnapshot().catch(()=>{});
   if(_snapshotInterval)clearInterval(_snapshotInterval);
@@ -1737,6 +1792,10 @@ function updateDisplay(){
 }
 
 function _handleKeyInput(key){
+  if(key==='Backspace'||key==='backspace'){
+    if(codeBuffer.length>0){codeBuffer=codeBuffer.slice(0,-1);updateDisplay();}
+    return;
+  }
   if(/^\d$/.test(key)&&codeBuffer.length<codeLength){
     codeBuffer+=key;updateDisplay();
     if(codeBuffer.length===codeLength){const code=codeBuffer;setTimeout(()=>{codeBuffer='';updateDisplay();if(!checkAdminSecret(code))submitStationCode(code);},180);}
@@ -1779,8 +1838,8 @@ async function submitStationCode(code){
     return;
   }
 
-  // Block duplicate scans (start station always blocks regardless of allowMultiScan)
-  if(!allowMultiScan || currentStationMode==='start'){
+  // Block duplicate scans; in testing mode (allowMultiScan) allow re-entry everywhere including start
+  if(!allowMultiScan){
     const existingScans=Array.isArray(kidData.scans)?kidData.scans:[];
     const already=existingScans.some(s=>String(s)===String(currentStationId));
     if(already){showScanMsg('Already started! '+name,'#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}
@@ -1822,19 +1881,19 @@ async function submitStationCode(code){
   }
 
   if(kidData.frozen){
-    beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
     window.startMarioGame(docRef,kidData,false,true,null); return;
   }
   const now=new Date();
   if(kidData.superMarioActive && kidData.superMarioExpiry && kidData.superMarioExpiry.toDate()>now){
     try{await docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
-    beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
     window.startMarioGame(docRef,kidData,true,false,_powerupType); return;
   }
   if(kidData.superMarioActive){
     try{docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
   }
-  beep(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+  beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
   window.startMarioGame(docRef,kidData,false,false,_powerupType);
 }
 
@@ -1936,10 +1995,13 @@ async function handleStartStation(docRef, kidData){
   }
 
   beep();
+  showSpecialResult('🏁', name, 'GOOD LUCK!', '', 3);
+  sendConfiguredOsc('maze_start').catch(()=>{});
   const doStart = async ()=>{
     const now=firebase.firestore.Timestamp.now();
     await docRef.update({
       scans:FSV.arrayUnion('start'),
+      'scanCounts.start':FSV.increment(1),
       mazeStartTime:now,
       coins:FSV.increment(startCoins)
     }).catch(()=>{});
@@ -1948,14 +2010,15 @@ async function handleStartStation(docRef, kidData){
       coins:startCoins, gameType:'start',
       timestamp:now
     }).catch(()=>{});
-    sendConfiguredOsc('maze_start').catch(()=>{});
     codeBuffer=''; updateDisplay(); setStatus('');
   };
-  if(window._countdownEnabled !== false){
-    runStartCountdown(name, doStart);
-  } else {
-    doStart();
-  }
+  setTimeout(()=>{
+    if(window._countdownEnabled !== false){
+      runStartCountdown(name, doStart);
+    } else {
+      doStart();
+    }
+  }, 3000);
 }
 
 // ── Special result overlay ─────────────────────────────────────
@@ -1984,7 +2047,7 @@ async function handleShellStation(docRef,kidData){
   const finderCoins=CFG.shellStationCoins||0;
   setStatus('Firing shell…');
   try{
-    const updates={scans:FSV.arrayUnion(currentStationId),usedShell:true};
+    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedShell:true};
     if(finderCoins>0) updates.coins=FSV.increment(finderCoins);
     await docRef.update(updates);
     let affected=0,shielded=0;
@@ -2001,7 +2064,7 @@ async function handleShellStation(docRef,kidData){
     await batch.commit();
     await db.collection('scans').add({kidId:docRef.id,name,station:'shell',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now()});
     sendConfiguredOsc('shell_fired').catch(()=>{});
-    setStatus('');
+    setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">','SHELL FIRED!',name+' launched a Red Shell!',
       (finderCoins>0?`+${finderCoins} coins for finder · `:'')+`${affected} players hit · ${shielded} shielded`);
   }catch(e){console.error(e);setStatus('Error — try again');}
@@ -2015,12 +2078,12 @@ async function handleMushroomStation(docRef,kidData){
   setStatus('Granting mushroom…');
   try{
     const expiry=new Date(Date.now()+secs*1000);
-    const updates={scans:FSV.arrayUnion(currentStationId),usedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
+    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
     if(coins>0) updates.coins=FSV.increment(coins);
     await docRef.update(updates);
     await db.collection('scans').add({kidId:docRef.id,name,station:'mushroom',coins,gameType:'mushroom',timestamp:firebase.firestore.Timestamp.now()});
     sendConfiguredOsc('mushroom_used').catch(()=>{});
-    setStatus('');
+    setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">','MUSHROOM!',name+' got a Mushroom!',
       `Shell immunity for ${secs}s`+(coins>0?` · +${coins} coins`:''));
   }catch(e){console.error(e);setStatus('Error — try again');}
@@ -2032,10 +2095,10 @@ async function handleRescueStation(docRef,kidData,character,characterName){
   const bonus=50;
   setStatus('Saving '+characterName+'…');
   try{
-    await docRef.update({scans:FSV.arrayUnion(currentStationId), coins:FSV.increment(bonus), savedPeach:true});
+    await docRef.update({scans:FSV.arrayUnion(currentStationId), ['scanCounts.'+currentStationId]:FSV.increment(1), coins:FSV.increment(bonus), savedPeach:true});
     await db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,coins:bonus,gameType:'rescue',timestamp:firebase.firestore.Timestamp.now()});
     sendConfiguredOsc('peach_rescue').catch(()=>{});
-    setStatus('');
+    setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','Rescued '+characterName+'! +'+bonus+' bonus coins!',8);
   }catch(e){console.error(e);setStatus('Error — try again');}
 }
@@ -2061,6 +2124,7 @@ async function handleBowserStation(docRef,kidData){
   const newBestRun=curBestDur===null||durationMs<curBestDur;
   docRef.update({
     scans:FSV.arrayUnion(currentStationId),
+    ['scanCounts.'+currentStationId]:FSV.increment(1),
     completed:true, mazeEndTime:now, completionTime:now, mazeStartTime:startTime, durationMs,
     bestCoins:      Math.max(kidData.bestCoins||0, kidData.coins||0),
     bestDurationMs: newBestRun ? durationMs : curBestDur,
@@ -2071,6 +2135,7 @@ async function handleBowserStation(docRef,kidData){
   _bowserLobby.push({docRef,kidData,name});
   renderBowserLobby();
   $('bowserLobbyPanel').style.display='block';
+  fireConfetti();
   showScanMsg('+ '+name+' joined!','#4cff50','#248a26','rgba(36,138,38,.12)','',2000);
 }
 
@@ -2185,6 +2250,9 @@ async function loadQlabCues(){
   if(!snap.exists) return;
   const d = snap.data()||{};
   const computers = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
+  _mcComputers     = computers;
+  _aiParsedGroups  = d.stationGroupAiParsed || {};
+  _aiGroupComp     = d.stationGroupAiComp   || {};
   const cues = d.stationOscCues || {};
   _qlabCues = {};
   Object.entries(cues).forEach(([key, cfg])=>{
@@ -2206,18 +2274,21 @@ async function loadQlabCues(){
 }
 async function sendConfiguredOsc(key){
   const cfg = _qlabCues[key];
-  if(!cfg) return;
   const base = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
-  // Fire OSC to QLab if configured
-  if(cfg.cue){
-    const payload = {...base, type:'osc', address:cfg.cue};
-    if(cfg.qlabIp){ payload.qlabIp=cfg.qlabIp; payload.qlabPort=cfg.qlabPort||53000; }
-    await QUEUE_COL.add(payload);
+  if(cfg){
+    // Fire OSC to QLab if configured in the cue # field
+    if(cfg.cue){
+      const payload = {...base, type:'osc', address:cfg.cue};
+      if(cfg.qlabIp){ payload.qlabIp=cfg.qlabIp; payload.qlabPort=cfg.qlabPort||53000; }
+      await QUEUE_COL.add(payload);
+    }
+    // Fire GPIO command if configured
+    if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
+      await QUEUE_COL.add({...base, type:'gpio', pin:cfg.gpioPin, state:cfg.gpioState, pulseMs:cfg.gpioPulseMs||500});
+    }
   }
-  // Fire GPIO command if configured
-  if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
-    await QUEUE_COL.add({...base, type:'gpio', pin:cfg.gpioPin, state:cfg.gpioState, pulseMs:cfg.gpioPulseMs||500});
-  }
+  // Always also run the AI sequence for this event if one is configured
+  runAiGroup(key).catch(()=>{});
 }
 async function runPhoneRuleForStation(stationNum,timing){
   const matchingRules=PHONE_RULES.filter(r=>
@@ -2306,12 +2377,6 @@ function adminChangeStation(){
 
 let xrayBoxes = false;
 let allowMultiScan = false;
-db.collection('config').doc('gameSettings').onSnapshot(doc=>{
-  const d = doc.exists ? doc.data() : {};
-  xrayBoxes = d.xrayBoxes === true;
-  allowMultiScan = d.allowMultiScan === true;
-  window._countdownEnabled = d.countdownEnabled !== false; // default ON
-});
 
 async function showStationHealth(){
   $('adminMenuView').style.display = 'none';
@@ -2354,6 +2419,14 @@ async function showStationHealth(){
 }
 
 
+function fireConfetti(){
+  if(typeof confetti==='function'){
+    confetti({particleCount:55,spread:70,startVelocity:28,gravity:1.1,
+      origin:{x:0.5,y:0.55},
+      colors:['#e8a000','#e52521','#4cff50','#88d8ff','#ff80cc','#ffffff']});
+  }
+}
+
 function showScanMsg(msg,color,border,bg,hint,dur){
   clearTimeout(window.__scanTO);
   statusMsg.style.cssText='display:block;margin-top:10px;text-align:center;font-size:16px;font-weight:700;padding:12px 14px;border-radius:8px;letter-spacing:.01em;';
@@ -2374,6 +2447,36 @@ function showScanMsg(msg,color,border,bg,hint,dur){
   },dur);
 }
 
+
+// Hub sections: fire buttons immediately on touchend so iOS doesn't eat taps
+(function(){
+  function hubTouchDelegate(section){
+    let _ty=0;
+    section.addEventListener('touchstart',e=>{_ty=e.touches[0].clientY;},{passive:true});
+    section.addEventListener('touchend',e=>{
+      const btn=e.target.closest('.hub-btn,.hub-back');
+      if(!btn)return;
+      if(Math.abs(e.changedTouches[0].clientY-_ty)>14)return;
+      e.preventDefault();
+      btn.click();
+    },{passive:false});
+  }
+  ['view-hub','view-rescue','view-lands'].forEach(id=>{const el=document.getElementById(id);if(el)hubTouchDelegate(el);});
+  // Same fast-tap for the station list bars
+  (function(){
+    let _ty=0;
+    const listSection=document.getElementById('list');
+    if(!listSection)return;
+    listSection.addEventListener('touchstart',e=>{_ty=e.touches[0].clientY;},{passive:true});
+    listSection.addEventListener('touchend',e=>{
+      const bar=e.target.closest('.bar');
+      if(!bar)return;
+      if(Math.abs(e.changedTouches[0].clientY-_ty)>14)return;
+      e.preventDefault();
+      bar.click();
+    },{passive:false});
+  })();
+})();
 
 (function initSecrets(){
   const seq=['TL','TR','BR','BL'];let progress=[];
@@ -2941,7 +3044,7 @@ const SFX = (function(){
     (async()=>{
       try{
         if(!G.isPowerupMode && !G.isFrozen){
-          await G.kidRef.update({scans:FSV.arrayUnion(currentStationId)});
+          await G.kidRef.update({scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1)});
           await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
             station:currentStationId,coins:0,gameType:'timed_out',timestamp:firebase.firestore.Timestamp.now()});
           lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
@@ -3066,9 +3169,8 @@ const SFX = (function(){
   // ── Firebase writes ──
   async function applyCoins(amount){
     try{
-      await G.kidRef.update({scans:FSV.arrayUnion(currentStationId),coins:FSV.increment(amount)});
-      const snap = await G.kidRef.get();
-      const actualCoins = snap.data()?.coins ?? (G.kidData.coins||0) + amount;
+      await G.kidRef.update({scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(amount)});
+      const actualCoins = (G.kidData.coins||0) + amount;
       // fire-and-forget remaining writes so animation doesn't wait on them
       db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
         station:currentStationId,coins:amount,gameType:G.targetBox.type,
@@ -3082,7 +3184,7 @@ const SFX = (function(){
 
   async function applyShell(){
     try{
-      const shellUpd={scans:FSV.arrayUnion(currentStationId),coins:FSV.increment(CFG.coinsMin)};
+      const shellUpd={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(CFG.coinsMin)};
       if(G.powerupType==='shell') shellUpd.usedShell=true;
       await G.kidRef.update(shellUpd);
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
@@ -3122,6 +3224,7 @@ const SFX = (function(){
       const expiry=new Date(Date.now()+CFG.powerupSeconds*1000);
       const mushUpd={
         scans:FSV.arrayUnion(currentStationId),
+        ['scanCounts.'+currentStationId]:FSV.increment(1),
         superMarioActive:true,
         superMarioExpiry:firebase.firestore.Timestamp.fromDate(expiry),
         shellShield:true
@@ -3138,7 +3241,7 @@ const SFX = (function(){
 
   async function applyFrozen(){
     try{
-      await G.kidRef.update({frozen:FSV.delete(),scans:FSV.arrayUnion(currentStationId)});
+      await G.kidRef.update({frozen:FSV.delete(),scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1)});
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
         station:currentStationId,coins:0,gameType:'frozen_shell',timestamp:firebase.firestore.Timestamp.now()});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';

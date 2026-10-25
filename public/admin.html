@@ -591,11 +591,20 @@
         <tbody id="stationsTable"></tbody>
       </table>
 
+      <h3 style="margin-top:28px">⭐ Special Stations</h3>
+      <p style="color:var(--muted-dk);font-size:13px;margin-bottom:8px">Start line, powerup stations, rescue, and final boss — status updates every 30 seconds.</p>
+      <table>
+        <thead>
+          <tr><th>Station</th><th>Status</th><th>Last Heartbeat</th></tr>
+        </thead>
+        <tbody id="specialStationsTable"></tbody>
+      </table>
+
       <h3 style="margin-top:28px">🌍 Land Stations</h3>
       <p style="color:var(--muted-dk);font-size:13px;margin-bottom:8px">The 4 themed land stations — players scan here and play the coin game with a themed background.</p>
       <table>
         <thead>
-          <tr><th>Theme</th><th>Name</th><th></th></tr>
+          <tr><th>Theme</th><th>Name</th><th>Status</th><th>Last Heartbeat</th><th></th></tr>
         </thead>
         <tbody id="landStationsTable"></tbody>
       </table>
@@ -1355,13 +1364,23 @@ if(id==='allvisitors')  initAllVisitors();
           const d=doc.data()||{};
           if(!d.name) return;
           const raw=Array.isArray(d.scans)?d.scans:[];
-          const done=new Set(raw.map(s=>{
-            if(typeof s==='string'||typeof s==='number') return String(parseInt(s,10));
-            if(s&&typeof s==='object'&&s.station!=null) return String(parseInt(s.station,10));
-            return null;
-          }).filter(x=>x&&x!=='NaN'));
+          // visited: which stations have been scanned (deduped)
+          const visited=new Set();
+          raw.forEach(s=>{
+            let id;
+            if(typeof s==='string'||typeof s==='number'){ const n=parseInt(s,10); id=isNaN(n)?String(s):String(n); }
+            else if(s&&typeof s==='object'&&s.station!=null){ const n=parseInt(s.station,10); id=isNaN(n)?String(s.station):String(n); }
+            if(id&&id!=='NaN') visited.add(id);
+          });
+          // counts: total scan attempts per station (from scanCounts map)
+          const sc=d.scanCounts&&typeof d.scanCounts==='object'?d.scanCounts:{};
+          const counts={};
+          visited.forEach(id=>{ counts[id]=sc[id]||1; });
+          if(sc['start']) counts['start']=sc['start'];
+          const done=new Set([...visited].filter(k=>!isNaN(Number(k))));
           _pgKidsMap[doc.id]={
-            id: doc.id, name:d.name, done,
+            id: doc.id, name:d.name, done, counts,
+            start:   visited.has('start'),
             peach:   !!d.savedPeach,
             mushroom:!!d.usedMushroom,
             shell:   !!d.usedShell,
@@ -1387,7 +1406,9 @@ if(id==='allvisitors')  initAllVisitors();
       table.innerHTML='<thead><tr><th>Name</th><th style="color:#8b6040">No stations registered yet.</th></tr></thead><tbody></tbody>';
       return;
     }
+    const pgBadge=(n)=>n>0?`<span style="position:absolute;top:-4px;right:-5px;font-size:9px;font-weight:700;color:#374151;line-height:1">${n}</span>`:'';
     let head='<thead><tr><th>Name</th>';
+    head+='<th style="text-align:center;min-width:32px" title="Start Line">🏁</th>';
     for(let i=1;i<=total;i++) head+=`<th style="text-align:center;min-width:32px">${i}</th>`;
     head+='<th style="text-align:center;min-width:32px" title="Mushroom"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Red Shell"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></th>';
@@ -1402,15 +1423,25 @@ if(id==='allvisitors')  initAllVisitors();
       const allDone=stationsDone>=total;
       body+=`<tr${allDone?' style="background:rgba(74,222,128,.04)"':''}>`;
       body+=`<td style="font-weight:600;white-space:nowrap">${escapeHtml(kid.name)}${allDone?' <span style="color:#4ade80;font-size:11px">✓</span>':''}</td>`;
+      const sc=kid.counts['start']||0;
+      body+=sc
+        ? `<td style="text-align:center"><span title="Click to remove Start scan" style="cursor:pointer;font-size:15px;position:relative;display:inline-block" onclick="pgUncheckStart('${kid.id}')">🏁${pgBadge(sc)}</span></td>`
+        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
       for(let i=1;i<=total;i++){
-        const done=kid.done.has(String(i));
-        body+=done
-          ? `<td style="text-align:center"><span title="Click to remove station ${i}" style="cursor:pointer;color:#16a34a;font-size:16px" onclick="pgUncheckStation('${kid.id}',${i})">✓</span></td>`
+        const n=kid.counts[String(i)]||0;
+        body+=n
+          ? `<td style="text-align:center"><span title="Click to remove station ${i}" style="cursor:pointer;color:#16a34a;font-size:16px;position:relative;display:inline-block" onclick="pgUncheckStation('${kid.id}',${i})">✓${pgBadge(n)}</span></td>`
           : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
       }
-      body+=`<td style="text-align:center">${kid.mushroom?'<img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle">':'<span style="color:#d1d5db">·</span>'}</td>`;
-      body+=`<td style="text-align:center">${kid.shell?'<img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle">':'<span style="color:#d1d5db">·</span>'}</td>`;
-      body+=`<td style="text-align:center">${kid.peach?'<img src="icons/princess_peach.png" style="height:16px;width:auto;vertical-align:middle">':'<span style="color:#d1d5db">·</span>'}</td>`;
+      body+=kid.mushroom
+        ? `<td style="text-align:center"><span title="Click to remove Mushroom" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','usedMushroom','mushroom for ${escapeHtml(kid.name)}')"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></span></td>`
+        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+      body+=kid.shell
+        ? `<td style="text-align:center"><span title="Click to remove Red Shell" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','usedShell','red shell for ${escapeHtml(kid.name)}')"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></span></td>`
+        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+      body+=kid.peach
+        ? `<td style="text-align:center"><span title="Click to remove Saved Peach" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','savedPeach','Peach rescue for ${escapeHtml(kid.name)}')"><img src="icons/princess_peach.png" style="height:16px;width:auto;vertical-align:middle"></span></td>`
+        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
       body+=kid.castle
         ? `<td style="text-align:center"><span title="Click to un-finish (send back to maze)" style="cursor:pointer;font-size:15px" onclick="pgUncheckCastle('${kid.id}','${escapeHtml(kid.name)}')">🏰</span></td>`
         : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
@@ -1434,6 +1465,27 @@ if(id==='allvisitors')  initAllVisitors();
         return true;
       });
       await db.collection('kids').doc(docId).update({scans:filtered});
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgUncheckStart(docId){
+    if(!confirm('Remove Start Line scan for this player?')) return;
+    try{
+      const snap=await db.collection('kids').doc(docId).get();
+      const scans=Array.isArray(snap.data()?.scans)?snap.data().scans:[];
+      const filtered=scans.filter(s=>{
+        if(typeof s==='string') return s!=='start';
+        if(s&&typeof s==='object'&&s.station!=null) return s.station!=='start';
+        return true;
+      });
+      await db.collection('kids').doc(docId).update({scans:filtered,mazeStartTime:firebase.firestore.FieldValue.delete()});
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgUncheckField(docId, field, label){
+    if(!confirm(`Remove ${label}?`)) return;
+    try{
+      await db.collection('kids').doc(docId).update({[field]: firebase.firestore.FieldValue.delete()});
     }catch(e){ alert('Error: '+e.message); }
   }
 
@@ -1530,24 +1582,41 @@ if(id==='allvisitors')  initAllVisitors();
 
     // ── Station health grid ──────────────────────────────────────────────────
     let dashTotalSt = 0, dashStData = {};
-    const STATION_TH = 30000;
+    const STATION_TH = 90000;
+    const SPECIAL_STATIONS=[
+      {id:'start',       icon:'🏁', label:'Start'},
+      {id:'rescue_peach',icon:'👸', label:'Peach'},
+      {id:'bowser',      icon:'🏰', label:'Bowser'},
+      {id:'land_ice',    icon:'🧊', label:'Ice'},
+      {id:'land_water',  icon:'🌊', label:'Water'},
+      {id:'land_fire',   icon:'🔥', label:'Fire'},
+      {id:'land_lava',   icon:'🌋', label:'Lava'},
+    ];
+    function stationTile(id, display, d){
+      const hb=(d.heartbeat?.toMillis?.())||(d.heartbeat?.seconds?d.heartbeat.seconds*1000:0);
+      const age=Date.now()-hb;
+      const online=d.active!==false&&hb>0&&age<STATION_TH;
+      const color=online?'#4ade80':'#f87171';
+      const borderColor=online?'#4ade80':'#374151';
+      return `<div title="${display} — ${online?'Online':'Offline'}"
+        style="min-width:48px;padding:7px 10px;border-radius:8px;background:#fff;border:2px solid ${borderColor};text-align:center;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+        <div style="font-size:16px;font-weight:700;color:${color}">${display}</div>
+        <div style="font-size:9px;color:${color};margin-top:1px;letter-spacing:.05em">${online?'ON':'OFF'}</div>
+      </div>`;
+    }
     function renderDashStations(){
       const grid = document.getElementById('dashStationGrid');
-      if(!dashTotalSt){ grid.innerHTML='<span style="color:#8b6040;font-size:13px">No stations configured yet.</span>'; return; }
-      grid.innerHTML = Array.from({length:dashTotalSt},(_,i)=>{
+      const numbered = Array.from({length:dashTotalSt},(_,i)=>{
         const id=String(i+1), d=dashStData[id]||{};
-        const hb=(d.heartbeat?.toMillis?.())||(d.heartbeat?.seconds?d.heartbeat.seconds*1000:0);
-        const age=Date.now()-hb;
-        const online=d.active!==false&&age<STATION_TH;
-        const color=online?'#4ade80':'#f87171';
-        const borderColor=online?'#4ade80':'#374151';
-        const label=d.label||('Station '+id);
-        return `<div title="${label} — ${online?'Online':'Offline'}"
-          style="min-width:48px;padding:7px 10px;border-radius:8px;background:#fff;border:2px solid ${borderColor};text-align:center;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,.05)">
-          <div style="font-size:16px;font-weight:700;color:${color}">${id}</div>
-          <div style="font-size:9px;color:${color};margin-top:1px;letter-spacing:.05em">${online?'ON':'OFF'}</div>
-        </div>`;
-      }).join('');
+        return stationTile(id, id, d);
+      });
+      const special = SPECIAL_STATIONS.map(({id,icon,label})=>
+        stationTile(id, icon, dashStData[id]||{})
+      );
+      if(!dashTotalSt && special.every(s=>s.includes('OFF'))){
+        grid.innerHTML='<span style="color:#8b6040;font-size:13px">No stations configured yet.</span>'; return;
+      }
+      grid.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">${[...numbered,...special].join('')}</div>`;
     }
     listeners.push(db.collection('stations').onSnapshot(snap=>{
       dashStData={};
@@ -1556,6 +1625,8 @@ if(id==='allvisitors')  initAllVisitors();
       dashTotalSt=max;
       renderDashStations();
     }));
+    // Refresh status display every 15s so age-based Online/Offline stays current
+    setInterval(renderDashStations, 15000);
 
     // ── Camera access status ──────────────────────────────────────────────────
     listeners.push(db.collection('config').doc('cameras').onSnapshot(doc=>{
@@ -1669,7 +1740,7 @@ if(id==='allvisitors')  initAllVisitors();
     land_lava:  {icon:'🌋', name:'Lava World'}
   };
   function initStations(){
-    const TH=30000; let data={};
+    const TH=90000; let data={};
     listeners.push(
       db.collection("config").doc("config").onSnapshot(doc=>{
         const cfg=doc.data()||{};
@@ -1686,6 +1757,7 @@ if(id==='allvisitors')  initAllVisitors();
         data = {};
         snap.forEach(d=> data[d.id] = d.data());
         render();
+        renderSpecialStations();
         renderLandStations();
       })
     );
@@ -1712,14 +1784,40 @@ if(id==='allvisitors')  initAllVisitors();
         </tr>`;
       }).join('');
     }
+    const SPECIAL_STATION_DEFS=[
+      {id:'start',        icon:'🏁', label:'Start Line'},
+      {id:'rescue_peach', icon:'👸', label:'Rescue: Princess Peach'},
+      {id:'bowser',       icon:'🏰', label:'Fight Bowser'},
+    ];
+    function _stStatus(d){
+      const hb=(d.heartbeat?.toMillis?.())||(d.heartbeat?.seconds?d.heartbeat.seconds*1000:0);
+      const age=Date.now()-hb;
+      const onln=d.active!==false&&hb>0&&age<TH;
+      return {onln, hbStr: hb?new Date(hb).toLocaleTimeString():'—'};
+    }
+    function renderSpecialStations(){
+      const tbody=document.getElementById('specialStationsTable');
+      if(!tbody) return;
+      tbody.innerHTML=SPECIAL_STATION_DEFS.map(({id,icon,label})=>{
+        const {onln,hbStr}=_stStatus(data[id]||{});
+        return `<tr>
+          <td>${icon} ${label}</td>
+          <td><span style="color:${onln?'#4ade80':'#f87171'}">${onln?'● Online':'● Offline'}</span></td>
+          <td style="color:var(--muted-dk);font-size:12px">${hbStr}</td>
+        </tr>`;
+      }).join('');
+    }
     function renderLandStations(){
       const tbody = document.getElementById('landStationsTable');
       if(!tbody) return;
       tbody.innerHTML = Object.entries(LAND_DEFAULTS).map(([id, def])=>{
         const d = data[id]||{};
+        const {onln,hbStr}=_stStatus(d);
         return `<tr>
           <td>${def.icon} ${id.split('_')[1].charAt(0).toUpperCase()+id.split('_')[1].slice(1)}</td>
           <td>${d.label||def.name}</td>
+          <td><span style="color:${onln?'#4ade80':'#f87171'}">${onln?'● Online':'● Offline'}</span></td>
+          <td style="color:var(--muted-dk);font-size:12px">${hbStr}</td>
           <td><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--muted-dk)" onclick="stRename('${id}')">Rename</button></td>
         </tr>`;
       }).join('');
@@ -1822,7 +1920,7 @@ if(id==='allvisitors')  initAllVisitors();
           <td><input type="number" min="0" style="width:72px" value="${D.coins!=null?D.coins:0}" onchange="updateCoins('${id}',this.value)"/></td>
           <td><button class="btn btn-sm" style="background:var(--panel);color:var(--text);border:1px solid var(--border);box-shadow:none" onclick="openScansModal('${id}')">📍 ${count}</button></td>
           <td style="font-size:12px;white-space:nowrap">${fmtBoxAssign(D)}</td>
-          <td>${D.completed?'✅':'🚀'}</td>
+          <td>${D.completed?'✅':'—'}</td>
           <td>${D.durationMs!=null?formatTime(D.durationMs):'N/A'}</td>
           <td>${missingCell}</td>
           <td>
@@ -2891,34 +2989,51 @@ Return ONLY a JSON array, no prose.`;
     }catch(e){ stEl.textContent='❌ '+e.message; }
   }
 
+  async function _getFirstQlabComp(){
+    try{
+      const snap = await db.collection('webswitch').doc('config').get();
+      const computers = snap.exists ? (Array.isArray(snap.data().qlabComputers)?snap.data().qlabComputers:[]) : [];
+      return computers[0]||null;
+    }catch(_){ return null; }
+  }
+
+  function _normalizeOscAddr(raw){
+    raw=(raw||'').trim(); if(!raw) return raw;
+    if(raw.startsWith('/')) return raw;
+    const m=raw.match(/^(\d+)\s*(\w+)?$/);
+    if(m) return `/cue/${m[1]}/${(m[2]||'start').toLowerCase()}`;
+    return '/'+raw;
+  }
+
+  async function _runStepsAdmin(steps, stEl, statusDone){
+    const comp = await _getFirstQlabComp();
+    for(const step of steps){
+      const doc={processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'showcontrol'};
+      if(step.type==='osc'){
+        const payload={...doc, type:'osc', address:_normalizeOscAddr(step.address)};
+        if(comp){ payload.qlabIp=comp.ip; payload.qlabPort=comp.port||53000; }
+        await QUEUE_COL2.add(payload);
+      }
+      if(step.type==='power') await QUEUE_COL2.add({...doc, type:'power', outlet:step.outlet, state:step.state});
+      if(step.type==='delay') await new Promise(r=>setTimeout(r, step.ms||0));
+    }
+    if(stEl) stEl.textContent=statusDone;
+  }
+
   async function runShowSequence(){
     const stEl = document.getElementById('showStatus');
     if(!_showSequence||!_showSequence.length){ stEl.textContent='⚠️ No sequence saved — parse and save one first.'; return; }
     stEl.textContent='Running…';
-    try{
-      for(const step of _showSequence){
-        const doc = {processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'showcontrol'};
-        if(step.type==='osc')   await QUEUE_COL2.add({...doc, type:'osc', address:step.address});
-        if(step.type==='power') await QUEUE_COL2.add({...doc, type:'power', outlet:step.outlet, state:step.state});
-        if(step.type==='delay') await new Promise(r=>setTimeout(r, step.ms||0));
-      }
-      stEl.textContent='✅ Show started!';
-    }catch(e){ stEl.textContent='❌ '+e.message; }
+    try{ await _runStepsAdmin(_showSequence, stEl, '✅ Show started!'); }
+    catch(e){ stEl.textContent='❌ '+e.message; }
   }
 
   async function stopShow(){
     const stEl = document.getElementById('showStatus');
     if(!_stopSequence||!_stopSequence.length){ stEl.textContent='⚠️ No stop sequence saved — parse and save one first.'; return; }
     stEl.textContent='Stopping…';
-    try{
-      for(const step of _stopSequence){
-        const doc = {processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'showcontrol'};
-        if(step.type==='osc')   await QUEUE_COL2.add({...doc, type:'osc', address:step.address});
-        if(step.type==='power') await QUEUE_COL2.add({...doc, type:'power', outlet:step.outlet, state:step.state});
-        if(step.type==='delay') await new Promise(r=>setTimeout(r, step.ms||0));
-      }
-      stEl.textContent='■ Show stopped.';
-    }catch(e){ stEl.textContent='❌ '+e.message; }
+    try{ await _runStepsAdmin(_stopSequence, stEl, '■ Show stopped.'); }
+    catch(e){ stEl.textContent='❌ '+e.message; }
   }
 
   function triggerEvent(){ /* placeholder — wired up later */ }
@@ -2952,10 +3067,11 @@ Return ONLY a JSON array, no prose.`;
         const wc = wcSnap.exists ? (wcSnap.data()||{}) : {};
         const cues = wc.stationOscCues || {};
         const computers = Array.isArray(wc.qlabComputers) ? wc.qlabComputers : [];
+        const QUEUE = db.collection('webswitch').doc('queueRoot').collection('queue');
+        const base = {processed:false, ts:firebase.firestore.Timestamp.now(), uid:'admin:shell_fired'};
+        // Fire stationOscCues entry if set
         const cfg = cues['shell_fired'];
         if(cfg){
-          const QUEUE = db.collection('webswitch').doc('queueRoot').collection('queue');
-          const base = {processed:false, ts:firebase.firestore.Timestamp.now(), uid:'admin:shell_fired'};
           if(cfg.cue){
             const comp = computers.find(c=>c.id===cfg.computerId);
             const payload = {...base, type:'osc', address:cfg.cue};
@@ -2964,6 +3080,24 @@ Return ONLY a JSON array, no prose.`;
           }
           if(cfg.arduinoPin && cfg.arduinoState && cfg.arduinoState!=='none'){
             await QUEUE.add({...base, type:'gpio', pin:Number(cfg.arduinoPin), state:cfg.arduinoState, pulseMs:cfg.arduinoPulseMs||500});
+          }
+        }
+        // Fire AI group steps for 'shell' group
+        const aiParsed = wc.stationGroupAiParsed||{};
+        const aiComp   = wc.stationGroupAiComp||{};
+        const steps    = aiParsed['shell'];
+        if(steps&&steps.length){
+          const compId = aiComp['shell'];
+          const comp   = compId ? computers.find(c=>c.id===compId)||computers[0] : computers[0];
+          for(const step of steps){
+            if(step.type==='osc'){
+              const payload={...base,type:'osc',address:_normalizeOscAddr(step.address)};
+              if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
+              await QUEUE.add(payload);
+            }
+            if(step.type==='gpio') await QUEUE.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
+            if(step.type==='power') await QUEUE.add({...base,type:'power',outlet:step.outlet,state:step.state});
+            if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
           }
         }
       }catch(e){ console.warn('shell OSC error:', e); }

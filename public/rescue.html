@@ -112,20 +112,21 @@
     /* ── Keypad ── */
     .keypad {
       display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 12px; width: 100%; max-width: 320px;
+      gap: 18px; width: 100%; max-width: 480px;
     }
     .key {
-      height: clamp(64px, 10vh, 88px);
+      height: clamp(90px, 15vh, 124px);
       background: #fff; border: 3px solid var(--dark);
       border-radius: 8px; box-shadow: 4px 4px 0 var(--dark);
-      font-family: 'Press Start 2P', monospace; font-size: clamp(16px,3vw,22px);
+      font-family: 'Press Start 2P', monospace; font-size: clamp(26px,5vw,36px);
       color: var(--dark); cursor: pointer; display: flex;
       align-items: center; justify-content: center;
       transition: transform .07s, box-shadow .07s;
+      touch-action: manipulation;
     }
     .key:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 var(--dark); }
     .key.clear { background: #fde8d4; color: var(--red); }
-    .key.enter { background: var(--green); color: #fff; font-size: clamp(12px,2.2vw,16px); }
+    .key.enter { background: var(--green); color: #fff; font-size: clamp(14px,2.8vw,20px); }
     .key.enter:disabled { opacity: .4; cursor: not-allowed; }
     .key-zero { grid-column: 2; }
 
@@ -197,34 +198,74 @@ const STATION_ID = new URLSearchParams(location.search).get('id') || '';
 const QUEUE_COL  = db.collection("webswitch").doc("queueRoot").collection("queue");
 
 /* ── State ── */
-let codeLength   = 6;
-let stationCfg   = null;   // { name, pointCost, outlet, rescued }
-let codeBuffer   = '';
-let busy         = false;
+let codeLength = 6;
+let stationCfg = null;
+let codeBuffer = '';
+let busy       = false;
 
-/* ── Auth ── */
-auth.signInAnonymously().catch(()=>{});
-
-/* ── Load station config ── */
-if(!STATION_ID){
-  document.getElementById('stationName').textContent = 'No station ID in URL';
-  document.getElementById('stationName').style.color = '#ffd0d0';
-} else {
-  db.collection('rescueStations').doc(STATION_ID).onSnapshot(snap=>{
-    if(!snap.exists){ document.getElementById('stationName').textContent = 'Station not found: '+STATION_ID; return; }
-    stationCfg = snap.data();
-    document.getElementById('stationName').textContent = stationCfg.name || STATION_ID;
-    document.getElementById('costBadge').innerHTML = '<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> '+( stationCfg.pointCost||0)+' points to rescue';
-    document.getElementById('rescuedBanner').style.display = stationCfg.rescued ? 'block' : 'none';
-    document.getElementById('keypad').style.opacity = stationCfg.rescued ? '0.4' : '1';
-  });
+function normalizeOsc(raw){
+  raw=(raw||'').trim(); if(!raw) return '';
+  if(raw.startsWith('/')) return raw;
+  const m=raw.match(/^(\d+)\s*(\w+)?$/);
+  if(m) return `/cue/${m[1]}/${(m[2]||'start').toLowerCase()}`;
+  return '/'+raw;
 }
 
-/* ── Code length from global config ── */
-db.collection('config').doc('config').onSnapshot(snap=>{
-  const d = snap.exists ? snap.data() : {};
-  codeLength = (Number.isInteger(d.codeLength) && d.codeLength >= 1) ? d.codeLength : 6;
-  buildSlots();
+/* ── Fire automation steps fetched fresh from Firestore ── */
+async function fireAutomation(){
+  const snap = await db.collection('webswitch').doc('config').get();
+  if(!snap.exists) return '⚠️ No MC config';
+  const d = snap.data()||{};
+  const computers = Array.isArray(d.qlabComputers)?d.qlabComputers:[];
+  const aiParsed  = d.stationGroupAiParsed||{};
+  const aiComp    = d.stationGroupAiComp||{};
+  const steps     = aiParsed[STATION_ID];
+  if(!steps||!steps.length) return `⚠️ No automation for "${STATION_ID}" — parse AI in MC first`;
+  const compId = aiComp[STATION_ID];
+  const comp   = compId ? (computers.find(c=>c.id===compId)||computers[0]) : computers[0];
+  const base   = {processed:false, ts:FSV.serverTimestamp(), uid:'rescue:'+STATION_ID};
+  const fired  = [];
+  for(const step of steps){
+    if(step.type==='osc'){
+      const addr = normalizeOsc(step.address);
+      const payload={...base,type:'osc',address:addr};
+      if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
+      await QUEUE_COL.add(payload);
+      fired.push('OSC '+addr+(comp?' → '+comp.name:''));
+    }
+    if(step.type==='gpio')  { await QUEUE_COL.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500}); fired.push('GPIO '+step.pin+' '+step.state); }
+    if(step.type==='power') { await QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state}); fired.push('Power '+step.outlet+' '+step.state); }
+    if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
+  }
+  return fired.length ? '✅ '+fired.join(', ') : '✅ Done (no output steps)';
+}
+
+/* ── Auth — everything that touches Firestore goes inside here ── */
+auth.signInAnonymously().catch(()=>{});
+auth.onAuthStateChanged(user=>{
+  if(!user) return;
+
+  // Station config
+  if(!STATION_ID){
+    document.getElementById('stationName').textContent='No station ID in URL';
+    document.getElementById('stationName').style.color='#ffd0d0';
+  } else {
+    db.collection('rescueStations').doc(STATION_ID).onSnapshot(snap=>{
+      if(!snap.exists){ document.getElementById('stationName').textContent='Station not found: '+STATION_ID; return; }
+      stationCfg=snap.data();
+      document.getElementById('stationName').textContent=stationCfg.name||STATION_ID;
+      document.getElementById('costBadge').innerHTML='<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> '+(stationCfg.pointCost||0)+' points to rescue';
+      document.getElementById('rescuedBanner').style.display=stationCfg.rescued?'block':'none';
+      document.getElementById('keypad').style.opacity=stationCfg.rescued?'0.4':'1';
+    });
+  }
+
+  // Code length
+  db.collection('config').doc('config').onSnapshot(snap=>{
+    const d=snap.exists?snap.data():{};
+    codeLength=(Number.isInteger(d.codeLength)&&d.codeLength>=1)?d.codeLength:6;
+    buildSlots();
+  });
 });
 
 /* ── Code display ── */
@@ -316,14 +357,11 @@ async function submitCode(code){
       timestamp: firebase.firestore.Timestamp.now()
     });
 
-    // Fire QLab cue via Pi queue
-    if(stationCfg.qlabCue){
-      await QUEUE_COL.add({ type:'osc', cue: String(stationCfg.qlabCue),
-        processed:false, ts: FSV.serverTimestamp(), uid:'rescue:'+STATION_ID });
-    }
+    // Fire automation — fetch fresh config so no timing/reload issues
+    const oscStatus = await fireAutomation().catch(e=>'❌ OSC error: '+e.message);
 
     busy = false;
-    clearStatus();
+    setStatus(`🎉 ${name} rescued! ${oscStatus}`, '#16a34a', 'rgba(22,163,74,.1)');
 
   }catch(e){
     setStatus('Error: '+e.message,'#e52521');

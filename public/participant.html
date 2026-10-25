@@ -29,51 +29,7 @@
     overflow: hidden;
   }
 
-  /* ── Email gate ── */
-  #gate {
-    position: fixed; inset: 0; z-index: 9999;
-    background: rgba(0,0,20,.75);
-    display: flex; align-items: center; justify-content: center;
-    padding: 24px;
-  }
-  #gate.hidden { display: none; }
-  .gate-box {
-    width: min(480px, 94vw);
-    background: #231207;
-    border: 3px solid #e8a000;
-    border-radius: 4px;
-    box-shadow: 6px 6px 0 #e8a000;
-    padding: 28px 24px;
-  }
-  .gate-title {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(10px, 2vw, 14px);
-    color: #e8a000;
-    text-shadow: 2px 2px 0 #000;
-    line-height: 1.8;
-    margin-bottom: 6px;
-  }
-  .gate-sub { font-size: 13px; color: #c4956a; margin-bottom: 20px; line-height: 1.5; }
-  .gate-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .gate-field label { font-size: 11px; font-weight: 700; color: #e8a000; text-transform: uppercase; letter-spacing: .06em; }
-  .gate-field input {
-    padding: 12px 14px;
-    background: #3a1f0a; color: #fff;
-    border: 2px solid #e8a000; border-radius: 4px;
-    font-size: 16px; font-family: 'Inter', sans-serif;
-    outline: none;
-  }
-  .gate-field input:focus { border-color: #ffd700; }
-  .gate-btn {
-    width: 100%; padding: 14px;
-    background: #e52521; color: #fff;
-    border: 3px solid #e8a000; border-radius: 4px;
-    font-family: 'Press Start 2P', monospace; font-size: 11px;
-    cursor: pointer; box-shadow: 3px 3px 0 #e8a000;
-    margin-top: 4px;
-  }
-  .gate-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #e8a000; }
-  .gate-err { font-size: 12px; color: #ff8080; margin-top: 8px; min-height: 16px; }
+  /* ── Layout ──
 
   /* ── Layout ── */
   #app {
@@ -270,24 +226,6 @@
 </head>
 <body>
 
-<!-- Email gate -->
-<div id="gate">
-  <div class="gate-box">
-    <div class="gate-title">🌟 Light the Night 2026</div>
-    <div class="gate-sub">Enter your info to view the live leaderboard. We'll keep you updated on results!</div>
-    <div class="gate-field">
-      <label for="gName">Name</label>
-      <input id="gName" type="text" placeholder="First Last" autocomplete="name" inputmode="text"/>
-    </div>
-    <div class="gate-field">
-      <label for="gEmail">Email</label>
-      <input id="gEmail" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email"/>
-    </div>
-    <button class="gate-btn" id="gBtn">▶ VIEW LEADERBOARD</button>
-    <div class="gate-err" id="gErr"></div>
-  </div>
-</div>
-
 <!-- Main app -->
 <div id="app">
   <div class="topbar">
@@ -339,44 +277,7 @@ firebase.initializeApp({
 const db   = firebase.firestore();
 const auth = firebase.auth();
 
-/* ── Email gate ── */
-const gateEl = document.getElementById('gate');
-const gBtn   = document.getElementById('gBtn');
-const gErr   = document.getElementById('gErr');
-
-function alreadyGated() {
-  try { return !!localStorage.getItem('ltn_gated'); } catch(_){ return false; }
-}
-function markGated() {
-  try { localStorage.setItem('ltn_gated','1'); } catch(_){}
-}
-
-if (alreadyGated()) {
-  gateEl.classList.add('hidden');
-  boot();
-} else {
-  gBtn.addEventListener('click', () => {
-    const name  = document.getElementById('gName').value.trim();
-    const email = document.getElementById('gEmail').value.trim();
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      gErr.textContent = 'Please enter a valid email.'; return;
-    }
-    // Save in background — don't block showing the leaderboard
-    auth.signInAnonymously().then(() => {
-      db.collection('email_list').add({
-        email, name: name || null,
-        source: 'leaderboard-qr',
-        createdAt: firebase.firestore.Timestamp.now()
-      });
-    }).catch(() => {});
-    markGated();
-    gateEl.classList.add('hidden');
-    boot();
-  });
-  document.getElementById('gEmail').addEventListener('keydown', e => {
-    if (e.key === 'Enter') gBtn.click();
-  });
-}
+boot();
 
 /* ── Helpers ── */
 function fmtTime(ms) {

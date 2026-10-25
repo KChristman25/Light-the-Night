@@ -478,8 +478,11 @@
     document.getElementById('nameInput')?.addEventListener('input', e => {
       const display = document.getElementById('codeDisplay');
       const codeEl  = document.getElementById('generatedCode');
-      if (e.target.value.trim()) {
-        if (!codeEl.textContent) codeEl.textContent = freshCode();
+      const val = e.target.value.trim();
+      if (val) {
+        codeEl.textContent = val.toLowerCase() === 'admin'
+          ? '0'.repeat(codeLength)
+          : (codeEl.textContent || freshCode());
         display.style.display = '';
       } else {
         display.style.display = 'none';

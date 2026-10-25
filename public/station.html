@@ -1294,7 +1294,18 @@ const EVENT_GROUP_MAP = {
   maze_start:'maze', peach_rescue:'peach', shell_fired:'shell', mushroom_used:'mushroom',
   bowser_start:'bowser_start', bowser_fire:'bowser_fire', bowser_defeated:'bowser_defeated',
   land_ice:'land_ice', land_water:'land_water', land_fire:'land_fire', land_lava:'land_lava',
+  jump:'jump',
 };
+let _lastJumpOscTs = 0;
+function sendJumpOsc(){
+  const cfg = _qlabCues['jump'];
+  if(!cfg || !cfg.cue) return;
+  const cooldownMs = cfg.cooldownMs != null ? cfg.cooldownMs : 2000;
+  const now = Date.now();
+  if(now - _lastJumpOscTs < cooldownMs) return;
+  _lastJumpOscTs = now;
+  sendConfiguredOsc('jump').catch(()=>{});
+}
 
 function _normalizeOsc(raw){
   raw=(raw||'').trim(); if(!raw) return '';
@@ -2260,7 +2271,8 @@ async function loadQlabCues(){
     const comp = computers.find(c=>c.id===cfg.computerId);
     _qlabCues[key] = {
       cue:cfg.cue||'', qlabIp:comp?comp.ip:null, qlabPort:comp?(comp.port||53000):53000,
-      gpioPin:cfg.arduinoPin||null, gpioState:cfg.arduinoState||null, gpioPulseMs:cfg.arduinoPulseMs||500
+      gpioPin:cfg.arduinoPin||null, gpioState:cfg.arduinoState||null, gpioPulseMs:cfg.arduinoPulseMs||500,
+      cooldownMs:cfg.cooldownMs!=null?cfg.cooldownMs:2000
     };
   });
   // Simple bowserGpio shortcut — overrides stationOscCues.bowser_defeated if set
@@ -3393,6 +3405,7 @@ const SFX = (function(){
       // Free mode: no target, timer keeps running, player can jump again
       playYahoo();
       SFX.jump();
+      sendJumpOsc();
       G.mario.vy=G.jumpVY;
       G.phase='jump';
     };

@@ -1065,6 +1065,9 @@ const STATION_GROUPS_DEF = [
     events:[ {key:'shell_fired',   label:'Fired'} ] },
   { id:'mushroom',   label:'🍄 Mushroom',         color:'#fef9c3', accent:'#ca8a04',
     events:[ {key:'mushroom_used', label:'Used'} ] },
+  { id:'jump',       label:'🍄 Mario Jump (Game)', color:'#dcfce7', accent:'#16a34a',
+    hasCooldown: true,
+    events:[ {key:'jump', label:'Jump'} ] },
 ];
 
 function buildStationGroups(){
@@ -1099,10 +1102,13 @@ function saveDomOscCues(){
     const ms         = gpioMs    ? parseInt(gpioMs.value)||500 : 500;
     const hasOsc  = computerId || cue;
     const hasGpio = !isNaN(pin) && pin >= 2 && state && state !== 'none';
+    const cooldownEl = document.querySelector(`.osc-cooldown[data-key="${ev.key}"]`);
+    const cooldownMs = cooldownEl ? Math.round(parseFloat(cooldownEl.value||'2')*1000) : null;
     if(hasOsc || hasGpio){
       _stationOscCues[ev.key] = {
         computerId, cue,
-        ...(hasGpio ? {arduinoPin:pin, arduinoState:state, arduinoPulseMs:ms} : {})
+        ...(hasGpio ? {arduinoPin:pin, arduinoState:state, arduinoPulseMs:ms} : {}),
+        ...(cooldownMs != null ? {cooldownMs} : {})
       };
     } else { delete _stationOscCues[ev.key]; }
   });
@@ -1206,6 +1212,16 @@ function renderStationOscEvents(){
         <button onclick="testOscEvent('${ev.key}')" style="padding:5px 10px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0">&#9654;</button>
       </div>`;
     });
+    // Cooldown row (for jump group)
+    if(grp.hasCooldown){
+      const savedCooldown = (_stationOscCues[grp.events[0].key]||{}).cooldownMs;
+      const cooldownSecs = savedCooldown != null ? (savedCooldown/1000) : 2;
+      html += `<div style="border-top:1px solid rgba(35,18,7,.08);padding:7px 12px;background:#f9fafb;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--muted)">COOLDOWN</span>
+        <input type="number" class="osc-cooldown" data-key="${grp.events[0].key}" value="${cooldownSecs}" min="0" max="30" step="0.5" style="padding:5px 7px;border:2px solid var(--ink);border-radius:4px;font-size:12px;width:70px"/>
+        <span style="font-size:11px;color:var(--muted)">sec — ignore duplicate jumps within this window</span>
+      </div>`;
+    }
     // AI row at the bottom of each station card
     const aiSaved    = escapeHtml(_stationGroupAiText[grp.id]||'');
     const aiCompSel  = _stationGroupAiComp[grp.id]||'';

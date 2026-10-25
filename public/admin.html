@@ -554,20 +554,22 @@
       <div class="panel-box" style="margin-bottom:16px;max-width:480px">
         <div style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Display Title</div>
         <div style="display:flex;gap:8px">
-          <input id="newLeaderboardTitle" placeholder="e.g. Light the Night 2025" style="flex:1"/>
+          <input id="newLeaderboardTitle" placeholder="e.g. Light the Night 2026" style="flex:1"/>
           <button class="btn" onclick="updateLeaderboardTitle()">Update</button>
         </div>
       </div>
 
-      <!-- Live top 5 -->
-      <div class="panel-box" style="max-width:480px">
+      <!-- Finishers table with search -->
+      <div class="panel-box" style="max-width:560px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.06em">Live Top 5</div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.06em">Finishers</div>
           <button class="btn" onclick="exportLeaderboardPDF()" style="font-size:11px;padding:4px 10px">Export PDF</button>
         </div>
+        <input id="lbSearch" type="text" placeholder="Search by name…" oninput="filterLbTable(this.value)"
+          style="width:100%;margin-bottom:10px;padding:7px 12px;border:2px solid var(--border);border-radius:4px;font-size:13px;font-family:'Inter',sans-serif"/>
         <table style="margin-top:0">
-          <thead><tr><th>#</th><th>Name</th><th>Time</th></tr></thead>
-          <tbody id="leaderboardTable"><tr><td colspan="3" class="muted">No completions yet</td></tr></tbody>
+          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Time</th></tr></thead>
+          <tbody id="leaderboardTable"><tr><td colspan="4" class="muted">No completions yet</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1539,7 +1541,7 @@ if(id==='allvisitors')  initAllVisitors();
             }
           } else {
             if(dd.mazeStartTime) inMaze++; else notStarted++;
-            const start=safeTS(dd.startMaze)||safeTS(dd.startCheckIn)||safeTS(dd.checkinTime);
+            const start=safeTS(dd.mazeStartTime);
             if(start){ const elapsed=(Date.now()-start.getTime())/60000; if(elapsed>STUCK_MIN) stuck.push({id:d.id,name:dd.name||'(no name)',elapsed}); }
           }
         });
@@ -1569,14 +1571,34 @@ if(id==='allvisitors')  initAllVisitors();
     );
 
     // ── Activity feed ────────────────────────────────────────────────────────
+    const _feedIcons = {
+      start:'🏁', coin:'🪙', coin_direct:'🪙',
+      shell:'🐢', shell_frozen:'🐢', shell_station:'💥',
+      mushroom:'🍄', rescue:'👸', bowser:'🏰', timed_out:'⏱',
+    };
+    const _feedMsg = {
+      start:      (d) => `${d.name} entered the maze`,
+      coin:       (d) => `${d.name} collected ${d.coins} coins`,
+      coin_direct:(d) => `${d.name} collected ${d.coins} coins`,
+      shell:      (d) => `${d.name} earned a Red Shell`,
+      shell_frozen:(d)=> `${d.name} earned a Frozen Shell`,
+      shell_station:(d)=>`${d.name} fired a Red Shell`,
+      mushroom:   (d) => `${d.name} used a Mushroom (+${d.coins} coins)`,
+      rescue:     (d) => `${d.name} rescued Princess Peach!`,
+      bowser:     (d) => `${d.name} defeated Bowser! 🎉`,
+      timed_out:  (d) => `${d.name} timed out`,
+    };
     listeners.push(
-      db.collection("scans").orderBy("timestamp","desc").limit(10)
+      db.collection("scans").orderBy("timestamp","desc").limit(20)
         .onSnapshot(snap=>{
-          document.getElementById("activityFeed").innerText =
-            snap.docs.map(d=>{
-              const dt = safeTS(d.data().timestamp);
-              return `[${dt?dt.toLocaleTimeString():"—"}]  ${d.data().name}  @  station ${d.data().station}`;
-            }).join('\n');
+          const feed = document.getElementById("activityFeed");
+          feed.innerHTML = snap.docs.map(doc=>{
+            const d = doc.data();
+            const dt = safeTS(d.timestamp);
+            const icon = _feedIcons[d.gameType] || '🎮';
+            const msg  = (_feedMsg[d.gameType] || ((d)=>`${d.name} @ station ${d.station}`))(d);
+            return `<div style="display:flex;gap:8px;align-items:baseline;padding:2px 0;border-bottom:1px solid rgba(74,222,128,.15)"><span style="flex-shrink:0">${icon}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(msg)}</span><span style="flex-shrink:0;opacity:.5;font-size:10px">${dt?dt.toLocaleTimeString():''}</span></div>`;
+          }).join('');
         })
     );
 
@@ -1665,19 +1687,47 @@ if(id==='allvisitors')  initAllVisitors();
     listeners.push(db.collection('leaderboard').doc('control').onSnapshot(doc=>{
       updateLbStatus(doc.exists?(doc.data().command||''):'');
     }));
-    // Top 5 listener
+    // All finishers listener
+    let _lbAllRows = [];
     listeners.push(
       db.collection("kids")
         .where("completed","==",true)
-        .orderBy("durationMs","asc")
-        .limit(5)
         .onSnapshot(snap=>{
-          const tbody=document.getElementById("leaderboardTable");
-          tbody.innerHTML = snap.empty
-            ? '<tr><td colspan="3" class="muted">No completions yet</td></tr>'
-            : snap.docs.map((d,i)=>`<tr><td style="font-weight:700;color:${['#ca8a04','#6b7280','#92400e'][i]||'#8b6040'}">${i+1}</td><td>${escapeHtml(d.data().name||'')}</td><td style="font-family:monospace;color:#16a34a">${formatTime(d.data().durationMs||0)}</td></tr>`).join('');
+          const kids = snap.docs.map(d=>({id:d.id,...d.data()}));
+          kids.forEach(k=>{
+            const base = k.coins||0;
+            const s = k.mazeStartTime?.toMillis?.()??null;
+            const e = k.mazeEndTime?.toMillis?.()??null;
+            const bonus = (s&&e) ? Math.max(0,Math.floor((2700-(e-s)/1000)/10)) : 0;
+            k._score = base+bonus;
+          });
+          kids.sort((a,b)=>b._score-a._score||(a.name||'').localeCompare(b.name||''));
+          _lbAllRows = kids.map((k,i)=>{
+            const rankColor=['#ca8a04','#6b7280','#92400e'][i]||'#8b6040';
+            return {
+              rank:i+1, name:k.name||'', score:k._score,
+              dur:k.durationMs||0, nameLC:(k.name||'').toLowerCase(),
+              html:`<tr data-name="${escapeHtml((k.name||'').toLowerCase())}"><td style="font-weight:700;color:${rankColor}">${i+1}</td><td>${escapeHtml(k.name||'')}</td><td style="font-family:monospace;color:#e8a000">${k._score}</td><td style="font-family:monospace;color:#16a34a">${formatTime(k.durationMs||0)}</td></tr>`
+            };
+          });
+          filterLbTable(document.getElementById('lbSearch')?.value||'');
         })
     );
+    window._lbAllRows=()=>_lbAllRows;
+  }
+
+  function filterLbTable(q){
+    const rows = window._lbAllRows ? window._lbAllRows() : [];
+    const tbody = document.getElementById('leaderboardTable');
+    if(!tbody) return;
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="4" class="muted">No completions yet</td></tr>'; return; }
+    const term = (q||'').trim().toLowerCase();
+    const filtered = term ? rows.filter(r=>r.nameLC.includes(term)) : rows;
+    if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="4" class="muted">No match for "${escapeHtml(q)}"</td></tr>`; return; }
+    tbody.innerHTML = filtered.map(r=>{
+      if(!term) return r.html;
+      return r.html.replace('<tr ','<tr style="background:rgba(232,160,0,.35);outline:2px solid #e8a000;outline-offset:-2px" ');
+    }).join('');
   }
 
   function updateLbStatus(cmd){

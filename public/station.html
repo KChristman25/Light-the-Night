@@ -588,7 +588,7 @@
       position: fixed; inset: 0; z-index: 3;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       overflow-y: auto; -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+      touch-action: manipulation;
       padding: clamp(8px,1.5svh,16px) clamp(16px,4vw,48px) clamp(12px,2svh,24px);
     }
     #view-hub.hide, #view-rescue.hide, #view-lands.hide { display: none; }
@@ -1009,13 +1009,6 @@
 
   <!-- Hub: station type picker (fixed, centered) -->
   <section id="view-hub" class="hide">
-    <div id="micPermBanner" style="display:none;width:100%;max-width:680px;margin-bottom:clamp(6px,0.8svh,10px)">
-      <button onclick="requestMicFromBanner()" style="width:100%;display:flex;align-items:center;gap:14px;padding:clamp(10px,1.6svh,16px) clamp(16px,2.5vw,28px);background:#1a1a2e;border:3px solid #e8a000;border-radius:4px;box-shadow:4px 4px 0 #e8a000;color:#fff;font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.2vw,11px);cursor:pointer;text-align:left">
-        <span style="font-size:clamp(24px,3.5vw,36px)">🎤</span>
-        <span style="flex:1;line-height:1.8">TAP TO ENABLE MICROPHONE<span style="display:block;font-family:'Inter',sans-serif;font-size:clamp(10px,1.2vw,13px);font-weight:400;color:rgba(255,255,255,.6);margin-top:3px">Required for station audio broadcast</span></span>
-        <span style="color:#e8a000;font-size:clamp(16px,2vw,22px)">▶</span>
-      </button>
-    </div>
     <div class="hub-grid">
       <button class="hub-btn hub-coin" onclick="showCoinList()">
         <span class="hub-icon"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"></span>
@@ -1351,7 +1344,6 @@ firebase.auth().onAuthStateChanged(user=>{
   if(!user) return;
   _authReady = true;
   loadQlabCues().catch(()=>{});
-  initCamera().catch(()=>{});
 
   // Broadcast banner listener
   db.collection('config').doc('broadcast').onSnapshot(doc=>{
@@ -1396,105 +1388,6 @@ firebase.auth().onAuthStateChanged(user=>{
 
 function $(id){ return document.getElementById(id); }
 
-/* ── Camera snapshots ───────────────────────────────────────────────────── */
-async function initCamera(){
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'user'},width:{ideal:640},height:{ideal:480}},audio:false
-    });
-    _camStream=stream;
-    const v=document.getElementById('_camVideo');
-    if(v){v.srcObject=stream;}
-  }catch(e){console.warn('Camera unavailable:',e.message);}
-}
-
-async function initMic(){
-  if(_audioMicStream) return; // already have it
-  try{
-    _audioMicStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-  }catch(e){console.warn('Mic permission unavailable:',e.message);}
-}
-
-async function captureSnapshot(){
-  if(!_camStream||!currentStationId) return;
-  try{
-    const v=document.getElementById('_camVideo');
-    const c=document.getElementById('_camCanvas');
-    if(!v||!c||!v.videoWidth) return;
-    c.width=Math.min(v.videoWidth,640); c.height=Math.min(v.videoHeight,480);
-    c.getContext('2d').drawImage(v,0,0,c.width,c.height);
-    const dataUrl=c.toDataURL('image/jpeg',0.5);
-    await db.collection('snapshots').doc('station_'+currentStationId).set({
-      dataUrl, stationId:currentStationId, updatedAt:firebase.firestore.Timestamp.now()
-    });
-  }catch(e){console.warn('captureSnapshot failed:',e.message);}
-}
-/* ── Audio broadcast (WebRTC) ────────────────────────────────────────── */
-const AUDIO_ICE_SERVERS=[{urls:'stun:stun.l.google.com:19302'}];
-
-async function startAudioBroadcast(stationId){
-  stopAudioBroadcast();
-  _audioBroadcastId=String(stationId);
-  if(!_audioMicStream&&!_camStream){console.warn('No media streams available for broadcast');_audioBroadcastId=null;return;}
-  const docRef=db.collection('webrtcAudio').doc(_audioBroadcastId);
-  const cleanSub=name=>docRef.collection(name).get().then(snap=>{
-    if(snap.empty)return;const b=db.batch();snap.forEach(d=>b.delete(d.ref));return b.commit();
-  }).catch(()=>{});
-  await Promise.all([cleanSub('offerCandidates'),cleanSub('answerCandidates')]);
-  _audioPc=new RTCPeerConnection({iceServers:AUDIO_ICE_SERVERS});
-  // Combine audio + video into one stream for the broadcast
-  const _broadcastStream=new MediaStream();
-  (_audioMicStream||_camStream)&&(_audioMicStream||_camStream).getAudioTracks().forEach(t=>_broadcastStream.addTrack(t));
-  if(_camStream) _camStream.getVideoTracks().forEach(t=>_broadcastStream.addTrack(t));
-  _broadcastStream.getTracks().forEach(t=>_audioPc.addTrack(t,_broadcastStream));
-  _audioPc.onicecandidate=({candidate})=>{
-    if(candidate)docRef.collection('offerCandidates').add(candidate.toJSON()).catch(()=>{});
-  };
-  _audioPc.onconnectionstatechange=()=>{
-    const st=_audioPc?_audioPc.connectionState:null;
-    const dot=document.getElementById('micDot');
-    if(dot)dot.style.background=(st==='connected')?'#22c55e':'#e8a000';
-    if((st==='failed'||st==='disconnected')&&_audioBroadcastId===String(stationId)){
-      setTimeout(()=>{if(_audioBroadcastId===String(stationId))startAudioBroadcast(stationId);},4000);
-    }
-  };
-  const offer=await _audioPc.createOffer();
-  await _audioPc.setLocalDescription(offer);
-  await docRef.set({
-    broadcasting:true,stationId:_audioBroadcastId,
-    offer:{type:offer.type,sdp:offer.sdp},
-    updatedAt:firebase.firestore.Timestamp.now()
-  });
-  _audioUnsub1=docRef.onSnapshot(async snap=>{
-    const d=snap.data()||{};
-    if(!_audioPc||_audioPc.currentRemoteDescription)return;
-    if(d.answer){
-      await _audioPc.setRemoteDescription(new RTCSessionDescription(d.answer)).catch(e=>console.warn('SRD:',e));
-    }
-  });
-  _audioUnsub2=docRef.collection('answerCandidates').onSnapshot(snap=>{
-    snap.docChanges().forEach(ch=>{
-      if(ch.type==='added'&&_audioPc)
-        _audioPc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
-    });
-  });
-  const dot=document.getElementById('micDot');
-  if(dot){dot.style.display='block';dot.style.background='#e8a000';}
-}
-
-function stopAudioBroadcast(){
-  if(_audioUnsub1){_audioUnsub1();_audioUnsub1=null;}
-  if(_audioUnsub2){_audioUnsub2();_audioUnsub2=null;}
-  if(_audioPc){_audioPc.close();_audioPc=null;}
-  // keep _audioMicStream alive so permission isn't re-requested
-  if(_audioBroadcastId){
-    db.collection('webrtcAudio').doc(_audioBroadcastId)
-      .set({broadcasting:false,updatedAt:firebase.firestore.Timestamp.now()},{merge:true}).catch(()=>{});
-    _audioBroadcastId=null;
-  }
-  const dot=document.getElementById('micDot');
-  if(dot)dot.style.display='none';
-}
 
 const viewList=$('view-list'), viewControl=$('view-control');
 const listEl=$('list'), emptyEl=$('empty');
@@ -1506,8 +1399,6 @@ const ding=null; // no longer used
 let currentStationId=null, listUnsub=null, stationDocUnsub=null;
 let heartbeatInterval=null, currentStationCfg=null, totalStations=6;
 let _lastBeatFn=null; // stored so visibility-resume can restart it
-let _snapshotInterval=null, _camStream=null;
-let _audioPc=null, _audioMicStream=null, _audioBroadcastId=null, _audioUnsub1=null, _audioUnsub2=null;
 let prevScanTs=null;
 let lastNewScanKidId='', lastNewScanName='';
 
@@ -1566,38 +1457,11 @@ function startHub(){
   kioskExit();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
-  stopAudioBroadcast();
   // Cancel any in-progress Bowser battle so it doesn't auto-complete players after station change
   clearTimeout(window._bowserAutoClose);
   closeBowserOverlay();
   currentStationMode='coin';
   show('hub');
-  checkMicPermission();
-}
-
-async function checkMicPermission(){
-  const banner=document.getElementById('micPermBanner');
-  if(!banner||_audioMicStream) return;
-  try{
-    if(navigator.permissions){
-      const status=await navigator.permissions.query({name:'microphone'});
-      if(status.state==='granted'){
-        await initMic();
-        banner.style.display='none';
-      } else {
-        banner.style.display='block';
-      }
-    } else {
-      banner.style.display='block';
-    }
-  }catch(_){banner.style.display='block';}
-}
-
-async function requestMicFromBanner(){
-  await initMic();
-  const banner=document.getElementById('micPermBanner');
-  if(banner) banner.style.display='none';
 }
 function showCoinList(){
   clearTimeout(window._bowserAutoClose);
@@ -1620,7 +1484,6 @@ async function pickSpecialStation(mode){
   await kioskEnter();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
   prevScanTs=null;
   const label=SPECIAL_NAMES[mode]||mode;
   titleEl.textContent=label;
@@ -1628,7 +1491,6 @@ async function pickSpecialStation(mode){
   if(pn) pn.textContent=label;
   const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,10000);
-  startAudioBroadcast(currentStationId);
   codeBuffer='';updateDisplay();setStatus('');
 }
 async function pickLandStation(theme){
@@ -1643,7 +1505,6 @@ async function pickLandStation(theme){
   await kioskEnter();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
   prevScanTs=null;
   const label=LAND_NAMES[theme]||theme.toUpperCase();
   titleEl.textContent=label;
@@ -1652,7 +1513,6 @@ async function pickLandStation(theme){
   const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
   const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
   _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,10000);
-  startAudioBroadcast(currentStationId);
   codeBuffer='';updateDisplay();setStatus('');
 }
 
@@ -1661,7 +1521,6 @@ function startList(){
   kioskExit();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
   show('list');
   window.scrollTo(0,0);
   if(listUnsub)listUnsub();
@@ -1684,7 +1543,6 @@ async function startControlForStation(){
   await kioskEnter();
   if(stationDocUnsub)stationDocUnsub();
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
   prevScanTs=null;
   stationDocUnsub=db.collection('stations').doc(currentStationId).onSnapshot((doc)=>{
     const d=doc.data()||{};
@@ -1711,10 +1569,6 @@ async function startControlForStation(){
   });
   const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
   _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,10000);
-  captureSnapshot().catch(()=>{});
-  if(_snapshotInterval)clearInterval(_snapshotInterval);
-  _snapshotInterval=setInterval(()=>captureSnapshot().catch(()=>{}),5*60*1000);
-  startAudioBroadcast(currentStationId);
   codeBuffer='';updateDisplay();setStatus('');
 }
 
@@ -1877,8 +1731,6 @@ async function submitStationCode(code){
     docRef.update({mazeStartTime:firebase.firestore.Timestamp.now()}).catch(()=>{});
     sendConfiguredOsc('maze_start').catch(()=>{});
   }
-
-  captureSnapshot().catch(()=>{});
 
   // ── Special station modes ──────────────────────────────
   if(currentStationMode==='shell')          return handleShellStation(docRef,kidData);
@@ -2562,11 +2414,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
 // Backstop: every 25s fire the beat unconditionally regardless of any interval state
 setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 25000);
 
-window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  if(_snapshotInterval){clearInterval(_snapshotInterval);_snapshotInterval=null;}
-  stopAudioBroadcast();
-  if(_audioMicStream){_audioMicStream.getTracks().forEach(t=>t.stop());_audioMicStream=null;}
-});
+window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}});
 
 /* ===== BACKGROUND CANVAS (SMB tile art — same as game) ===== */
 (function initBgCanvas(){
@@ -3357,6 +3205,14 @@ const SFX = (function(){
     tapHintEl.style.display='block';
     timerEl.style.display='none';
     G=null;
+    // Silent reload to clear accumulated memory after each game
+    if(currentStationId){
+      sessionStorage.setItem('ltn_reload_station',currentStationId);
+      const mask=document.createElement('div');
+      mask.style.cssText='position:fixed;inset:0;z-index:9999999;background:#231207;';
+      document.body.appendChild(mask);
+      setTimeout(()=>location.reload(),80);
+    }
   }
 
   // ── Pre-bake static background to offscreen canvas ──
@@ -3466,10 +3322,19 @@ const SFX = (function(){
     G.animId=requestAnimationFrame(loop);
   };
 })();
+
+// ── Silent reload restore: if page was reloaded after a game, auto-pick saved station ──
+(function(){
+  const sid=sessionStorage.getItem('ltn_reload_station');
+  if(!sid) return;
+  sessionStorage.removeItem('ltn_reload_station');
+  const tryPick=()=>{
+    if(_authReady&&window.pick){window.pick(sid);}
+    else{setTimeout(tryPick,200);}
+  };
+  setTimeout(tryPick,300);
+})();
 </script>
-<video id="_camVideo" autoplay playsinline muted style="display:none;position:fixed;pointer-events:none;width:1px;height:1px"></video>
-<canvas id="_camCanvas" style="display:none"></canvas>
-<div id="micDot" style="display:none;position:fixed;bottom:10px;left:10px;z-index:200;width:8px;height:8px;border-radius:50%;background:#e8a000;box-shadow:0 0 6px currentColor;pointer-events:none"></div>
 
 <!-- Broadcast banner — last in body so no ancestor style can clip it -->
 <div id="broadcastBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#e8a000;border-bottom:3px solid #231207;box-shadow:0 4px 0 #231207;padding:clamp(10px,1.8svh,16px) 20px;text-align:center;padding-top:max(clamp(10px,1.8svh,16px),env(safe-area-inset-top))">

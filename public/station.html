@@ -140,6 +140,8 @@
       margin: 10px 0; cursor: pointer; min-height: var(--touch);
       touch-action: manipulation; -webkit-tap-highlight-color: rgba(255,255,255,.12);
       transition: box-shadow .12s, transform .12s;
+      width: 100%; text-align: left; -webkit-appearance: none; appearance: none;
+      font-family: inherit; font-size: inherit; color: inherit;
     }
     .bar:hover  { box-shadow: 5px 5px 0 #231207; }
     .bar:active { box-shadow: 1px 1px 0 #231207; transform: translate(1px,1px); }
@@ -339,35 +341,37 @@
     .result-label { font-size: clamp(8px,1.8vw,11px); color: #c4956a; margin-top: 14px; line-height: 2; }
     @keyframes iconPop { 0%{transform:scale(0) rotate(-20deg)} 100%{transform:scale(1) rotate(0)} }
 
-    #gameBalance {
-      position: absolute; top: 16px; left: 50%;
-      transform: translateX(-50%);
-      font-family: 'Press Start 2P', monospace;
-      font-size: clamp(10px,2.5vw,14px); color: #ffd700;
-      text-shadow: 2px 2px 0 #000; z-index: 12;
-      white-space: nowrap; pointer-events: none;
-      display: none; transition: font-size 0.5s ease;
+    #gameHud {
+      position: absolute; top: 48px; left: 0; right: 0;
+      background: #e52521; border-bottom: 3px solid #231207;
+      display: none; align-items: center; justify-content: space-between;
+      padding: clamp(10px,1.8svh,14px) clamp(14px,2.2vw,22px);
+      z-index: 12; box-sizing: border-box; gap: 8px; pointer-events: none;
     }
-    #marioGame.active #gameBalance { display: block; }
-
+    #marioGame.active #gameHud { display: flex; }
+    #gameCountdown {
+      font-family: 'Press Start 2P', monospace; font-size: clamp(9px,2vw,13px);
+      color: #fff; text-shadow: 2px 2px 0 #231207; white-space: nowrap; min-width: 56px;
+    }
+    #gameCountdown.urgent { color: #ffe040; }
     #gamePlayerName {
-      position: absolute; top: 16px; right: 16px;
-      font-family: 'Press Start 2P', monospace;
-      font-size: clamp(8px,1.8vw,11px); color: #fff;
-      text-shadow: 2px 2px 0 #000; z-index: 12;
-      white-space: nowrap; pointer-events: none;
-      display: none;
+      font-family: 'Press Start 2P', monospace; font-size: clamp(8px,1.8vw,11px);
+      color: #fff; text-shadow: 2px 2px 0 #231207; white-space: nowrap;
+      flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis;
+      display: none; pointer-events: none;
     }
     #marioGame.active #gamePlayerName { display: block; }
-
+    #gameBalance {
+      font-family: 'Press Start 2P', monospace; font-size: clamp(9px,2vw,13px);
+      color: #ffd700; text-shadow: 2px 2px 0 #231207; white-space: nowrap;
+      display: none; text-align: right; transition: font-size 0.5s ease; pointer-events: none;
+    }
+    #marioGame.active #gameBalance { display: block; }
     #powerupTimer {
-      position: absolute; top: 48px; left: 50%;
-      transform: translateX(-50%);
-      font-family: 'Press Start 2P', monospace;
-      font-size: clamp(11px,2.5vw,16px); color: #fff;
-      text-shadow: 2px 2px 0 #000; z-index: 15;
-      white-space: nowrap; pointer-events: none;
-      display: none;
+      position: absolute; top: 48px; left: 50%; transform: translateX(-50%);
+      font-family: 'Press Start 2P', monospace; font-size: clamp(11px,2.5vw,16px);
+      color: #fff; text-shadow: 2px 2px 0 #000; z-index: 15;
+      white-space: nowrap; pointer-events: none; display: none;
     }
 
 
@@ -750,149 +754,6 @@
     #spSub     { font-family:'Press Start 2P',monospace; font-size:clamp(10px,2vw,15px); color:#fff; line-height:1.8; }
     #spDetail  { font-family:'Inter',sans-serif; font-size:clamp(12px,1.8vw,16px); color:#c4956a; margin-top:8px; line-height:1.6; }
 
-    /* ── Bowser fire overlay ────────────────────────────── */
-    #bowserOverlay {
-      display:none; position:fixed; inset:0; z-index:250;
-      background: radial-gradient(ellipse at 50% 110%, #cc2200 0%, #550000 45%, #0a0005 100%);
-      flex-direction:column; align-items:center; justify-content:center;
-      gap:clamp(8px,1.4svh,18px); text-align:center;
-      padding:clamp(16px,3vw,32px); overflow:hidden;
-    }
-    #bowserOverlay::after {
-      content:''; position:absolute; bottom:0; left:0; right:0;
-      height:28%; pointer-events:none;
-      background:linear-gradient(0deg,#ff3300 0%,#ff6600 35%,rgba(255,80,0,.1) 75%,transparent 100%);
-      animation:bowserFlicker .28s ease-in-out infinite alternate;
-      filter:blur(4px); z-index:0;
-    }
-    @keyframes bowserFlicker {
-      from { opacity:.45; transform:scaleY(1); }
-      to   { opacity:1;   transform:scaleY(1.08); }
-    }
-    #bowserTitle {
-      font-family:'Press Start 2P',monospace; font-size:clamp(11px,2vw,20px);
-      color:#ff6600; text-shadow:0 0 20px rgba(255,100,0,.8), 2px 2px 0 #000;
-      letter-spacing:.08em; z-index:1; position:relative;
-      animation:titleGlow 1.4s ease-in-out infinite alternate;
-    }
-    @keyframes titleGlow {
-      from { text-shadow:0 0 12px rgba(255,100,0,.6), 2px 2px 0 #000; }
-      to   { text-shadow:0 0 32px rgba(255,160,0,1),  2px 2px 0 #000; }
-    }
-    #bowserPlayerName {
-      font-family:'Press Start 2P',monospace; font-size:clamp(13px,2.4vw,24px);
-      color:#ffe0c0; text-shadow:2px 2px 0 #000, 0 0 20px rgba(255,120,0,.5);
-      z-index:1; position:relative; line-height:1.6;
-    }
-    /* Ammo row: remaining dots above the button */
-    #bowserFireDots {
-      display:flex; gap:clamp(8px,1.8vw,20px); justify-content:center;
-      z-index:1; position:relative;
-    }
-    .fire-dot {
-      font-size:clamp(32px,5.5vw,60px); line-height:1;
-      filter:drop-shadow(0 0 10px rgba(255,120,0,.9));
-      transition:opacity .3s, filter .3s, transform .15s;
-    }
-    .fire-dot.used {
-      opacity:.1; filter:grayscale(1) brightness(.25);
-      transform:scale(.8);
-    }
-    /* Remaining count text above button */
-    #bowserFireCount {
-      font-family:'Press Start 2P',monospace; font-size:clamp(11px,1.6vw,16px);
-      color:#ffaa60; text-shadow:1px 1px 0 #000;
-      z-index:1; position:relative; letter-spacing:.04em;
-      min-height:1.6em;
-    }
-    /* Big round fire button */
-    #bowserFireBtn {
-      width:clamp(160px,28vw,240px); height:clamp(160px,28vw,240px);
-      border-radius:50%;
-      background:radial-gradient(circle at 38% 32%, #ff7700, #cc1100 60%, #770000);
-      color:#fff; border:5px solid #ff9900;
-      cursor:pointer;
-      box-shadow:0 0 48px rgba(255,80,0,.7), 0 8px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3);
-      animation:bigFirePulse .85s ease-in-out infinite;
-      z-index:1; position:relative;
-      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
-    }
-    #bowserFireBtn .bf-icon { font-size:clamp(48px,9vw,88px); line-height:1; pointer-events:none; }
-    #bowserFireBtn .bf-label {
-      font-family:'Press Start 2P',monospace; font-size:clamp(12px,2.2vw,20px);
-      color:#fff; text-shadow:0 2px 0 rgba(0,0,0,.5); letter-spacing:.06em;
-      pointer-events:none; line-height:1;
-    }
-    #bowserFireBtn:active {
-      transform:scale(.93) translateY(4px);
-      box-shadow:0 0 16px rgba(255,80,0,.3), 0 2px 0 #550000, inset 0 -2px 0 rgba(0,0,0,.3);
-      animation:none;
-    }
-    #bowserFireBtn:disabled { opacity:.1; cursor:default; animation:none; }
-    @keyframes bigFirePulse {
-      0%,100% { box-shadow:0 0 36px rgba(255,80,0,.6), 0 8px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3); transform:scale(1); }
-      50%      { box-shadow:0 0 72px rgba(255,140,0,1), 0 10px 0 #550000, inset 0 -6px 0 rgba(0,0,0,.3); transform:scale(1.04); }
-    }
-    #bowserDefeatedBtn {
-      font-family:'Press Start 2P',monospace; font-size:clamp(16px,2.8vw,30px);
-      background:radial-gradient(circle at 40% 35%,#70e030,#1a5a04);
-      color:#fff; border:4px solid #90ff50; border-radius:12px;
-      padding:clamp(20px,4svh,48px) clamp(32px,8vw,90px);
-      cursor:pointer;
-      box-shadow:0 0 48px rgba(96,200,32,.8), 0 8px 0 #0d3002;
-      animation:defeatedPulse .65s ease-in-out infinite;
-      z-index:1; position:relative; display:none;
-      letter-spacing:.04em;
-    }
-    #bowserDefeatedBtn:active { transform:scale(.95) translateY(4px); box-shadow:0 0 16px rgba(96,200,32,.4),0 2px 0 #0d3002; animation:none; }
-    @keyframes defeatedPulse {
-      0%,100% { box-shadow:0 0 36px rgba(96,200,32,.65), 0 8px 0 #0d3002; transform:scale(1); }
-      50%      { box-shadow:0 0 72px rgba(140,255,60,1),  0 10px 0 #0d3002; transform:scale(1.04); }
-    }
-    /* ── Bowser lobby panel (inline above keypad) ── */
-    #bowserLobbyPanel {
-      display:none; margin-bottom:clamp(8px,1.2svh,16px);
-      padding:clamp(8px,1.2svh,14px) clamp(10px,1.5vw,16px) clamp(10px,1.4svh,16px);
-      background:rgba(5,18,2,.92); border:2px solid #60c820; border-radius:6px;
-      box-shadow:0 0 14px rgba(96,200,32,.25);
-    }
-    #bowserLobbyPanel .bl-header {
-      font-family:'Press Start 2P',monospace; font-size:clamp(8px,1.4vw,12px);
-      color:#60c820; text-shadow:0 0 8px rgba(96,200,32,.6);
-      text-align:center; margin-bottom:3px; line-height:1.6;
-    }
-    #bowserLobbyPanel .bl-sub {
-      font-family:'Inter',sans-serif; font-size:clamp(10px,1.1vw,12px);
-      color:rgba(255,255,255,.4); text-align:center; margin-bottom:7px;
-    }
-    #bowserPlayerList {
-      display:flex; flex-direction:column; gap:4px;
-      max-height:clamp(70px,16svh,120px); overflow-y:auto; margin-bottom:8px;
-    }
-    .lobby-player-row {
-      font-family:'Press Start 2P',monospace; font-size:clamp(8px,1.1vw,11px);
-      color:#fff; background:rgba(96,200,32,.08); border:1px solid rgba(96,200,32,.35);
-      border-radius:4px; padding:6px 10px; text-align:left;
-    }
-    #bowserStartBtn {
-      width:100%; font-family:'Press Start 2P',monospace; font-size:clamp(9px,1.4vw,13px);
-      background:#1a4a0a; color:#80ff40; border:2px solid #60c820;
-      border-radius:4px; padding:clamp(8px,1.2svh,13px); cursor:pointer;
-      box-shadow:3px 3px 0 #0a2a04; margin-bottom:5px;
-      transition:background .12s;
-    }
-    #bowserStartBtn:not(:disabled) { animation:startBtnPulse 1.3s ease-in-out infinite; }
-    @keyframes startBtnPulse {
-      0%,100% { box-shadow:3px 3px 0 #0a2a04; }
-      50%      { box-shadow:3px 3px 0 #0a2a04,0 0 14px rgba(96,200,32,.5); }
-    }
-    #bowserStartBtn:disabled { opacity:.28; cursor:default; animation:none; }
-    #bowserCancelLobbyBtn {
-      width:100%; background:none; border:1px solid rgba(255,255,255,.1);
-      border-radius:4px; color:rgba(255,255,255,.28); font-size:10px;
-      font-family:'Inter',sans-serif; padding:5px; cursor:pointer;
-    }
-
     /* ── Shell flash overlay ── */
     #shellFlash {
       display: none; position: fixed; inset: 0; z-index: 9999;
@@ -966,15 +827,7 @@
 
       <div class="card" style="margin-top:0">
         <div class="keypad-section">
-          <!-- Bowser lobby panel — shown inline above keypad so codes can still be typed -->
-          <div id="bowserLobbyPanel">
-            <div class="bl-header">⚔ BOWSER BATTLE</div>
-            <div class="bl-sub">Type each player's code, then hit START</div>
-            <div id="bowserPlayerList"></div>
-            <button id="bowserStartBtn" onclick="startBowserBattle()" disabled>⚔ START BATTLE</button>
-            <button id="bowserCancelLobbyBtn" onclick="cancelBowserLobby()">Cancel</button>
-          </div>
-          <div id="landIcon"></div>
+<div id="landIcon"></div>
           <div class="keypad-display" id="keypadDisplay">
             <div class="digit-slot" id="ds0">_</div>
             <div class="digit-slot" id="ds1">_</div>
@@ -1122,18 +975,6 @@
   <!-- Video lives OUTSIDE the display:none overlay so Safari can prime/play it before the overlay opens -->
   <video id="scVid" src="/countdown.mp4" playsinline webkit-playsinline preload="auto" style="visibility:hidden;position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;"></video>
 
-  <!-- Bowser fire overlay -->
-  <div id="bowserOverlay">
-    <div id="bowserTitle">⚔ FIGHT BOWSER! ⚔</div>
-    <div id="bowserPlayerName"></div>
-    <div id="bowserFireDots"></div>
-    <div id="bowserFireCount">Tap to launch a fireball!</div>
-    <button id="bowserFireBtn" onclick="fireBowserBall()">
-      <span class="bf-icon">🔥</span>
-      <span class="bf-label">FIRE!</span>
-    </button>
-    <button id="bowserDefeatedBtn" onclick="completeBowserBattle()">⭐ BOWSER DEFEATED!</button>
-  </div>
 
   <!-- Admin overlay -->
   <div id="adminOverlay">
@@ -1184,8 +1025,11 @@
   <!-- Mario Mini-Game Overlay -->
   <div id="marioGame">
     <canvas id="marioCanvas"></canvas>
-    <div id="gameBalance"></div>
-    <div id="gamePlayerName"></div>
+    <div id="gameHud">
+      <div id="gameCountdown"></div>
+      <div id="gamePlayerName"></div>
+      <div id="gameBalance"></div>
+    </div>
     <div id="gameTapHint">TAP SCREEN TO JUMP</div>
     <div id="powerupTimer"></div>
     <div id="gameResult" class="hide">
@@ -1296,7 +1140,7 @@ async function _sendViaPi(payload) {
 // Maps sendConfiguredOsc event keys → Mission Control group IDs
 const EVENT_GROUP_MAP = {
   maze_start:'maze', peach_rescue:'peach', shell_fired:'shell', mushroom_used:'mushroom',
-  bowser_start:'bowser_start', bowser_fire:'bowser_fire', bowser_defeated:'bowser_defeated',
+  bowser_defeated:'bowser_defeated',
   land_ice:'land_ice', land_water:'land_water', land_fire:'land_fire', land_lava:'land_lava',
   jump:'jump',
 };
@@ -1399,6 +1243,7 @@ const ding=null; // no longer used
 let currentStationId=null, listUnsub=null, stationDocUnsub=null;
 let heartbeatInterval=null, currentStationCfg=null, totalStations=6;
 let _lastBeatFn=null; // stored so visibility-resume can restart it
+let _lastBeatAt=0;   // timestamp of last beat, to throttle visibility-change beats
 let prevScanTs=null;
 let lastNewScanKidId='', lastNewScanName='';
 
@@ -1457,21 +1302,14 @@ function startHub(){
   kioskExit();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
-  // Cancel any in-progress Bowser battle so it doesn't auto-complete players after station change
-  clearTimeout(window._bowserAutoClose);
-  closeBowserOverlay();
   currentStationMode='coin';
   show('hub');
 }
 function showCoinList(){
-  clearTimeout(window._bowserAutoClose);
-  closeBowserOverlay();
   currentStationMode='coin';
   startList();
 }
 async function pickSpecialStation(mode){
-  clearTimeout(window._bowserAutoClose);
-  if(mode!=='bowser') closeBowserOverlay();
   primeAudio();
   // Prime countdown video inside the gesture so Safari allows future unmuted playback
   if(mode==='start'){
@@ -1489,13 +1327,11 @@ async function pickSpecialStation(mode){
   titleEl.textContent=label;
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
-  const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
+  const beat=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
 async function pickLandStation(theme){
-  clearTimeout(window._bowserAutoClose);
-  closeBowserOverlay();
   primeAudio();
   const LAND_NAMES={ice:'ICE LAND',water:'WATER LAND',fire:'FIRE LAND',lava:'LAVA LAND'};
   const LAND_ICONS={ice:'🧊',water:'🌊',fire:'🔥',lava:'🌋'};
@@ -1511,7 +1347,7 @@ async function pickLandStation(theme){
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
   const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
-  const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
+  const beat2=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
@@ -1529,7 +1365,7 @@ function startList(){
       const items=[];
       snap.forEach((doc)=>{const id=doc.id;if(!isNumericId(id))return;const d=doc.data()||{};items.push({id:Number(id),label:d.label||('Station '+id)});});
       items.sort((a,b)=>a.id-b.id);
-      listEl.innerHTML=items.map((row)=>`<div class="bar" data-id="${row.id}"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">▶</div></div>`).join('');
+      listEl.innerHTML=items.map((row)=>`<button class="bar" type="button" data-id="${row.id}"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">▶</div></button>`).join('');
       listEl.querySelectorAll('.bar').forEach(bar=>{bar.addEventListener('click',()=>window.pick(parseInt(bar.dataset.id,10)));});
       emptyEl.classList.toggle('hide',items.length>0);
     },(err)=>{console.warn('stations listen err',err.code);if(err.code==='permission-denied'){waitForAuth().then(startSnap);}});
@@ -1570,7 +1406,7 @@ async function startControlForStation(){
     }
     _prevActive=d.active===false?false:true;
   });
-  const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
+  const beat=()=>{_lastBeatAt=Date.now();db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
@@ -1711,9 +1547,9 @@ async function submitStationCode(code){
   const name=kidData.name||kidData.displayName||'Participant';
 
   // Block completed players except at the start station (where they can re-run).
-  // Bowser always blocks even in multi-scan mode — re-scanning would instantly re-complete them.
+  // Multi-scan mode (testing) bypasses this so any station — including Bowser — can be re-tested.
   if((kidData.completed===true||kidData.mazeEndTime) && currentStationMode!=='start'){
-    if(!allowMultiScan || currentStationMode==='bowser'){
+    if(!allowMultiScan){
       showScanMsg(name+' already finished!','#88d8ff','#88d8ff','rgba(136,216,255,.12)','',3000);
       return;
     }
@@ -1982,140 +1818,35 @@ async function handleRescueStation(docRef,kidData,character,characterName){
   }catch(e){console.error(e);setStatus('Error — try again');}
 }
 
-// ── Bowser Station ─────────────────────────────────────────────
-let _bowserFiresLeft=5;
-let _bowserLobby=[]; // [{docRef, kidData, name}]
-let _bowserMazeEndTime=null; // set on last fireball, reused by completeBowserBattle
-
+// ── Bowser Station (finish line) ───────────────────────────────
 async function handleBowserStation(docRef,kidData){
   const name=kidData.name||kidData.displayName||'Participant';
-  if(_bowserLobby.some(p=>p.docRef.id===docRef.id)){
-    showScanMsg(name+' already in lobby!','#e8a000','#e8a000','rgba(232,160,0,.12)','',2500);
-    return;
-  }
-
-  // Write completion immediately on scan so the maze always finishes
-  // even if the battle never runs (device offline, no operator, etc.)
   const now=firebase.firestore.Timestamp.now();
   const startTime=kidData.mazeStartTime||now;
   const durationMs=kidData.mazeStartTime?(now.toMillis()-kidData.mazeStartTime.toMillis()):0;
   const curBestDur=typeof kidData.bestDurationMs==='number'?kidData.bestDurationMs:null;
   const newBestRun=curBestDur===null||durationMs<curBestDur;
+
   docRef.update({
-    scans:FSV.arrayUnion(currentStationId),
-    ['scanCounts.'+currentStationId]:FSV.increment(1),
+    scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),
     completed:true, mazeEndTime:now, completionTime:now, mazeStartTime:startTime, durationMs,
     bestCoins:      Math.max(kidData.bestCoins||0, kidData.coins||0),
     bestDurationMs: newBestRun ? durationMs : curBestDur,
     bestMazeEndTime:newBestRun ? now        : (kidData.bestMazeEndTime||now)
   }).catch(()=>{});
+
   db.collection('scans').add({kidId:docRef.id,name,station:'bowser',coins:0,gameType:'bowser',timestamp:now}).catch(()=>{});
 
-  _bowserLobby.push({docRef,kidData,name});
-  renderBowserLobby();
-  $('bowserLobbyPanel').style.display='block';
+  db.collection('config').doc('currentFinisher').set({players:[{
+    name:kidData.name||name, coins:kidData.coins||0,
+    mazeStartTime:startTime, mazeEndTime:now,
+    savedPeach:!!(kidData.savedPeach||kidData.rescuedPeach),
+    usedMushroom:!!kidData.usedMushroom, usedShell:!!kidData.usedShell
+  }],updatedAt:now}).catch(()=>{});
+
+  sendConfiguredOsc('bowser_defeated').catch(()=>{});
   fireConfetti();
-  showScanMsg('+ '+name+' joined!','#4cff50','#248a26','rgba(36,138,38,.12)','',2000);
-}
-
-function renderBowserLobby(){
-  const list=$('bowserPlayerList');
-  list.innerHTML=_bowserLobby.map(p=>`<div class="lobby-player-row">⚔ ${escapeHtml(p.name)}</div>`).join('');
-  $('bowserStartBtn').disabled=_bowserLobby.length===0;
-}
-
-async function startBowserBattle(){
-  $('bowserLobbyPanel').style.display='none';
-  setStatus('Starting battle…');
-  sendConfiguredOsc('bowser_start').catch(()=>{});
-  setStatus('');
-  _bowserFiresLeft=5;
-  const names=_bowserLobby.map(p=>p.name).join(' + ');
-  $('bowserPlayerName').textContent=names+' vs. Bowser!';
-  // Render fireball dots
-  const dots=$('bowserFireDots');
-  if(dots) dots.innerHTML=Array.from({length:5},(_,i)=>`<span class="fire-dot" id="fdot${i}">🔥</span>`).join('');
-  $('bowserFireCount').textContent='Tap to launch a fireball!';
-  $('bowserFireBtn').disabled=false; $('bowserFireBtn').style.opacity='1'; $('bowserFireBtn').style.display='';
-  $('bowserDefeatedBtn').style.display='none';
-  $('bowserOverlay').style.display='flex';
-}
-
-function cancelBowserLobby(){
-  _bowserLobby=[];
-  $('bowserLobbyPanel').style.display='none';
-  codeBuffer='';updateDisplay();setStatus('');
-}
-
-function fireBowserBall(){
-  if(_bowserFiresLeft<=0)return;
-  _bowserFiresLeft--;
-  sendConfiguredOsc('bowser_fire').catch(()=>{});
-  if(typeof SFX!=='undefined'&&SFX.stomp) SFX.stomp();
-  // Update fireball dots — dim from the right as fires are used
-  for(let i=0;i<5;i++){
-    const d=$('fdot'+i);
-    if(d) d.classList.toggle('used', i>=_bowserFiresLeft);
-  }
-  const cnt=$('bowserFireCount');
-  if(_bowserFiresLeft>0){
-    if(cnt) cnt.textContent=_bowserFiresLeft+' fireball'+(_bowserFiresLeft===1?'':'s')+' left!';
-  } else {
-    if(cnt) cnt.textContent='';
-    const btn=$('bowserFireBtn');
-    if(btn){btn.disabled=true;btn.style.opacity='.15';btn.style.display='none';}
-    const def=$('bowserDefeatedBtn');
-    if(def) def.style.display='';
-    sendConfiguredOsc('bowser_defeated').catch(()=>{});
-    // Write to currentFinisher once, right now — completeBowserBattle will NOT re-write it
-    _bowserMazeEndTime=firebase.firestore.Timestamp.now();
-    const _cachedNow=_bowserLobby.map(({kidData,name})=>({
-      name:kidData.name||name,coins:kidData.coins||0,
-      mazeStartTime:kidData.mazeStartTime||_bowserMazeEndTime,mazeEndTime:_bowserMazeEndTime,
-      savedPeach:!!(kidData.savedPeach||kidData.rescuedPeach),
-      usedMushroom:!!kidData.usedMushroom,usedShell:!!kidData.usedShell
-    }));
-    if(_cachedNow.length) db.collection('config').doc('currentFinisher').set({players:_cachedNow,updatedAt:_bowserMazeEndTime}).catch(()=>{});
-    // Auto-complete after 10 seconds
-    window._bowserAutoClose = setTimeout(completeBowserBattle, 10000);
-  }
-}
-
-async function completeBowserBattle(){
-  clearTimeout(window._bowserAutoClose);
-  // currentFinisher was already written on the last fireball — don't write again
-  const mazeEndTime=_bowserMazeEndTime||firebase.firestore.Timestamp.now();
-  _bowserMazeEndTime=null;
-
-  // Mark each player as completed
-  for(const {docRef} of _bowserLobby){
-    docRef.get().then(snap=>{
-      const d=snap.data()||{};
-      const startTime=d.mazeStartTime||mazeEndTime;
-      const durMs=d.mazeStartTime?(mazeEndTime.toMillis()-d.mazeStartTime.toMillis()):0;
-      const curBestDur=typeof d.bestDurationMs==='number'?d.bestDurationMs:null;
-      const newBest=curBestDur===null||durMs<curBestDur;
-      docRef.update({
-        mazeEndTime, mazeStartTime:startTime, completed:true, completionTime:mazeEndTime,
-        durationMs:durMs,
-        bestCoins:      Math.max(d.bestCoins||0, d.coins||0),
-        bestDurationMs: newBest ? durMs         : curBestDur,
-        bestMazeEndTime:newBest ? mazeEndTime   : (d.bestMazeEndTime||mazeEndTime)
-      }).catch(()=>{});
-    }).catch(()=>{});
-  }
-
-  _bowserLobby=[];
-  closeBowserOverlay();
-}
-
-function closeBowserOverlay(){
-  $('bowserOverlay').style.display='none';
-  $('bowserFireBtn').disabled=false; $('bowserFireBtn').style.opacity='1'; $('bowserFireBtn').style.display='';
-  $('bowserDefeatedBtn').style.display='none';
-  $('bowserLobbyPanel').style.display='none';
-  _bowserLobby=[];
-  codeBuffer='';updateDisplay();setStatus('');
+  showSpecialResult('⭐',name,'MAZE COMPLETE!','🎉 Hunt complete! 🎉',6);
 }
 
 async function sendSwitchCommand(outlet,state){
@@ -2400,8 +2131,8 @@ function showScanMsg(msg,color,border,bg,hint,dur){
   startHub();
   document.addEventListener('visibilitychange',async()=>{
     if(document.visibilityState==='visible'){
-      // Screen woke up — fire immediately so admin sees online right away
-      if(_lastBeatFn){
+      // Screen woke up — only beat if >5 min since last beat (prevents auto-lock from spamming)
+      if(_lastBeatFn && Date.now()-_lastBeatAt > 300000){
         _lastBeatFn();
         // Restart interval in case the browser killed it while hidden
         if(heartbeatInterval) clearInterval(heartbeatInterval);
@@ -2449,9 +2180,9 @@ window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(
     if(img.complete && img.naturalWidth > 0){
       // Clouds — scale with screen, same positions as game
       const cs = Math.round(W * 0.065);
-      drawCloud(W * 0.13, H * 0.10, cs);
-      drawCloud(W * 0.50, H * 0.07, Math.round(cs * 1.2));
-      drawCloud(W * 0.82, H * 0.13, Math.round(cs * 0.85));
+      drawCloud(W * 0.13, H * 0.22, cs);
+      drawCloud(W * 0.50, H * 0.18, Math.round(cs * 1.2));
+      drawCloud(W * 0.82, H * 0.26, Math.round(cs * 0.85));
 
       // Ground tiles (2 rows filling groundH) — matches game gy=H-74
       const gt   = Math.round(groundH / 2);
@@ -2586,7 +2317,7 @@ const SFX = (function(){
 
   // ── Constants ──
   const MARIO_SPEED=140, GRAVITY=1300, JUMP_VY=-950;
-  const MARIO_W=64, MARIO_H=64, BOX_SIZE=96;
+  const MARIO_W=120, MARIO_H=120, BOX_SIZE=96;
 
   // ── Game state ──
   let G=null, _onTap=null;
@@ -2791,12 +2522,12 @@ const SFX = (function(){
     // Clouds using real SMB tiles
     if(tilesImg.complete && tilesImg.naturalWidth>0){
       const cs = Math.round(W * 0.065); // tile size scales with canvas width
-      drawSMBCloud(W*0.13, H*0.10, cs);
-      drawSMBCloud(W*0.50, H*0.07, Math.round(cs*1.2));
-      drawSMBCloud(W*0.82, H*0.13, Math.round(cs*0.85));
+      drawSMBCloud(W*0.13, H*0.22, cs);
+      drawSMBCloud(W*0.50, H*0.18, Math.round(cs*1.2));
+      drawSMBCloud(W*0.82, H*0.26, Math.round(cs*0.85));
     } else {
       // Fallback: simple white circles
-      [[W*.13,H*.1,34],[W*.5,H*.07,44],[W*.82,H*.13,28]].forEach(([cx,cy,r])=>{
+      [[W*.13,H*.22,34],[W*.5,H*.18,44],[W*.82,H*.26,28]].forEach(([cx,cy,r])=>{
         ctx.fillStyle='#fff';
         ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
         ctx.arc(cx+r*.75,cy-r*.3,r*.65,0,Math.PI*2);
@@ -2844,7 +2575,7 @@ const SFX = (function(){
     if(G.phase==='walk'){
       G.mario.x += G.mario.dir*G.speed*dt;
       G.mario.wt += dt;
-      if(G.mario.wt>0.10){G.mario.frame=(G.mario.frame+1)%3;G.mario.wt=0;}
+      if(G.mario.wt>0.10){G.mario.frame=(G.mario.frame+1)%3;G.mario.wt=0;if(G.mario.frame===0||G.mario.frame===2)SFX.step();}
       if(G.mario.x<8){G.mario.x=8;G.mario.dir=1;}
       if(G.mario.x>W-MARIO_W-8){G.mario.x=W-MARIO_W-8;G.mario.dir=-1;}
     }
@@ -3140,25 +2871,22 @@ const SFX = (function(){
   }
 
   // ── 30-second game timeout ──
-  let _gameTimerTO=null, _gameTimerEl=null;
+  let _gameTimerTO=null;
+  const _gameTimerEl=document.getElementById('gameCountdown');
   function startGameTimer(){
-    if(_gameTimerTO){clearInterval(_gameTimerTO);_gameTimerTO=null;}
-    if(!_gameTimerEl){
-      _gameTimerEl=document.createElement('div');
-      _gameTimerEl.style.cssText='position:absolute;top:16px;left:16px;font-family:"Press Start 2P",monospace;font-size:clamp(10px,2.5vw,14px);color:#fff;text-shadow:2px 2px 0 #000;z-index:12;pointer-events:none;';
-      overlay.appendChild(_gameTimerEl);
-    }
+    if(_gameTimerTO){clearTimeout(_gameTimerTO);_gameTimerTO=null;}
     let rem=30;
     const tick=()=>{
-      if(!G||!G.active) return; // game ended
-      if(G.hitDone){_gameTimerEl.textContent='';return;} // result already found
-      _gameTimerEl.textContent='⏱ '+rem+'s';
-      _gameTimerEl.style.color=rem<=10?'#e52521':'#fff';
+      if(!G||!G.active) return;
+      if(G.hitDone){if(_gameTimerEl)_gameTimerEl.textContent='';return;}
+      if(_gameTimerEl){
+        _gameTimerEl.textContent='⏱ '+rem+'s';
+        _gameTimerEl.classList.toggle('urgent',rem<=10);
+      }
       if(rem<=0){
-        _gameTimerEl.textContent='';
+        if(_gameTimerEl)_gameTimerEl.textContent='';
         tapHintEl.style.display='none';
         if(CFG.directOnMiss){
-          // Direct to nearest coin box with minimum prize
           const coinBox=G.boxes.find(b=>b.type.startsWith('coin'))||G.boxes[0];
           G.targetBox={...coinBox, type:'coin_direct'};
           G.hitDone=true; G.phase='landing';
@@ -3209,7 +2937,7 @@ const SFX = (function(){
     tapHintEl.style.display='block';
     timerEl.style.display='none';
     G=null;
-    SFX.reset(); // close AudioContext to release all accumulated audio nodes
+    SFX.reset();
   }
 
   // ── Pre-bake static background to offscreen canvas ──
@@ -3224,7 +2952,7 @@ const SFX = (function(){
     if(tilesImg.complete&&tilesImg.naturalWidth>0){
       const cs=Math.round(W*0.065);
       const drawCloud=(cx,cy,ts)=>{const L=Math.round(cx-ts*1.5),T=Math.round(cy-ts);[[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{bx.drawImage(tilesImg,sx,sy,16,16,L+(i%3)*ts,T+Math.floor(i/3)*ts,ts,ts);});};
-      drawCloud(W*0.13,H*0.10,cs); drawCloud(W*0.50,H*0.07,Math.round(cs*1.2)); drawCloud(W*0.82,H*0.13,Math.round(cs*0.85));
+      drawCloud(W*0.13,H*0.22,cs); drawCloud(W*0.50,H*0.18,Math.round(cs*1.2)); drawCloud(W*0.82,H*0.26,Math.round(cs*0.85));
       const gTile=Math.round(74/2); const cols=Math.ceil(W/gTile)+1;
       for(let c=0;c<cols;c++) bx.drawImage(tilesImg,16,0,16,16,c*gTile,gy,gTile,gTile);
       for(let c=0;c<cols;c++) bx.drawImage(tilesImg,0,0,16,16,c*gTile,gy+gTile,gTile,gTile);
@@ -3244,7 +2972,7 @@ const SFX = (function(){
     const W=canvas.width, H=canvas.height, gy=H-74;
     prebakeScene(W,H);
     const bSize=Math.min(BOX_SIZE, Math.max(72, Math.floor(H*0.12)));
-    const boxY=H*0.42;
+    const boxY=H*0.34;
 
     // Dynamic physics: 1 second to cross screen; jump high enough to reach boxes
     const dynSpeed = (W - MARIO_W) * 1.35;
@@ -3319,7 +3047,6 @@ const SFX = (function(){
     G.animId=requestAnimationFrame(loop);
   };
 })();
-
 
 </script>
 

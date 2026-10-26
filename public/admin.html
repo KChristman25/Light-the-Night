@@ -1730,8 +1730,7 @@ if(id==='allvisitors')  initAllVisitors();
       dashTotalSt=max;
       renderDashStations();
     }));
-    // Refresh status display every 15s so age-based Online/Offline stays current
-    setInterval(renderDashStations, 15000);
+    // Status refreshes only when a real Firestore heartbeat arrives (via onSnapshot above)
 
     // ── Camera access status ──────────────────────────────────────────────────
     listeners.push(db.collection('config').doc('cameras').onSnapshot(doc=>{
@@ -1885,13 +1884,19 @@ if(id==='allvisitors')  initAllVisitors();
         updatePowerupModeUI(cfg.powerupMode||'both');
       })
     );
+    let _prevHbSig = '';
     listeners.push(
       db.collection("stations").onSnapshot(snap=>{
         data = {};
         snap.forEach(d=> data[d.id] = d.data());
-        render();
-        renderSpecialStations();
-        renderLandStations();
+        // Only re-render when heartbeat timestamps actually changed (not on pending-write callbacks)
+        const sig = Object.keys(data).sort().map(id=>{
+          const hb = data[id]?.heartbeat;
+          return id + ':' + ((hb?.toMillis?.()) || (hb?.seconds ? hb.seconds : 0));
+        }).join('|');
+        const hbChanged = sig !== _prevHbSig;
+        _prevHbSig = sig;
+        if(hbChanged){ render(); renderSpecialStations(); renderLandStations(); }
       })
     );
     function render(){

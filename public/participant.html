@@ -65,20 +65,17 @@
     50%      { transform: scaleX(0.1); background: #c07800; }
   }
 
-  /* ── Split panels ── */
+  /* ── Single panel ── */
   .panels {
     flex: 1; min-height: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
+    display: flex;
   }
 
   .panel {
     display: flex; flex-direction: column;
     overflow: hidden;
-    border-right: 3px solid #231207;
+    flex: 1;
   }
-  .panel:last-child { border-right: none; }
 
   .panel-header {
     flex-shrink: 0;
@@ -243,11 +240,6 @@
     border-top: 3px solid #231207;
   }
 
-  @media (max-width: 600px) {
-    .panels { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-    .panel { border-right: none; border-bottom: 3px solid #231207; }
-    .panel:last-child { border-bottom: none; }
-  }
 </style>
 </head>
 <body>
@@ -274,19 +266,6 @@
       <div class="panel-scroll" id="lbScroll">
         <div class="panel-inner" id="lbInner">
           <div class="empty-msg">No finishers yet…<br>Be the first!</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: In maze -->
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-title">IN THE MAZE</div>
-        <div class="panel-count" id="imCount">0</div>
-      </div>
-      <div class="panel-scroll" id="imScroll">
-        <div class="panel-inner" id="imInner">
-          <div class="empty-msg">No one in maze yet</div>
         </div>
       </div>
     </div>
@@ -366,23 +345,10 @@ function boot() {
   auth.signInAnonymously().catch(()=>{});
 
   const lbInner  = document.getElementById('lbInner');
-  const imInner  = document.getElementById('imInner');
   const lbCount  = document.getElementById('lbCount');
-  const imCount  = document.getElementById('imCount');
   const lbScroll = document.getElementById('lbScroll');
-  const imScroll = document.getElementById('imScroll');
 
   const lbScroller = makeScroller(lbScroll, lbInner);
-  const imScroller = makeScroller(imScroll, imInner);
-
-  // Tick elapsed times every second without rebuilding DOM
-  setInterval(() => {
-    imInner.querySelectorAll('[data-start]').forEach(row => {
-      const ms = Date.now() - parseInt(row.dataset.start, 10);
-      const el = row.querySelector('.im-elapsed');
-      if (el) el.textContent = fmtTime(ms);
-    });
-  }, 1000);
 
   let latestKids = [];
 
@@ -394,7 +360,6 @@ function boot() {
       latestKids.push({ id: doc.id, ...d });
     });
     renderLeaderboard(latestKids);
-    renderInMaze(latestKids);
   });
 
   function renderLeaderboard(kids) {
@@ -427,9 +392,9 @@ function boot() {
         <div class="lb-rank ${rankClass}">${rankStr}</div>
         <div class="lb-name">${escHtml(k.name || '?')}</div>
         <div class="lb-badges">
-          <span class="lb-badge${k.savedPeach?' earned':''}" title="Saved Peach"><img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>
-          <span class="lb-badge${k.usedMushroom?' earned':''}" title="Mushroom Power"><img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></span>
-          <span class="lb-badge${k.usedShell?' earned':''}" title="Red Shell"><img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>
+          ${k.savedPeach?`<span class="lb-badge earned" title="Saved Peach"><img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
+          ${k.usedMushroom?`<span class="lb-badge earned" title="Mushroom Power"><img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
+          ${k.usedShell?`<span class="lb-badge earned" title="Red Shell"><img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
         </div>
         <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
         <div class="lb-time">${time}</div>
@@ -440,37 +405,6 @@ function boot() {
     applyFollow();
   }
 
-  function renderInMaze(kids) {
-    const inMaze = kids
-      .filter(k => k.mazeStartTime && !k.mazeEndTime)
-      .sort((a, b) => {
-        const ta = a.mazeStartTime?.toMillis?.() ?? 0;
-        const tb = b.mazeStartTime?.toMillis?.() ?? 0;
-        return tb - ta; // newest first
-      });
-
-    imCount.textContent = inMaze.length;
-
-    if (!inMaze.length) {
-      imInner.innerHTML = '<div class="empty-msg">No one in maze yet</div>';
-      return;
-    }
-
-    imInner.innerHTML = inMaze.map(k => {
-      const startMs = k.mazeStartTime?.toMillis?.() ?? Date.now();
-      const ms      = Date.now() - startMs;
-      const elapsed = fmtTime(ms);
-      return `<div class="im-row" data-start="${startMs}">
-        <div class="im-dot"></div>
-        <div class="im-name">${escHtml(k.name || '?')}</div>
-        <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
-        <div class="im-elapsed">${elapsed}</div>
-      </div>`;
-    }).join('');
-
-    imScroller.reset();
-    applyFollow();
-  }
 }
 
 function escHtml(s) {

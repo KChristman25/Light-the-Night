@@ -65,52 +65,83 @@
     /* ── Login overlay ───────────────────────────────────────────────────── */
     #login {
       position: absolute; inset: 0;
-      background-color: #5c94fc;
-      background-image:
-        radial-gradient(ellipse 90px 50px at 12% 20%, #fff 50%, transparent 51%),
-        radial-gradient(ellipse 65px 38px at 9% 20%, #fff 50%, transparent 51%),
-        radial-gradient(ellipse 75px 44px at 15% 17%, #fff 50%, transparent 51%),
-        radial-gradient(ellipse 110px 55px at 72% 15%, #fff 50%, transparent 51%),
-        radial-gradient(ellipse 80px 42px at 69% 15%, #fff 50%, transparent 51%),
-        radial-gradient(ellipse 90px 48px at 76% 12%, #fff 50%, transparent 51%);
       display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 0;
-      z-index: 100;
+      flex-direction: column; gap: 16px;
+      z-index: 100; overflow: hidden;
+    }
+    #loginBg {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      display: block; image-rendering: pixelated;
+    }
+    #login .login-logo {
+      position: relative; z-index: 1;
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(11px, 2.2vw, 16px);
+      color: #e8a000;
+      text-shadow: 2px 2px 0 #231207, 0 0 18px rgba(232,160,0,.4);
+      text-align: center; line-height: 2; letter-spacing: .04em;
     }
     #login .login-card {
-      background: #fff; border: 3px solid #231207;
-      border-radius: 4px; padding: 36px 32px;
-      box-shadow: 6px 6px 0 #231207;
+      position: relative; z-index: 1;
+      background: #231207; border: 3px solid #e8a000;
+      border-radius: 4px; padding: 28px 26px 22px;
+      box-shadow: 6px 6px 0 #e8a000;
       display: flex; flex-direction: column; gap: 12px;
-      width: 340px;
+      width: min(340px, 92vw);
     }
     #login h2 {
-      font-size: 11px; font-weight: 700;
+      font-size: 10px; font-weight: 700;
       text-align: center; font-family: 'Press Start 2P', monospace;
-      line-height: 1.6; color: #e52521; margin-bottom: 4px;
+      line-height: 1.8; color: #e8a000;
+      text-shadow: 1px 1px 0 #000;
+      letter-spacing: .06em; margin-bottom: 2px;
     }
     #login .login-sub {
-      font-size: 13px; color: var(--muted-dk); text-align: center; margin-bottom: 4px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px; color: rgba(255,255,255,.55);
+      text-align: center; margin-bottom: 4px; letter-spacing: .04em;
     }
     #login input {
-      width: 100%; padding: 10px 14px;
-      background: #fff; border: 2px solid #ccc;
-      border-radius: 4px; color: var(--text); font-size: 14px;
-      outline: none; transition: border-color .2s;
+      width: 100%; padding: 12px 14px;
+      background: #3a1f0a; border: 2px solid #e8a000;
+      border-radius: 4px; color: #fff;
+      font-size: 18px; font-family: 'Press Start 2P', monospace;
+      letter-spacing: 0.25em; text-align: center;
+      outline: none; box-shadow: 3px 3px 0 #e8a000;
+      transition: border-color .15s, box-shadow .15s;
+      -webkit-appearance: none;
     }
-    #login input:focus { border-color: var(--accent); box-shadow: 2px 2px 0 var(--accent); }
+    #login input::placeholder { color: #7a5c44; font-size: 11px; letter-spacing: .04em; }
+    #login input:focus { border-color: #ffc107; box-shadow: 3px 3px 0 #ffc107; }
     #login .login-btn {
-      width: 100%; padding: 10px;
-      background: var(--accent); border: 2px solid var(--text);
-      border-radius: 4px; box-shadow: 2px 2px 0 var(--text);
-      color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
-      transition: background .15s; font-family: 'Inter', sans-serif;
+      width: 100%; padding: 13px 10px;
+      background: #e52521; border: 3px solid #e8a000;
+      border-radius: 4px; box-shadow: 4px 4px 0 #e8a000;
+      color: #fff; font-weight: 700; font-size: 11px; cursor: pointer;
+      font-family: 'Press Start 2P', monospace; letter-spacing: .06em;
+      transition: background .1s, transform .08s, box-shadow .08s;
+      touch-action: manipulation;
     }
-    #login .login-btn:hover { background: var(--accent-dk); }
-    #loginStatus { font-size: 13px; color: #dc2626; min-height: 18px; text-align: center; }
+    #login .login-btn:hover { background: #c41e1b; }
+    #login .login-btn:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #e8a000; }
+    #loginStatus {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px; color: #ff8080; min-height: 16px; text-align: center;
+    }
     #login .login-divider { display: flex; align-items: center; gap: 10px; }
-    #login .login-divider hr { flex: 1; border: none; border-top: 1px solid #ddd; }
-    #login .login-divider span { font-size: 12px; color: var(--muted-dk); }
+    #login .login-divider hr { flex: 1; border: none; border-top: 1px solid #5a3a1a; }
+    #login .login-divider span { font-size: 9px; color: #7a5c44; font-family: 'Press Start 2P', monospace; }
+    #login .google-btn {
+      width: 100%; padding: 10px;
+      background: #fff; border: 2px solid #5a3a1a;
+      border-radius: 4px; box-shadow: 3px 3px 0 #5a3a1a;
+      color: #231207; font-weight: 600; font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: 'Inter', sans-serif;
+      transition: border-color .15s;
+    }
+    #login .google-btn:hover { border-color: #e8a000; box-shadow: 3px 3px 0 #e8a000; }
 
     /* ── Sidebar ─────────────────────────────────────────────────────────── */
     .sidebar {
@@ -250,6 +281,7 @@
       transition: transform .05s, box-shadow .05s;
       font-family: 'Inter', sans-serif;
       box-shadow: 3px 3px 0 var(--text);
+      touch-action: manipulation;
     }
     .btn:hover { background: var(--accent-dk); }
     .btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--text); }
@@ -396,17 +428,18 @@
 
   <!-- LOGIN -->
   <div id="login">
+    <canvas id="loginBg"></canvas>
+    <div class="login-logo">🌙 LIGHT THE NIGHT 🌙<br>HUNT</div>
     <div class="login-card">
       <h2>Admin Dashboard</h2>
-      <p class="login-sub">Light the Night Hunt</p>
-      <input id="adminPasswordInput" type="password" placeholder="Admin password"/>
-      <button class="login-btn" onclick="checkAdminPassword()">Sign In</button>
+      <p class="login-sub">Enter access password</p>
+      <input id="adminPasswordInput" type="password" placeholder="password" autocomplete="current-password"/>
+      <button class="login-btn" onclick="checkAdminPassword()">▶ ENTER</button>
       <p id="loginStatus"></p>
       <div class="login-divider">
         <hr/><span>or</span><hr/>
       </div>
-      <button class="login-btn" onclick="signInWithGoogle()"
-        style="background:#fff;color:#1f2937;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button class="google-btn" onclick="signInWithGoogle()">
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
         Sign in with Google
       </button>
@@ -1164,6 +1197,45 @@
   </div>
 
 <script>
+  /* ── Login background canvas (same tile art as station game) ─────────── */
+  (function(){
+    const bc = document.getElementById('loginBg');
+    if(!bc) return;
+    const bx = bc.getContext('2d');
+    const img = new Image();
+    img.src = 'mario-tiles.png';
+    function drawCloud(cx, cy, ts){
+      const L = Math.round(cx - ts * 1.5);
+      const T = Math.round(cy - ts);
+      [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+        bx.drawImage(img, sx, sy, 16, 16, L+(i%3)*ts, T+Math.floor(i/3)*ts, ts, ts);
+      });
+    }
+    function draw(){
+      const W = bc.width  = bc.offsetWidth  || window.innerWidth;
+      const H = bc.height = bc.offsetHeight || window.innerHeight;
+      bx.imageSmoothingEnabled = false;
+      bx.fillStyle = '#5c94fc';
+      bx.fillRect(0, 0, W, H);
+      const groundH = 56, gy = H - groundH;
+      if(img.complete && img.naturalWidth > 0){
+        const cs = Math.round(W * 0.065);
+        drawCloud(W*0.13, H*0.12, cs);
+        drawCloud(W*0.50, H*0.09, Math.round(cs*1.2));
+        drawCloud(W*0.82, H*0.14, Math.round(cs*0.85));
+        const gt = Math.round(groundH / 2), cols = Math.ceil(W / gt) + 1;
+        for(let c=0;c<cols;c++) bx.drawImage(img,16,0,16,16,c*gt,gy,gt,gt);
+        for(let c=0;c<cols;c++) bx.drawImage(img, 0,0,16,16,c*gt,gy+gt,gt,gt);
+      } else {
+        bx.fillStyle='#c8601c'; bx.fillRect(0,gy,W,groundH);
+        bx.fillStyle='#231207'; bx.fillRect(0,gy,W,3);
+      }
+    }
+    img.onload = draw;
+    draw();
+    window.addEventListener('resize', draw);
+  })();
+
   /* ── Firebase ─────────────────────────────────────────────────────────── */
   firebase.initializeApp({
     apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
@@ -1266,6 +1338,7 @@
 
   /* ── Auth ─────────────────────────────────────────────────────────────── */
   function grantDashboardAccess(){
+    firebase.auth().signInAnonymously().catch(()=>{});
     document.getElementById("login").style.display = "none";
     document.getElementById("sidebar").classList.add('shown');
     document.getElementById("main").style.display = "block";
@@ -1906,7 +1979,7 @@ if(id==='allvisitors')  initAllVisitors();
     okBtn.textContent=okLabel||'OK';
     okBtn.className='btn '+(okStyle||'btn-danger');
     _stActionCb=cb;
-    okBtn.onclick=()=>{ closeStActionModal(); if(_stActionCb) _stActionCb(isPrompt?inp.value:true); };
+    okBtn.onclick=()=>{ const fn=_stActionCb; closeStActionModal(); if(fn) fn(isPrompt?inp.value:true); };
     document.getElementById('stActionModalBg').style.display='flex';
   }
   function closeStActionModal(){ document.getElementById('stActionModalBg').style.display='none'; _stActionCb=null; }

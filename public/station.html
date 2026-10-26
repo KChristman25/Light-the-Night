@@ -1490,7 +1490,7 @@ async function pickSpecialStation(mode){
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
   const beat=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
-  _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,10000);
+  _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
 async function pickLandStation(theme){
@@ -1512,7 +1512,7 @@ async function pickLandStation(theme){
   if(pn) pn.textContent=label;
   const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
   const beat2=()=>db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});
-  _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,10000);
+  _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
 
@@ -1529,7 +1529,8 @@ function startList(){
       const items=[];
       snap.forEach((doc)=>{const id=doc.id;if(!isNumericId(id))return;const d=doc.data()||{};items.push({id:Number(id),label:d.label||('Station '+id)});});
       items.sort((a,b)=>a.id-b.id);
-      listEl.innerHTML=items.map((row)=>`<div class="bar" onclick="pick(${row.id})"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">▶</div></div>`).join('');
+      listEl.innerHTML=items.map((row)=>`<div class="bar" data-id="${row.id}"><div class="id">#${row.id}</div><div class="name">${escapeHtml(row.label)}</div><div class="go">▶</div></div>`).join('');
+      listEl.querySelectorAll('.bar').forEach(bar=>{bar.addEventListener('click',()=>window.pick(parseInt(bar.dataset.id,10)));});
       emptyEl.classList.toggle('hide',items.length>0);
     },(err)=>{console.warn('stations listen err',err.code);if(err.code==='permission-denied'){waitForAuth().then(startSnap);}});
   };
@@ -1544,6 +1545,7 @@ async function startControlForStation(){
   if(stationDocUnsub)stationDocUnsub();
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
   prevScanTs=null;
+  let _prevActive=null;
   stationDocUnsub=db.collection('stations').doc(currentStationId).onSnapshot((doc)=>{
     const d=doc.data()||{};
     const stLabel=d.label?d.label:('Station #'+currentStationId);
@@ -1563,12 +1565,13 @@ async function startControlForStation(){
       }
     } else {
       if(offBanner) offBanner.remove();
-      // Station just came back online — fire a heartbeat immediately
-      if(_lastBeatFn) _lastBeatFn();
+      // Only fire an extra heartbeat on the offline→online transition, not every snapshot
+      if(_prevActive===false && _lastBeatFn) _lastBeatFn();
     }
+    _prevActive=d.active===false?false:true;
   });
   const beat=()=>db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
-  _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,10000);
+  _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
 }
 
@@ -2402,7 +2405,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
         _lastBeatFn();
         // Restart interval in case the browser killed it while hidden
         if(heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval=setInterval(_lastBeatFn,10000);
+        heartbeatInterval=setInterval(_lastBeatFn,600000);
       }
       // Re-acquire wake lock if it was released while hidden
       try{if('wakeLock'in navigator&&navigator.wakeLock&&!wakeLockObj){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj)wakeLockObj.addEventListener('release',()=>{wakeLockObj=null;});}else if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}
@@ -2412,7 +2415,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
   });
 })();
 // Backstop: every 25s fire the beat unconditionally regardless of any interval state
-setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 25000);
+setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 600000);
 
 window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}});
 
@@ -2440,17 +2443,17 @@ window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(
     bx.fillStyle = '#5c94fc';
     bx.fillRect(0, 0, W, H);
 
-    const groundH = 56;
+    const groundH = 74;
     const gy = H - groundH;
 
     if(img.complete && img.naturalWidth > 0){
       // Clouds — scale with screen, same positions as game
       const cs = Math.round(W * 0.065);
-      drawCloud(W * 0.13, H * 0.12, cs);
-      drawCloud(W * 0.50, H * 0.09, Math.round(cs * 1.2));
-      drawCloud(W * 0.82, H * 0.14, Math.round(cs * 0.85));
+      drawCloud(W * 0.13, H * 0.10, cs);
+      drawCloud(W * 0.50, H * 0.07, Math.round(cs * 1.2));
+      drawCloud(W * 0.82, H * 0.13, Math.round(cs * 0.85));
 
-      // Ground tiles (2 rows filling groundH)
+      // Ground tiles (2 rows filling groundH) — matches game gy=H-74
       const gt   = Math.round(groundH / 2);
       const cols = Math.ceil(W / gt) + 1;
       for(let c = 0; c < cols; c++) bx.drawImage(img, 16, 0, 16, 16, c*gt, gy,    gt, gt);
@@ -2541,7 +2544,8 @@ const SFX = (function(){
     },
     timedOut(){
       [330,294,262,196].forEach((f,i)=>tone(f,'square',0.16,i*0.13,0.14));
-    }
+    },
+    reset(){ try{if(ctx){ctx.close();}}catch(_){} ctx=null; }
   };
 })();
 
@@ -3205,14 +3209,7 @@ const SFX = (function(){
     tapHintEl.style.display='block';
     timerEl.style.display='none';
     G=null;
-    // Silent reload to clear accumulated memory after each game
-    if(currentStationId){
-      sessionStorage.setItem('ltn_reload_station',currentStationId);
-      const mask=document.createElement('div');
-      mask.style.cssText='position:fixed;inset:0;z-index:9999999;background:#231207;';
-      document.body.appendChild(mask);
-      setTimeout(()=>location.reload(),80);
-    }
+    SFX.reset(); // close AudioContext to release all accumulated audio nodes
   }
 
   // ── Pre-bake static background to offscreen canvas ──
@@ -3323,17 +3320,7 @@ const SFX = (function(){
   };
 })();
 
-// ── Silent reload restore: if page was reloaded after a game, auto-pick saved station ──
-(function(){
-  const sid=sessionStorage.getItem('ltn_reload_station');
-  if(!sid) return;
-  sessionStorage.removeItem('ltn_reload_station');
-  const tryPick=()=>{
-    if(_authReady&&window.pick){window.pick(sid);}
-    else{setTimeout(tryPick,200);}
-  };
-  setTimeout(tryPick,300);
-})();
+
 </script>
 
 <!-- Broadcast banner — last in body so no ancestor style can clip it -->

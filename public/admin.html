@@ -1909,13 +1909,21 @@ if(id==='allvisitors')  initAllVisitors();
           <td id="st-name-${id}">${d.label||'Station '+id}</td>
           <td><span style="color:${onln?'#4ade80':'#f87171'}">${onln?'● Online':'● Offline'}</span></td>
           <td style="color:var(--muted-dk);font-size:12px">${hb?new Date(hb).toLocaleTimeString():'—'}</td>
-          <td><button class="btn" style="font-size:11px;padding:3px 10px;background:${isActive?'#16a34a':'#6b7280'}" onclick="stToggle('${id}',${isActive})">${isActive?'ON':'OFF'}</button></td>
+          <td><button class="btn" style="font-size:11px;padding:3px 10px;background:${isActive?'#16a34a':'#6b7280'}" data-action="stToggle" data-id="${id}" data-active="${isActive}">${isActive?'ON':'OFF'}</button></td>
           <td style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn" style="font-size:11px;padding:3px 10px;background:var(--muted-dk)" onclick="stRename('${id}')">Rename</button>
-            <button class="btn btn-warn" style="font-size:11px;padding:3px 10px" onclick="stDelete('${id}')">Delete</button>
+            <button class="btn" style="font-size:11px;padding:3px 10px;background:var(--muted-dk)" data-action="stRename" data-id="${id}">Rename</button>
+            <button class="btn btn-warn" style="font-size:11px;padding:3px 10px" data-action="stDelete" data-id="${id}">Delete</button>
           </td>
         </tr>`;
       }).join('');
+      tbody.querySelectorAll('[data-action]').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          const a=btn.dataset.action,id=btn.dataset.id;
+          if(a==='stToggle') stToggle(id,btn.dataset.active==='true');
+          else if(a==='stRename') stRename(id);
+          else if(a==='stDelete') stDelete(id);
+        });
+      });
     }
     const SPECIAL_STATION_DEFS=[
       {id:'start',        icon:'🏁', label:'Start Line'},
@@ -1951,9 +1959,12 @@ if(id==='allvisitors')  initAllVisitors();
           <td>${d.label||def.name}</td>
           <td><span style="color:${onln?'#4ade80':'#f87171'}">${onln?'● Online':'● Offline'}</span></td>
           <td style="color:var(--muted-dk);font-size:12px">${hbStr}</td>
-          <td><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--muted-dk)" onclick="stRename('${id}')">Rename</button></td>
+          <td><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--muted-dk)" data-action="stRename" data-id="${id}">Rename</button></td>
         </tr>`;
       }).join('');
+      tbody.querySelectorAll('[data-action="stRename"]').forEach(btn=>{
+        btn.addEventListener('click',()=>stRename(btn.dataset.id));
+      });
     }
   }
 

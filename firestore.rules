@@ -22,7 +22,8 @@ service cloud.firestore {
     match /scans/{scanId} {
       allow read: if isAuthed();
       allow create: if isAuthed();
-      allow update, delete: if false; // immutable once written
+      allow delete: if isAuthed(); // admin event reset needs to wipe scans
+      allow update: if false;      // records are immutable once written
     }
 
     // ── config collection ────────────────────────────────────────────────────
@@ -80,7 +81,10 @@ service cloud.firestore {
       allow read, write: if isAuthed();
     }
 
-    // ── alerts_missing collection ────────────────────────────────────────────
+    // ── alerts collections ───────────────────────────────────────────────────
+    match /alerts/{docId} {
+      allow read, write: if isAuthed();
+    }
     match /alerts_missing/{docId} {
       allow read, write: if isAuthed();
     }
@@ -105,6 +109,27 @@ service cloud.firestore {
       allow read, write: if isAuthed();
     }
     match /webrtcAudio/{stationId}/{sub}/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── stationMessages collection ───────────────────────────────────────────
+    // Admin sends "go" messages to specific station docs; stations listen via onSnapshot.
+    match /stationMessages/{stationId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── prints collection ────────────────────────────────────────────────────
+    // Certificate print requests written by certificate.html.
+    match /prints/{docId} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── editor collection ────────────────────────────────────────────────────
+    // Web-based Pi script editor (editor.html internal tool).
+    match /editor/{docId} {
+      allow read, write: if isAuthed();
+    }
+    match /editor/{docId}/{sub}/{subDocId} {
       allow read, write: if isAuthed();
     }
 

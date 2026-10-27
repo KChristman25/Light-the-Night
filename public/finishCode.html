@@ -10,6 +10,7 @@
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
@@ -173,60 +174,7 @@
   let _liveTimer = null;
 
   async function fetchAndRender() {
-    const snapshot = await db.collection('kids').get();
-    const items = [];
-    snapshot.forEach(doc => {
-      const d = doc.data(); d._id = doc.id; items.push(d);
-    });
-
-    // Only show people who have scanned at the start station (mazeStartTime set)
-    const inMaze = items.filter(p => p.mazeStartTime && p.completed !== true)
-      .map(p => {
-        const startDate = normalizeStart(p);
-        const startMs = startDate ? startDate.getTime() : 0;
-        return { raw: p, startDate, startMs };
-      })
-      .sort((a, b) => a.startMs - b.startMs); // earliest start = longest in maze, shown first
-
-    // Stop any previous live timer
-    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
-
-    listEl.innerHTML = '';
-    if (inMaze.length === 0) {
-      listEl.innerHTML = '<div class="small">No participants currently in maze.</div>';
-    } else {
-      inMaze.forEach(p => {
-        const doc = p.raw;
-        const name = doc.name || doc.displayName || 'Unnamed';
-        const code = doc.barcode || doc.code || doc._id;
-        const el = document.createElement('div');
-        el.className = 'participant';
-        el.dataset.startMs = p.startMs; // anchor for live timer
-        el.innerHTML = `
-          <div>
-            <div class="name">${escapeHtml(name)}</div>
-            <div class="meta">${escapeHtml(code)}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="duration">${p.startMs ? formatDuration(Date.now() - p.startMs) : '—'}</div>
-            <div class="small">${p.startDate ? p.startDate.toLocaleTimeString() : ''}</div>
-            <button onclick="finishById('${escapeHtml(doc._id)}')" style="margin-top:4px; font-size:12px; padding:4px 8px;">Finish</button>
-          </div>`;
-        listEl.appendChild(el);
-      });
-
-      // Tick every second — only updates the timer text, no DOM rebuild
-      _liveTimer = setInterval(() => {
-        listEl.querySelectorAll('.participant[data-start-ms]').forEach(el => {
-          const ms = parseInt(el.dataset.startMs);
-          const dur = el.querySelector('.duration');
-          if (dur && ms) dur.textContent = formatDuration(Date.now() - ms);
-        });
-      }, 1000);
-    }
-
-    // also refresh completed
-    fetchAndRenderCompleted(items);
+    renderFromSnapshot();
   }
 
   // ── completed list ────────────────────────────────────────
@@ -301,7 +249,7 @@
     });
 
     setLastAction('Finished: ' + (data.name || docRef.id));
-    await fetchAndRender();
+    // onSnapshot will fire automatically and re-render the lists
   }
 
   // ── unfinish ──────────────────────────────────────────────
@@ -315,7 +263,7 @@
         durationMs: firebase.firestore.FieldValue.delete()
       });
       setLastAction('Unfinished.');
-      await fetchAndRender();
+      // onSnapshot will fire automatically and re-render the lists
     } catch(e) {
       setLastAction('Error: ' + e.message, false);
     }
@@ -332,9 +280,71 @@
     if (e.key === 'Enter') manualFinish.click();
   });
 
-  // ── boot ─────────────────────────────────────────────────
-  fetchAndRender();
-  setInterval(fetchAndRender, 10000);
+  // ── boot — sign in anonymously, then listen live ─────────
+  let _kidsSnapshot = {}; // docId → data, kept live by onSnapshot
+  firebase.auth().signInAnonymously().then(() => {
+    // Live listener — updates whenever any kid doc changes
+    db.collection('kids').onSnapshot(snap => {
+      _kidsSnapshot = {};
+      snap.forEach(doc => { _kidsSnapshot[doc.id] = Object.assign({_id: doc.id}, doc.data()); });
+      renderFromSnapshot();
+    }, e => {
+      listEl.innerHTML = '<div class="small" style="color:#ef4444">Read error: ' + e.message + '</div>';
+    });
+  }).catch(e => {
+    listEl.innerHTML = '<div class="small" style="color:#ef4444">Auth failed: ' + e.message + '</div>';
+  });
+
+  function renderFromSnapshot() {
+    const items = Object.values(_kidsSnapshot);
+    renderInMaze(items);
+    fetchAndRenderCompleted(items);
+  }
+
+  function renderInMaze(items) {
+    const inMaze = items.filter(p => p.mazeStartTime && p.completed !== true)
+      .map(p => {
+        const startDate = normalizeStart(p);
+        const startMs = startDate ? startDate.getTime() : 0;
+        return { raw: p, startDate, startMs };
+      })
+      .sort((a, b) => a.startMs - b.startMs);
+
+    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+
+    listEl.innerHTML = '';
+    if (inMaze.length === 0) {
+      listEl.innerHTML = '<div class="small">No participants currently in maze.</div>';
+    } else {
+      inMaze.forEach(p => {
+        const doc = p.raw;
+        const name = doc.name || doc.displayName || 'Unnamed';
+        const code = doc.barcode || doc.code || doc._id;
+        const el = document.createElement('div');
+        el.className = 'participant';
+        el.dataset.startMs = p.startMs;
+        el.innerHTML = `
+          <div>
+            <div class="name">${escapeHtml(name)}</div>
+            <div class="meta">${escapeHtml(code)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="duration">${p.startMs ? formatDuration(Date.now() - p.startMs) : '—'}</div>
+            <div class="small">${p.startDate ? p.startDate.toLocaleTimeString() : ''}</div>
+            <button onclick="finishById('${escapeHtml(doc._id)}')" style="margin-top:4px; font-size:12px; padding:4px 8px;">Finish</button>
+          </div>`;
+        listEl.appendChild(el);
+      });
+
+      _liveTimer = setInterval(() => {
+        listEl.querySelectorAll('.participant[data-start-ms]').forEach(el => {
+          const ms = parseInt(el.dataset.startMs);
+          const dur = el.querySelector('.duration');
+          if (dur && ms) dur.textContent = formatDuration(Date.now() - ms);
+        });
+      }, 1000);
+    }
+  }
 </script>
 </body>
 </html>

@@ -1132,6 +1132,19 @@ if (!firebase.apps.length) {
     storageBucket: "light-the-night-2025.appspot.com"
   });
 }
+// Catch JS errors and show them on-screen so station bugs are never invisible
+window.addEventListener('error', e=>{
+  const msg = (e.message||'JS error') + (e.filename ? ' @'+e.filename.split('/').pop()+':'+(e.lineno||'?') : '');
+  console.error('[station error]', e.error||e.message);
+  const s = document.getElementById('statusMsg');
+  if(s){ s.textContent='ERR: '+msg; s.style.display='block'; s.style.color='#ff4444'; }
+});
+window.addEventListener('unhandledrejection', e=>{
+  const msg = (e.reason?.message || String(e.reason) || 'unhandled rejection');
+  console.error('[station rejection]', e.reason);
+  const s = document.getElementById('statusMsg');
+  if(s){ s.textContent='ERR: '+msg; s.style.display='block'; s.style.color='#ff4444'; }
+});
 const db  = firebase.firestore();
 const FSV = firebase.firestore.FieldValue;
 
@@ -1319,7 +1332,7 @@ function attachStationMsgListener(stId){
     if(!d.type)return;
     if(d.expiresAt&&d.expiresAt.toMillis()<Date.now()){snap.ref.delete().catch(()=>{});return;}
     if(d.type==='go'){snap.ref.delete().catch(()=>{});showGoMessage();}
-  });
+  },err=>{console.warn('stationMessages listen err',err.code);});
 }
 
 let wakeLockObj=null, noSleep=null;
@@ -1612,7 +1625,7 @@ document.addEventListener('keydown',(e)=>{
 });
 
 async function submitStationCode(code){
-  if(!currentStationId)return;
+  if(!currentStationId){setStatus('No station selected');setTimeout(()=>setStatus(''),2500);return;}
   let docRef=null,kidData=null;
   if(_kidsCache){
     const hit=_kidsCache[String(code)];
@@ -1639,15 +1652,16 @@ async function submitStationCode(code){
     }
   }
 
-  // Block duplicate scans; in testing mode (allowMultiScan) allow re-entry everywhere including start
-  if(!allowMultiScan){
+  // Block duplicate scans; completed kids re-scanning start get a fresh run (bypass dup check).
+  const isRerun=(kidData.completed===true||kidData.mazeEndTime)&&currentStationMode==='start';
+  if(!allowMultiScan&&!isRerun){
     const existingScans=Array.isArray(kidData.scans)?kidData.scans:[];
-    const already=existingScans.some(s=>String(s)===String(currentStationId));
+    const already=existingScans.some(s=>{const id=typeof s==='object'&&s!==null?s.station:s;return String(id)===String(currentStationId);});
     if(already){showScanMsg('Already started! '+name,'#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}
   }
 
   // Start station sets its own mazeStartTime during the countdown
-  if(currentStationMode==='start')          return handleStartStation(docRef,kidData);
+  if(currentStationMode==='start')          return handleStartStation(docRef,kidData,code);
 
   // Block kids who haven't started yet — must scan START station first (bypassed in test mode)
   if(!kidData.mazeStartTime && !allowMultiScan){
@@ -1665,7 +1679,7 @@ async function submitStationCode(code){
   // ── Special station modes ──────────────────────────────
   if(currentStationMode==='shell')          return handleShellStation(docRef,kidData);
   if(currentStationMode==='mushroom')       return handleMushroomStation(docRef,kidData);
-  if(currentStationMode==='rescue_peach')   return handleRescueStation(docRef,kidData,'peach','Princess Peach');
+  if(currentStationMode==='rescue_peach')   return handleRescueStation(docRef,kidData,'peach','Princess Peach',code);
   if(currentStationMode==='bowser')         return handleBowserStation(docRef,kidData);
   // land_ modes fall through to coin game below — fire their OSC now
   if(currentStationMode.startsWith('land_')){
@@ -1688,18 +1702,21 @@ async function submitStationCode(code){
 
   if(kidData.frozen){
     beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    if(typeof window.startMarioGame!=='function'){setStatus('Reload page — game not ready');return;}
     window.startMarioGame(docRef,kidData,false,true,null); return;
   }
   const now=new Date();
   if(kidData.superMarioActive && kidData.superMarioExpiry && kidData.superMarioExpiry.toDate()>now){
     try{await docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
     beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+    if(typeof window.startMarioGame!=='function'){setStatus('Reload page — game not ready');return;}
     window.startMarioGame(docRef,kidData,true,false,_powerupType); return;
   }
   if(kidData.superMarioActive){
     try{docRef.update({superMarioActive:FSV.delete(),superMarioExpiry:FSV.delete(),shellShield:FSV.delete()});}catch(_){}
   }
   beep(); fireConfetti(); maybeTriggerWebSwitch('code_entry').catch(()=>{});
+  if(typeof window.startMarioGame!=='function'){setStatus('Reload page — game not ready');return;}
   window.startMarioGame(docRef,kidData,false,false,_powerupType);
 }
 
@@ -1777,16 +1794,42 @@ function runStartCountdown(name, onComplete){
   if(p) p.catch(()=>{ vid.muted = true; vid.play().catch(()=>{}); });
 }
 
-async function handleStartStation(docRef, kidData){
+function _setStartStatus(msg, isError=false){
+  const el=document.getElementById('startStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? '#ff4444' : '#4cff50';
+}
+
+async function handleStartStation(docRef, kidData, code){
   const name=kidData.name||kidData.displayName||'Participant';
   const startCoins=CFG.startCoins||10;
 
+  _setStartStatus('');
   beep();
   showSpecialResult('🏁', name, 'GOOD LUCK!', '', 3);
   sendConfiguredOsc('maze_start').catch(()=>{});
 
   // Write mazeStartTime immediately on scan — don't wait for the countdown to finish
   const startNow = firebase.firestore.Timestamp.now();
+
+  // Immediately reflect new state in local cache so next-station scan isn't blocked
+  // (Firestore round-trip takes 200-500ms; cache snapshot lags behind)
+  if(_kidsCache && code != null && _kidsCache[String(code)]){
+    const cached = _kidsCache[String(code)];
+    cached.data = {
+      ...cached.data,
+      mazeStartTime: startNow,
+      coins: startCoins,
+      completed: false,
+      mazeEndTime: null,
+      scans: ['start'],
+      savedPeach: false,
+      usedMushroom: false,
+      usedShell: false,
+      frozen: false
+    };
+  }
 
   // Re-run: save best-ever data, wipe game state, and set new start time in one write
   if(kidData.completed===true||kidData.mazeEndTime){
@@ -1804,15 +1847,17 @@ async function handleStartStation(docRef, kidData){
       completionTime:  FSV.delete(), durationMs:   FSV.delete(),
       completedBy:     FSV.delete(), shellShield:  FSV.delete(),
       superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete()
-    },{merge:true}).catch(()=>{});
+    },{merge:true}).catch(e=>{console.error('start re-run write failed:',e);_setStartStatus('WRITE ERROR: '+e.message,true);});
   } else {
-    // First-time start: write mazeStartTime, scans, and coins right now
+    // First-time start: write mazeStartTime, scans, and coins right now.
+    // Use direct array write if scans isn't already an array (handles old map-format docs).
+    const scansValue = Array.isArray(kidData.scans) ? FSV.arrayUnion('start') : ['start'];
     docRef.update({
-      scans:FSV.arrayUnion('start'),
+      scans: scansValue,
       'scanCounts.start':FSV.increment(1),
       mazeStartTime:startNow,
       coins:FSV.increment(startCoins)
-    }).catch(()=>{});
+    }).catch(e=>{console.error('start write failed:',e);_setStartStatus('WRITE ERROR: '+e.message,true);});
   }
   db.collection('scans').add({
     kidId:docRef.id, name, station:'start',
@@ -1907,26 +1952,32 @@ async function handleMushroomStation(docRef,kidData){
 }
 
 // ── Character Rescue Station ───────────────────────────────────
-async function handleRescueStation(docRef,kidData,character,characterName){
+function handleRescueStation(docRef,kidData,character,characterName,code){
   const name=kidData.name||kidData.displayName||'Participant';
-  if(kidData.savedPeach){
+  if(kidData.savedPeach && !allowMultiScan){
     showScanMsg(name+' already saved Peach!','#ff80cc','#ff80cc','rgba(255,128,204,.12)','',3000);
     return;
   }
   const bonus=50;
-  setStatus('Saving '+characterName+'…');
-  try{
-    await docRef.update({scans:FSV.arrayUnion(currentStationId), ['scanCounts.'+currentStationId]:FSV.increment(1), coins:FSV.increment(bonus), savedPeach:true});
-    await db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,coins:bonus,gameType:'rescue',timestamp:firebase.firestore.Timestamp.now()});
-    sendConfiguredOsc('peach_rescue').catch(()=>{});
-    setStatus(''); fireConfetti();
-    showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','Rescued '+characterName+'! +'+bonus+' bonus coins!',8);
-  }catch(e){console.error(e);setStatus('Error — try again');}
+  const now=firebase.firestore.Timestamp.now();
+  docRef.update({scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(bonus),savedPeach:true}).catch(()=>{});
+  db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,coins:bonus,gameType:'rescue',timestamp:now}).catch(()=>{});
+  sendConfiguredOsc('peach_rescue').catch(()=>{});
+  // Update local cache so re-scan check is accurate until Firestore snapshot arrives
+  if(_kidsCache && code != null && _kidsCache[String(code)]){
+    _kidsCache[String(code)].data = {..._kidsCache[String(code)].data, savedPeach:true};
+  }
+  setStatus(''); fireConfetti();
+  showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','Rescued '+characterName+'! +'+bonus+' bonus coins!',8);
 }
 
 // ── Bowser Station (finish line) ───────────────────────────────
 async function handleBowserStation(docRef,kidData){
   const name=kidData.name||kidData.displayName||'Participant';
+  if(!kidData.mazeStartTime && !allowMultiScan){
+    showScanMsg('Must scan START LINE first!','#ff8080','#ff8080','rgba(255,128,128,.15)','',4000);
+    return;
+  }
   const now=firebase.firestore.Timestamp.now();
   const startTime=kidData.mazeStartTime||now;
   const durationMs=kidData.mazeStartTime?(now.toMillis()-kidData.mazeStartTime.toMillis()):0;
@@ -1999,6 +2050,7 @@ function sendConfiguredOsc(key){
     }
   }
   runAiGroup(key).catch(()=>{});
+  return Promise.resolve();
 }
 async function runPhoneRuleForStation(stationNum,timing){
   const matchingRules=PHONE_RULES.filter(r=>

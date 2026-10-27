@@ -1587,7 +1587,10 @@ if(id==='allvisitors')  initAllVisitors();
         completed: firebase.firestore.FieldValue.delete(),
         completionTime: firebase.firestore.FieldValue.delete(),
         mazeEndTime: firebase.firestore.FieldValue.delete(),
-        durationMs: firebase.firestore.FieldValue.delete()
+        durationMs: firebase.firestore.FieldValue.delete(),
+        bestMazeEndTime: firebase.firestore.FieldValue.delete(),
+        bestDurationMs: firebase.firestore.FieldValue.delete(),
+        bestCoins: firebase.firestore.FieldValue.delete()
       });
     }catch(e){ alert('Error: '+e.message); }
   }
@@ -2186,15 +2189,16 @@ if(id==='allvisitors')  initAllVisitors();
   }
   function unmarkComplete(id){
     if(!confirm('Move this participant back to in-maze? Their castle scan will be removed so they can scan again.')) return;
-    db.collection("kids").doc(id).set({
-      completed: false,
+    db.collection("kids").doc(id).update({
+      completed: firebase.firestore.FieldValue.delete(),
       completionTime: firebase.firestore.FieldValue.delete(),
       mazeEndTime:    firebase.firestore.FieldValue.delete(),
-      durationMs:     null,
-      completedBy:    firebase.firestore.FieldValue.delete()
-    },{merge:true});
-    db.collection("kids").doc(id).update({
-      scans: firebase.firestore.FieldValue.arrayRemove('bowser')
+      durationMs:     firebase.firestore.FieldValue.delete(),
+      completedBy:    firebase.firestore.FieldValue.delete(),
+      bestMazeEndTime: firebase.firestore.FieldValue.delete(),
+      bestDurationMs:  firebase.firestore.FieldValue.delete(),
+      bestCoins:       firebase.firestore.FieldValue.delete(),
+      scans:           firebase.firestore.FieldValue.arrayRemove('bowser')
     });
   }
   function markComplete(id){
@@ -2686,7 +2690,9 @@ if(id==='allvisitors')  initAllVisitors();
       const already=existing.some(s=>parseInt(typeof s==='object'?s.station:s,10)===stNum);
       if(already){ st.textContent='Already credited for station '+stNum; st.style.color='#fbbf24'; return; }
       await db.collection('kids').doc(_creditSelectedId).update({
-        scans:firebase.firestore.FieldValue.arrayUnion({station:stNum,timestamp:new Date().toISOString(),manual:true})
+        scans: firebase.firestore.FieldValue.arrayUnion(stNum),
+        ['scanCounts.'+stNum]: firebase.firestore.FieldValue.increment(1),
+        manualCredits: firebase.firestore.FieldValue.arrayUnion({station:stNum,timestamp:new Date().toISOString(),by:'admin'})
       });
       st.textContent='✓ Granted station '+stNum+' to '+_creditSelectedName; st.style.color='#4ade80';
       document.getElementById('creditStation').value='';

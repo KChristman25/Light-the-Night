@@ -1208,6 +1208,10 @@ let _authReady = false;
 firebase.auth().onAuthStateChanged(user=>{
   if(!user) return;
   _authReady = true;
+  // Warm up Firestore write path and keep it hot so OSC fires are never cold
+  const _keepAlive = ()=>QUEUE_COL.add({_warmup:true,processed:true,ts:FSV.serverTimestamp()}).then(d=>d.delete()).catch(()=>{});
+  _keepAlive();
+  setInterval(_keepAlive, 25000);
   loadQlabCues().catch(()=>{});
 
   // Broadcast banner listener

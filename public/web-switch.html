@@ -1075,7 +1075,10 @@ function buildStationGroups(){
     id:'station_'+(i+1),
     label:'🪙 Station '+(i+1),
     color:'#dcfce7', accent:'#16a34a',
-    events:[{key:'station_'+(i+1), label:'Coin Scan'}]
+    events:[
+      {key:'station_'+(i+1),        label:'Scan (code entered)'},
+      {key:'station_'+(i+1)+'_done', label:'Done (game finished)'}
+    ]
   }));
   return [STATION_GROUPS_DEF[0], ...coinGroups, ...STATION_GROUPS_DEF.slice(1)];
 }

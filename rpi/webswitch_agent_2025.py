@@ -382,6 +382,7 @@ def ensure_ssl_cert():
         print(f"[ssl] Certificate written to {_CERT_PATH}")
     else:
         print(f"[ssl] Using existing certificate at {_CERT_PATH}")
+    return True
 
 
 # ── HTTP command server (health + direct OSC/GPIO from tablets) ───────────────
@@ -464,15 +465,23 @@ class _HealthHandler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass  # suppress access logs
 
+_using_https = False
+
 def start_health_server():
-    ensure_ssl_cert()
+    global _using_https
     srv = HTTPServer(("0.0.0.0", HEALTH_PORT), _HealthHandler)
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(_CERT_PATH, _KEY_PATH)
-    srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+    try:
+        ensure_ssl_cert()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(_CERT_PATH, _KEY_PATH)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+        _using_https = True
+        print(f"[http] HTTPS command server listening on :{HEALTH_PORT}")
+    except Exception as e:
+        _using_https = False
+        print(f"[http] SSL setup failed ({e}) — falling back to HTTP")
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    print(f"[http] HTTPS command server listening on :{HEALTH_PORT}")
     return srv
 
 
@@ -531,7 +540,8 @@ def main():
     t.start()
     start_health_server()
     my_ip  = get_local_ip()
-    my_url = f"https://{my_ip}:{HEALTH_PORT}"
+    scheme = "https" if _using_https else "http"
+    my_url = f"{scheme}://{my_ip}:{HEALTH_PORT}"
     print(f"[agent] LAN address: {my_url}")
 
     token = sign_in()
@@ -573,7 +583,7 @@ def main():
             try:
                 # Re-detect IP in case network changed (WiFi → Ethernet handoff)
                 new_ip  = get_local_ip()
-                new_url = f"https://{new_ip}:{HEALTH_PORT}"
+                new_url = f"{'https' if _using_https else 'http'}://{new_ip}:{HEALTH_PORT}"
                 if new_url != my_url:
                     my_url = new_url
                     print(f"[agent] IP changed → {my_url}")

@@ -1386,12 +1386,21 @@ async function saveStationOscCues(){
   const stEl = document.getElementById('stationOscStatus');
   stEl.textContent = 'Saving…';
   saveDomOscCues();
-  // Persist group AI text and computer selections from DOM
+  // Collect text and handle clears — empty boxes must explicitly zero out Firestore
+  const dotUpdates = {};
   document.querySelectorAll('.grp-ai-ta').forEach(ta=>{
     const g = ta.dataset.grp;
     const v = ta.value.trim();
-    if(v) _stationGroupAiText[g] = v;
-    else  delete _stationGroupAiText[g];
+    if(v){
+      _stationGroupAiText[g] = v;
+    } else {
+      delete _stationGroupAiText[g];
+      delete _parsedGroupSeqs[g];
+      delete _parsedGroupSeqs[g+'_done'];
+      dotUpdates['stationGroupAiText.'+g]          = '';
+      dotUpdates['stationGroupAiParsed.'+g]        = [];
+      dotUpdates['stationGroupAiParsed.'+g+'_done']= [];
+    }
   });
   document.querySelectorAll('.grp-ai-comp').forEach(sel=>{
     const g = sel.dataset.grp;
@@ -1399,6 +1408,8 @@ async function saveStationOscCues(){
     else delete _stationGroupAiComp[g];
   });
   try{
+    // First write dot-notation clears for empty boxes, then full overwrite for the rest
+    if(Object.keys(dotUpdates).length) await CONFIG_DOC.update(dotUpdates).catch(()=>{});
     await CONFIG_DOC.set({stationOscCues: _stationOscCues, stationGroupAiText: _stationGroupAiText, stationGroupAiComp: _stationGroupAiComp, stationGroupAiParsed: _parsedGroupSeqs}, {merge:true});
     stEl.textContent = '✅ OSC cues saved.';
   }catch(e){ stEl.textContent = '❌ ' + e.message; }

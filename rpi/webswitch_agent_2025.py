@@ -305,6 +305,8 @@ def flush_stale_queue(token):
 
 
 # ── Queue processor ────────────────────────────────────────────────────────────
+_seen_docs = set()  # local dedup — prevents re-processing if Firestore write is slow
+
 def process_queue(token):
     docs = fs_list_unprocessed(token, "webswitch/queueRoot/queue")
     for doc in docs:
@@ -314,6 +316,15 @@ def process_queue(token):
             continue
 
         doc_name = doc["name"].split("/documents/")[-1]
+
+        # Skip if already seen this poll cycle or being processed by a parallel poll
+        if doc_name in _seen_docs:
+            continue
+        _seen_docs.add(doc_name)
+
+        # Mark processed BEFORE executing — prevents double-fire if poll overlaps write latency
+        fs_patch(token, doc_name, {"processed": True})
+
         step_type = str(fields.get("type", "power"))
 
         if step_type == "osc":
@@ -351,8 +362,6 @@ def process_queue(token):
             if outlet is not None and state in ("on", "off", "toggle"):
                 control_outlet(int(outlet), state)
                 push_state(token)
-
-        fs_patch(token, doc_name, {"processed": True})
 
 
 # ── Local IP detection ────────────────────────────────────────────────────────

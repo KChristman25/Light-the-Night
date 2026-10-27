@@ -1150,7 +1150,7 @@ let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "http://192.168.8.106:80
 async function _sendViaPi(payload) {
   if (!_piBaseUrl) throw new Error('no pi url');
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 3000);
+  const t = setTimeout(() => ctrl.abort(), 400);
   try {
     const r = await fetch(_piBaseUrl + '/cmd', {method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
@@ -1192,13 +1192,23 @@ async function runAiGroup(key){
   const base = {processed:false, ts:FSV.serverTimestamp(), uid:'ai:'+key};
   for(const step of steps){
     if(step.type==='osc'){
-      const payload={...base,type:'osc',address:_normalizeOsc(step.address)};
-      if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
-      await QUEUE_COL.add(payload);
+      const addr = _normalizeOsc(step.address);
+      const direct = {type:'osc', address:addr};
+      if(comp){direct.qlabIp=comp.ip; direct.qlabPort=comp.port||53000;}
+      try{ await _sendViaPi(direct); }
+      catch(e){
+        const qp={...base,...direct};
+        await QUEUE_COL.add(qp);
+      }
+    } else if(step.type==='gpio'){
+      const direct={type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500};
+      try{ await _sendViaPi(direct); }
+      catch(e){ await QUEUE_COL.add({...base,...direct}); }
+    } else if(step.type==='power'){
+      await QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state});
+    } else if(step.type==='delay'){
+      await new Promise(r=>setTimeout(r,step.ms||0));
     }
-    if(step.type==='gpio')  await QUEUE_COL.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
-    if(step.type==='power') await QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state});
-    if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
   }
 }
 

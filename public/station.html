@@ -1205,6 +1205,7 @@ async function runAiGroup(key){
 // Sign in anonymously, then start all Firestore listeners
 firebase.auth().signInAnonymously().catch(e=>console.error('anon auth failed',e));
 let _authReady = false;
+let _kidsCache = null; // null = not loaded yet; {} = ready
 firebase.auth().onAuthStateChanged(user=>{
   if(!user) return;
   _authReady = true;
@@ -1212,6 +1213,15 @@ firebase.auth().onAuthStateChanged(user=>{
   const _keepAlive = ()=>QUEUE_COL.add({_warmup:true,processed:true,ts:FSV.serverTimestamp()}).then(d=>d.delete()).catch(()=>{});
   _keepAlive();
   setInterval(_keepAlive, 25000);
+  // Cache all kids in memory so code lookups are instant (no network round-trip before OSC fires)
+  db.collection('kids').onSnapshot(snap=>{
+    _kidsCache={};
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(d.barcode) _kidsCache[String(d.barcode)]={ref:doc.ref,data:d};
+      if(d.code)    _kidsCache[String(d.code)]   ={ref:doc.ref,data:d};
+    });
+  });
   loadQlabCues().catch(()=>{});
 
   // Broadcast banner listener
@@ -1604,14 +1614,19 @@ document.addEventListener('keydown',(e)=>{
 async function submitStationCode(code){
   if(!currentStationId)return;
   let docRef=null,kidData=null;
-  try{
-    const [q1,q2]=await Promise.all([
-      db.collection('kids').where('barcode','==',code).limit(1).get(),
-      db.collection('kids').where('code','==',code).limit(1).get()
-    ]);
-    const hit=(!q1.empty&&q1)||(!q2.empty&&q2)||null;
-    if(hit){docRef=hit.docs[0].ref;kidData=hit.docs[0].data();}
-  }catch(_){}
+  if(_kidsCache){
+    const hit=_kidsCache[String(code)];
+    if(hit){docRef=hit.ref;kidData=hit.data;}
+  } else {
+    try{
+      const [q1,q2]=await Promise.all([
+        db.collection('kids').where('barcode','==',code).limit(1).get(),
+        db.collection('kids').where('code','==',code).limit(1).get()
+      ]);
+      const snap=(!q1.empty&&q1)||(!q2.empty&&q2)||null;
+      if(snap){docRef=snap.docs[0].ref;kidData=snap.docs[0].data();}
+    }catch(_){}
+  }
   if(!docRef){codeBuffer='';updateDisplay();shakeDisplay();setStatus('Code not found');setTimeout(()=>setStatus(''),2500);return;}
   const name=kidData.name||kidData.displayName||'Participant';
 

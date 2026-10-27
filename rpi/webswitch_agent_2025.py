@@ -25,6 +25,9 @@ import socket
 import re
 import threading
 import requests
+import ssl
+import os
+import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
@@ -363,6 +366,24 @@ def get_local_ip():
         return "127.0.0.1"
 
 
+# ── SSL cert (self-signed, generated once on first run) ───────────────────────
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_CERT_PATH  = os.path.join(_SCRIPT_DIR, "cert.pem")
+_KEY_PATH   = os.path.join(_SCRIPT_DIR, "key.pem")
+
+def ensure_ssl_cert():
+    if not (os.path.exists(_CERT_PATH) and os.path.exists(_KEY_PATH)):
+        print("[ssl] Generating self-signed certificate…")
+        subprocess.run([
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", _KEY_PATH, "-out", _CERT_PATH,
+            "-days", "3650", "-nodes", "-subj", "/CN=ltn-pi"
+        ], check=True, capture_output=True)
+        print(f"[ssl] Certificate written to {_CERT_PATH}")
+    else:
+        print(f"[ssl] Using existing certificate at {_CERT_PATH}")
+
+
 # ── HTTP command server (health + direct OSC/GPIO from tablets) ───────────────
 class _HealthHandler(BaseHTTPRequestHandler):
     def _cors(self):
@@ -376,6 +397,28 @@ class _HealthHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        # Serve cert so tablets can download and trust it
+        if self.path == "/cert.pem":
+            try:
+                with open(_CERT_PATH, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-pem-file")
+                self.send_header("Content-Disposition", 'attachment; filename="ltn-pi.pem"')
+                self.send_header("Content-Length", str(len(body)))
+                self._cors()
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode()
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self._cors()
+                self.end_headers()
+                self.wfile.write(body)
+            return
+
         body = b'{"ok":true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -422,10 +465,14 @@ class _HealthHandler(BaseHTTPRequestHandler):
         pass  # suppress access logs
 
 def start_health_server():
+    ensure_ssl_cert()
     srv = HTTPServer(("0.0.0.0", HEALTH_PORT), _HealthHandler)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(_CERT_PATH, _KEY_PATH)
+    srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    print(f"[http] command server listening on :{HEALTH_PORT}")
+    print(f"[http] HTTPS command server listening on :{HEALTH_PORT}")
     return srv
 
 
@@ -445,7 +492,7 @@ def main():
     print("=== LTN Web-Switch Agent ===")
     start_health_server()
     my_ip  = get_local_ip()
-    my_url = f"http://{my_ip}:{HEALTH_PORT}"
+    my_url = f"https://{my_ip}:{HEALTH_PORT}"
     print(f"[agent] LAN address: {my_url}")
 
     token = sign_in()
@@ -487,7 +534,7 @@ def main():
             try:
                 # Re-detect IP in case network changed (WiFi → Ethernet handoff)
                 new_ip  = get_local_ip()
-                new_url = f"http://{new_ip}:{HEALTH_PORT}"
+                new_url = f"https://{new_ip}:{HEALTH_PORT}"
                 if new_url != my_url:
                     my_url = new_url
                     print(f"[agent] IP changed → {my_url}")

@@ -622,12 +622,21 @@ async function drawHealth(){
     events.push({ ts, type:d.type, outlet:d.outlet, state:d.state });
   });
 
+  // Determine the Pi's state at the START of the window by looking at the last event before it
+  const beforeQ = await UPTIME_COL.where('ts','<', new Date(startMs)).orderBy('ts','desc').limit(1).get();
+  let initialType = 'offline';
+  if (!beforeQ.empty) {
+    initialType = beforeQ.docs[0].data().type || 'offline';
+  } else if (onlineState === true) {
+    initialType = 'online'; // no history before window, trust current live state
+  }
+
   const ctx = healthCanvas.getContext('2d');
   const W = healthCanvas.width, H = healthCanvas.height;
   ctx.clearRect(0,0,W,H);
 
   let segs = [];
-  let cur = onlineState===true ? 'online' : 'offline';
+  let cur = initialType;
   let curStart = startMs;
 
   for (const ev of events){
@@ -639,15 +648,15 @@ async function drawHealth(){
   }
   segs.push({ start:curStart, end:endMs, type:cur });
 
-  // background + hour ticks
+  // background + hour ticks snapped to clean hour boundaries
   ctx.fillStyle = '#f5ecd5';
   ctx.fillRect(0,0,W,H);
   ctx.font = '12px Inter, sans-serif';
   ctx.fillStyle = '#8b6040';
   ctx.textAlign = 'center';
   const tickEvery = Math.max(1, Math.floor(hours/12));
-  for (let h=0; h<=hours; h+=tickEvery){
-    const t = startMs + h*3600*1000;
+  const firstTick = Math.ceil(startMs / (3600*1000)) * (3600*1000);
+  for (let t = firstTick; t <= endMs; t += tickEvery * 3600*1000){
     const x = ((t - startMs)/(endMs - startMs))*W;
     ctx.fillRect(x, H-18, 1, 10);
     const d = new Date(t);

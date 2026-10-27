@@ -34,9 +34,21 @@ systemctl daemon-reload
 echo "[3/4] Enabling service (auto-start on boot)..."
 systemctl enable "$SERVICE_NAME"
 
-# 4. Start (or restart) right now
-echo "[4/4] Starting service now..."
+# 4. Copy auto_update.sh
+echo "[4/5] Installing auto-update script..."
+cp "$SCRIPT_DIR/auto_update.sh" "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/auto_update.sh"
+chown pi:pi "$INSTALL_DIR/auto_update.sh"
+
+# 5. Start (or restart) right now
+echo "[5/5] Starting service now..."
 systemctl restart "$SERVICE_NAME"
+
+# Set up cron job to auto-pull from GitHub every minute (runs as pi user)
+CRON_LINE="* * * * * bash /home/pi/webswitch/auto_update.sh >> /home/pi/webswitch/update.log 2>&1"
+crontab -u pi -l 2>/dev/null | grep -qF "auto_update.sh" || \
+  (crontab -u pi -l 2>/dev/null; echo "$CRON_LINE") | crontab -u pi -
+echo "[cron] Auto-update cron installed for pi user."
 
 echo ""
 echo "=== Done! ==="
@@ -47,3 +59,4 @@ echo "  sudo systemctl status webswitch    # check if running"
 echo "  sudo journalctl -u webswitch -f    # live log output"
 echo "  sudo systemctl restart webswitch   # restart manually"
 echo "  sudo systemctl stop webswitch      # stop"
+echo "  tail -f /home/pi/webswitch/update.log   # watch auto-update log"

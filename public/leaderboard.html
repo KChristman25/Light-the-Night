@@ -336,7 +336,7 @@ function calcScore(coins, mazeStartTime, mazeEndTime) {
   const startMs = mazeStartTime.toMillis ? mazeStartTime.toMillis() : mazeStartTime;
   const endMs   = mazeEndTime.toMillis   ? mazeEndTime.toMillis()   : mazeEndTime;
   const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
-  const timeBonus = Math.max(0, Math.floor((2700 - elapsedSec) / 10));
+  const timeBonus = Math.max(0, Math.floor((1800 - elapsedSec) / 10));
   return base + timeBonus;
 }
 
@@ -369,7 +369,7 @@ function buildRowEl(item, rank) {
     + `<div class="lb-name">${escHtml(item.name||'?')}</div>`
     + (bdgs.length ? `<div class="lb-badges">${bdgs.join('')}</div>` : '')
     + `<div class="lb-time">${fmtTime(e-s)}</div>`
-    + `<div class="lb-score"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated;margin-right:4px"> ${item.score}</div>`;
+    + `<div class="lb-score"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated;margin-right:4px"> ${item.coins ?? 0}</div>`;
   return el;
 }
 

@@ -383,10 +383,17 @@
       flex-direction: column; align-items: center; justify-content: center;
       gap: 20px; text-align: center;
     }
-    @media (orientation: portrait) {
-      #rotateHint { display: flex; }
-      /* Phones handle portrait via native code entry — no rotate hint */
-      body.phone-device #rotateHint { display: none; }
+    /* Portrait: hide rotation hint entirely — keypad works in any orientation */
+    #rotateHint { display: none !important; }
+
+    /* If the game is active and device is portrait, rotate the whole overlay so it stays landscape */
+    #marioGame.portrait-locked {
+      position: fixed;
+      inset: unset;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(90deg);
+      transform-origin: center center;
     }
 
     /* ── Portrait code entry (phones in kiosk mode) ── */
@@ -757,7 +764,7 @@
     /* ── Shell flash overlay ── */
     #shellFlash {
       display: none; position: fixed; inset: 0; z-index: 9999;
-      background: rgba(229,37,33,.92);
+      background: rgba(229,37,33,.32);
       flex-direction: column; align-items: center; justify-content: center;
       text-align: center; gap: 16px; pointer-events: none;
     }
@@ -804,6 +811,20 @@
 <div id="shellFlash">
   <div class="flash-title"><img src="icons/red_shell.webp" style="height:.9em;width:auto;vertical-align:middle"> RED SHELL!</div>
   <div class="flash-sub" id="shellFlashPenalty">−10 POINTS FOR ALL PLAYERS</div>
+</div>
+
+<!-- No-start announcement: shown when kid scans without starting at START first -->
+<div id="noStartOverlay" style="display:none;position:fixed;inset:0;z-index:10500;background:rgba(20,0,0,.94);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;gap:18px">
+  <div style="font-size:72px;line-height:1">🚨</div>
+  <div style="font-family:'Press Start 2P',monospace;font-size:clamp(14px,3vw,22px);color:#e8a000;text-shadow:2px 2px 0 #000;line-height:1.8">HOLD ON!</div>
+  <div style="font-family:'Inter',sans-serif;font-size:clamp(15px,2.5vw,20px);color:#fff;line-height:1.8;max-width:480px">You need to scan your code at the<br><strong style="color:#e8a000">START</strong> station first!<br><br>A staff member is on their way<br>to get you started. Wait here!</div>
+</div>
+
+<!-- Go announcement: shown when admin remotely starts the kid -->
+<div id="goMsgOverlay" style="display:none;position:fixed;inset:0;z-index:10500;background:rgba(0,20,0,.94);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;gap:18px">
+  <div style="font-size:72px;line-height:1">🚀</div>
+  <div style="font-family:'Press Start 2P',monospace;font-size:clamp(14px,3vw,22px);color:#4cff50;text-shadow:2px 2px 0 #000;line-height:1.8">YOU'RE GOOD!</div>
+  <div style="font-family:'Inter',sans-serif;font-size:clamp(15px,2.5vw,20px);color:#fff;line-height:1.8;max-width:480px">You've been started — keep going!<br>No need to wait for anyone. 🎉</div>
 </div>
 
   <header><div class="h" id="title">Stations</div></header>
@@ -1246,6 +1267,46 @@ let _lastBeatFn=null; // stored so visibility-resume can restart it
 let _lastBeatAt=0;   // timestamp of last beat, to throttle visibility-change beats
 let prevScanTs=null;
 let lastNewScanKidId='', lastNewScanName='';
+let _stationMsgUnsub=null;
+let _pendingGoMsg=false;
+let _lastShellOscAt=0;
+
+function isStationBusy(){
+  const game=$('marioGame'), special=$('specialResult');
+  return (game&&game.classList.contains('active'))||
+         (special&&special.style.display==='flex')||
+         codeBuffer.length>0;
+}
+
+function showNoStartAnnounce(){
+  const el=$('noStartOverlay');
+  if(!el)return;
+  el.style.display='flex';
+  setTimeout(()=>{el.style.display='none';},10000);
+}
+
+function showGoMessage(){
+  if(isStationBusy()){_pendingGoMsg=true;return;}
+  const el=$('goMsgOverlay');
+  if(!el)return;
+  el.style.display='flex';
+  setTimeout(()=>{el.style.display='none';},5000);
+}
+
+function checkPendingGoMsg(){
+  if(_pendingGoMsg){_pendingGoMsg=false;showGoMessage();}
+}
+
+function attachStationMsgListener(stId){
+  if(_stationMsgUnsub){_stationMsgUnsub();_stationMsgUnsub=null;}
+  _stationMsgUnsub=db.collection('stationMessages').doc(String(stId)).onSnapshot(snap=>{
+    if(!snap.exists)return;
+    const d=snap.data()||{};
+    if(!d.type)return;
+    if(d.expiresAt&&d.expiresAt.toMillis()<Date.now()){snap.ref.delete().catch(()=>{});return;}
+    if(d.type==='go'){snap.ref.delete().catch(()=>{});showGoMessage();}
+  });
+}
 
 let wakeLockObj=null, noSleep=null;
 async function kioskEnter(){
@@ -1302,6 +1363,7 @@ function startHub(){
   kioskExit();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
+  if(_stationMsgUnsub){_stationMsgUnsub();_stationMsgUnsub=null;}
   currentStationMode='coin';
   show('hub');
 }
@@ -1330,6 +1392,7 @@ async function pickSpecialStation(mode){
   const beat=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
+  attachStationMsgListener(currentStationId);
 }
 async function pickLandStation(theme){
   primeAudio();
@@ -1350,6 +1413,7 @@ async function pickLandStation(theme){
   const beat2=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,600000);
   codeBuffer='';updateDisplay();setStatus('');
+  attachStationMsgListener(currentStationId);
 }
 
 function isNumericId(id){return /^\d{1,3}$/.test(id);}
@@ -1409,6 +1473,7 @@ async function startControlForStation(){
   const beat=()=>{_lastBeatAt=Date.now();db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
+  attachStationMsgListener(currentStationId);
 }
 
 
@@ -1565,10 +1630,17 @@ async function submitStationCode(code){
   // Start station sets its own mazeStartTime during the countdown
   if(currentStationMode==='start')          return handleStartStation(docRef,kidData);
 
-  // Silently record maze start time on first ever scan
+  // Block kids who haven't started yet — must scan START station first
   if(!kidData.mazeStartTime){
-    docRef.update({mazeStartTime:firebase.firestore.Timestamp.now()}).catch(()=>{});
-    sendConfiguredOsc('maze_start').catch(()=>{});
+    const stationLabel=titleEl.textContent||('Station '+currentStationId);
+    db.collection('alerts').add({
+      type:'no_start', kidId:docRef.id, name, code,
+      stationId:String(currentStationId), stationLabel,
+      createdAt:firebase.firestore.Timestamp.now()
+    }).catch(()=>{});
+    showNoStartAnnounce();
+    codeBuffer='';updateDisplay();setStatus('');
+    return;
   }
 
   // ── Special station modes ──────────────────────────────
@@ -1752,6 +1824,7 @@ function showSpecialResult(icon,title,sub,detail,autoCloseSecs=5){
     el.style.display='none';
     if(keypad) keypad.style.visibility='';
     codeBuffer='';updateDisplay();setStatus('');
+    checkPendingGoMsg();
   },autoCloseSecs*1000);
 }
 
@@ -1807,6 +1880,10 @@ async function handleMushroomStation(docRef,kidData){
 // ── Character Rescue Station ───────────────────────────────────
 async function handleRescueStation(docRef,kidData,character,characterName){
   const name=kidData.name||kidData.displayName||'Participant';
+  if(kidData.savedPeach){
+    showScanMsg(name+' already saved Peach!','#ff80cc','#ff80cc','rgba(255,128,204,.12)','',3000);
+    return;
+  }
   const bonus=50;
   setStatus('Saving '+characterName+'…');
   try{
@@ -1829,7 +1906,7 @@ async function handleBowserStation(docRef,kidData){
 
   docRef.update({
     scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),
-    completed:true, mazeEndTime:now, completionTime:now, mazeStartTime:startTime, durationMs,
+    completed:true, mazeEndTime:now, mazeStartTime:startTime, durationMs,
     bestCoins:      Math.max(kidData.bestCoins||0, kidData.coins||0),
     bestDurationMs: newBestRun ? durationMs : curBestDur,
     bestMazeEndTime:newBestRun ? now        : (kidData.bestMazeEndTime||now)
@@ -1840,7 +1917,7 @@ async function handleBowserStation(docRef,kidData){
   db.collection('config').doc('currentFinisher').set({players:[{
     name:kidData.name||name, coins:kidData.coins||0,
     mazeStartTime:startTime, mazeEndTime:now,
-    savedPeach:!!(kidData.savedPeach||kidData.rescuedPeach),
+    savedPeach:!!kidData.savedPeach,
     usedMushroom:!!kidData.usedMushroom, usedShell:!!kidData.usedShell
   }],updatedAt:now}).catch(()=>{});
 
@@ -2064,6 +2141,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
     statusMsg.style.display='none';statusMsg.textContent='';statusMsg.removeAttribute('style');
     if(ss){ss.textContent='';ss.style.color='';}
     if(hintBox)hintBox.style.display='none';
+    checkPendingGoMsg();
   },dur);
 }
 
@@ -2830,12 +2908,24 @@ const SFX = (function(){
       });
       if(n+shielded>0) await batch.commit();
 
-      // Broadcast
+      // Broadcast flash to all tablets
       await db.collection('config').doc('shellBroadcast').set({
         triggeredAt:firebase.firestore.Timestamp.now(),
         by:G.kidRef.id,byName:G.kidData.name||'Participant',
         penalty:CFG.shellPenalty,affectedCount:n,shieldedCount:shielded
       });
+
+      // Fire OSC/DMX cue with 10s cooldown so QLab cues don't overlap
+      const now2=Date.now();
+      const since=now2-_lastShellOscAt;
+      if(since>=10000){
+        _lastShellOscAt=now2;
+        sendConfiguredOsc('shell_fired').catch(()=>{});
+      } else {
+        const delay=10000-since;
+        _lastShellOscAt=now2+delay;
+        setTimeout(()=>{ sendConfiguredOsc('shell_fired').catch(()=>{}); },delay);
+      }
 
     }catch(e){console.error('applyShell',e);}
   }
@@ -2932,12 +3022,13 @@ const SFX = (function(){
     stopGameTimer();
     if(_countdownTO){clearTimeout(_countdownTO);_countdownTO=null;}
     if(_onTap){overlay.removeEventListener('touchstart',_onTap);overlay.removeEventListener('click',_onTap);_onTap=null;}
-    overlay.classList.remove('active');
+    overlay.classList.remove('active','portrait-locked');
     resultEl.classList.add('hide');
     tapHintEl.style.display='block';
     timerEl.style.display='none';
     G=null;
     SFX.reset();
+    checkPendingGoMsg();
   }
 
   // ── Pre-bake static background to offscreen canvas ──
@@ -2967,8 +3058,10 @@ const SFX = (function(){
     if(G&&G.active)closeGame();
     maybeTriggerWebSwitch('game_start').catch(()=>{});
 
-    canvas.width=window.innerWidth;
-    canvas.height=window.innerHeight;
+    const _portrait = window.innerHeight > window.innerWidth;
+    canvas.width  = _portrait ? window.innerHeight : window.innerWidth;
+    canvas.height = _portrait ? window.innerWidth  : window.innerHeight;
+    if(_portrait) overlay.classList.add('portrait-locked');
     const W=canvas.width, H=canvas.height, gy=H-74;
     prebakeScene(W,H);
     const bSize=Math.min(BOX_SIZE, Math.max(72, Math.floor(H*0.12)));

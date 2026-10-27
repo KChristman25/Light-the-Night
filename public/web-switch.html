@@ -885,7 +885,15 @@ async function parseGroupAi(groupId){
   const preEl  = document.querySelector(`.grp-ai-pre[data-grp="${groupId}"]`);
   if(!ta) return;
   const text = ta.value.trim();
-  if(!text){ if(stEl) stEl.textContent='Type a description first.'; return; }
+  if(!text){
+    delete _parsedGroupSeqs[groupId];
+    delete _stationGroupAiText[groupId];
+    if(runBtn) runBtn.disabled=true;
+    if(preEl) preEl.style.display='none';
+    if(stEl) stEl.textContent='Cleared — nothing will fire.';
+    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[],'stationGroupAiText.'+groupId:''}).catch(()=>{});
+    return;
+  }
   if(stEl) stEl.textContent='Parsing…';
   if(runBtn) runBtn.disabled=true;
   if(preEl) preEl.style.display='none';
@@ -975,7 +983,19 @@ async function parseStationAi(groupId){
   const preEl = document.querySelector(`.grp-ai-pre[data-grp="${groupId}"]`);
   if(!ta) return;
   const text = ta.value.trim();
-  if(!text){ if(stEl) stEl.textContent='Type a description first.'; return; }
+  if(!text){
+    delete _parsedGroupSeqs[groupId];
+    delete _parsedGroupSeqs[groupId+'_done'];
+    delete _stationGroupAiText[groupId];
+    const scanBtn = document.querySelector(`.grp-ai-run[data-grp="${groupId}"]`);
+    const doneBtn = document.querySelector(`.grp-ai-run-done[data-grp="${groupId}"]`);
+    if(scanBtn) scanBtn.disabled=true;
+    if(doneBtn) doneBtn.disabled=true;
+    if(preEl) preEl.style.display='none';
+    if(stEl) stEl.textContent='Cleared — nothing will fire.';
+    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[],'stationGroupAiParsed.'+groupId+'_done':[],'stationGroupAiText.'+groupId:''}).catch(()=>{});
+    return;
+  }
   if(stEl) stEl.textContent='Parsing…';
   if(preEl) preEl.style.display='none';
   try{

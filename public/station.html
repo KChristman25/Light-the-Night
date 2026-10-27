@@ -1147,14 +1147,21 @@ let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "http://192.168.8.106:80
 
 // Send a command directly to the Pi over HTTP (sub-millisecond vs 100ms Firestore poll).
 // Falls back to the Firestore queue if the Pi is unreachable.
+let _piReachable = true;
+let _piUnreachableUntil = 0;
 async function _sendViaPi(payload) {
   if (!_piBaseUrl) throw new Error('no pi url');
+  if (Date.now() < _piUnreachableUntil) throw new Error('pi marked unreachable');
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 400);
   try {
     const r = await fetch(_piBaseUrl + '/cmd', {method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
     if (!r.ok) throw new Error('pi ' + r.status);
+    _piUnreachableUntil = 0; // success — reset
+  } catch(e) {
+    _piUnreachableUntil = Date.now() + 30000; // skip direct path for 30s after any failure
+    throw e;
   } finally { clearTimeout(t); }
 }
 

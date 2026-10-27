@@ -98,7 +98,7 @@ def send_arduino(pin, state, pulse_ms=500):
         _arduino = None  # force reconnect next time
 
 # ── Poll interval ──────────────────────────────────────────────────────────────
-POLL_INTERVAL_S       = 0.1   # check for new queue items every 100ms
+POLL_INTERVAL_S       = 0.05  # check for new queue items every 50ms
 RELAY_POLL_INTERVAL_S = 5     # poll relay for live state every 5 seconds
 TOKEN_REFRESH_S       = 3000  # refresh Firebase token every ~50 min
 HEARTBEAT_INTERVAL_S  = 30    # write online heartbeat to Firestore every 30 s

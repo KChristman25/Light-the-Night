@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Day-Of Checklist — Light the Night 2026</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
+    body {
+      min-height: 100vh;
+      background-color: #5c94fc;
+      color: #231207;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 72px 24px 80px;
+    }
+
+    #bgCanvas {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 0;
+      image-rendering: pixelated;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: #e52521;
+      border-bottom: 3px solid #231207;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 10;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      color: #fff;
+    }
+    .topbar-brand .coin {
+      display: inline-block;
+      width: 14px; height: 14px;
+      background: #e8a000;
+      border: 2px solid #231207;
+      border-radius: 50%;
+      box-shadow: 1px 1px 0 #231207;
+      animation: coinSpin 1.2s steps(4) infinite;
+    }
+    @keyframes coinSpin {
+      0%   { transform: scaleX(1);   background: #e8a000; }
+      25%  { transform: scaleX(0.4); background: #c07800; }
+      50%  { transform: scaleX(0.1); background: #c07800; }
+      75%  { transform: scaleX(0.4); background: #c07800; }
+      100% { transform: scaleX(1);   background: #e8a000; }
+    }
+    .back-link {
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      opacity: 0.9;
+    }
+    .back-link:hover { opacity: 1; }
+
+    /* ── Page wrapper ─────────────────────────────────────────────────── */
+    .page {
+      width: 100%;
+      max-width: 760px;
+      position: relative; z-index: 1;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    .header {
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      color: #231207;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .header-deco {
+      font-size: 22px;
+      margin-bottom: 10px;
+      display: block;
+      letter-spacing: 6px;
+    }
+
+    /* ── Progress bar ─────────────────────────────────────────────────── */
+    .progress-wrap {
+      background: #fff;
+      border: 3px solid #231207;
+      border-radius: 4px;
+      box-shadow: 4px 4px 0 #231207;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .progress-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #231207;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .progress-bar-bg {
+      flex: 1;
+      height: 18px;
+      background: #e0e0e0;
+      border: 2px solid #231207;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #43c843;
+      transition: width 0.25s ease;
+    }
+    .progress-count {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #231207;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── Clear button ─────────────────────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 20px;
+    }
+    .btn-clear {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      background: #e52521;
+      color: #fff;
+      border: 3px solid #231207;
+      border-radius: 4px;
+      padding: 10px 16px;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #231207;
+      transition: box-shadow 0.07s, transform 0.07s;
+    }
+    .btn-clear:hover  { box-shadow: 5px 5px 0 #231207; transform: translate(-1px,-1px); }
+    .btn-clear:active { box-shadow: 1px 1px 0 #231207; transform: translate(2px,2px); }
+
+    /* ── Section card ─────────────────────────────────────────────────── */
+    .section-card {
+      background: #fff;
+      border: 3px solid #231207;
+      border-radius: 4px;
+      box-shadow: 4px 4px 0 #231207;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .section-header {
+      background: #231207;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .section-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #fff;
+      line-height: 1.5;
+    }
+    .section-count {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #e8a000;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── Checklist items ──────────────────────────────────────────────── */
+    .check-list { list-style: none; padding: 8px 0; }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 11px 20px;
+      border-bottom: 1px solid #f0ece8;
+      cursor: pointer;
+      transition: background 0.07s;
+      user-select: none;
+    }
+    .check-item:last-child { border-bottom: none; }
+    .check-item:hover      { background: #fdf6f0; }
+    .check-item.done       { background: #f0fdf0; }
+
+    .check-box {
+      width: 22px; height: 22px;
+      border: 3px solid #231207;
+      border-radius: 3px;
+      background: #fff;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s;
+      margin-top: 1px;
+    }
+    .check-item.done .check-box { background: #43c843; }
+
+    .check-mark { display: none; color: #fff; font-size: 13px; font-weight: 700; line-height: 1; }
+    .check-item.done .check-mark { display: block; }
+
+    .check-text {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #231207;
+      line-height: 1.5;
+      flex: 1;
+    }
+    .check-item.done .check-text { text-decoration: line-through; color: #7a6a60; }
+
+    /* ── Footer ───────────────────────────────────────────────────────── */
+    .footer {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #fff;
+      text-align: center;
+      padding: 16px 0;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span class="coin"></span>
+      Light the Night 2026
+    </div>
+    <a class="back-link" href="index.html">◀ HQ</a>
+  </div>
+
+  <div class="page">
+    <div class="header">
+      <span class="header-deco">✅ 📋 ⭐</span>
+      <h1>Day-Of Checklist</h1>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-label">PROGRESS</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <div class="progress-count" id="progressCount">0 / 0</div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn-clear" id="btnClear">CLEAR ALL</button>
+    </div>
+
+    <div id="checklistRoot"></div>
+
+    <div class="footer">Light the Night 2026</div>
+  </div>
+
+  <canvas id="bgCanvas"></canvas>
+
+  <script>
+  const SECTIONS = [
+    {
+      id: 'network',
+      title: '📡 Network & Hardware',
+      items: [
+        'Wi-Fi router is powered on and broadcasting the event SSID',
+        'All iPads connected to the correct Wi-Fi network',
+        'Raspberry Pi (192.168.8.106) is powered on and reachable',
+        'QLab Mac is connected to Wi-Fi and OSC bridge is running',
+        'DMX interface and lighting rig are powered and patched',
+      ],
+    },
+    {
+      id: 'admin-setup',
+      title: '🛠 Admin Setup',
+      items: [
+        'Open admin.html — verify Firebase is connected (no red errors)',
+        'Config tab — verify station list matches physical layout',
+        'Config tab — OSC addresses correct for each station type',
+        'Config tab — Bowser station ID is set',
+        'Config tab — Princess Peach rescue station ID is set',
+        'Config tab — time bonus cap reads 30 minutes',
+        'Hit "Save Config" and confirm green toast appears',
+      ],
+    },
+    {
+      id: 'checkin',
+      title: '📋 Check-In',
+      items: [
+        'Open signin.html on the check-in iPad',
+        'Register a test kid — confirm name + code appear at top of list',
+        'Scan test code at a coin station — confirm coin awarded',
+        'Delete the test kid from admin before real event starts',
+        'Wristband sharpies and snap bands are ready at check-in table',
+      ],
+    },
+    {
+      id: 'start-station',
+      title: '🚦 Start Station',
+      items: [
+        'Open station.html on the start station iPad and select "Start"',
+        'Scan a test wristband — confirm maze start time is recorded',
+        'Confirm "Staff is coming" overlay fires if kid has no start time at a coin station',
+        'Confirm no-start alert appears on admin dashboard',
+        'Admin "Start Kid" button sends go-message and removes the alert',
+      ],
+    },
+    {
+      id: 'coin-station',
+      title: '🪙 Coin Stations',
+      items: [
+        'Open station.html on each coin station iPad and select the correct station number',
+        'Scan same code twice — confirm second scan is blocked',
+        'Verify coin count increments in admin live view',
+        'Verify OSC fires on first scan (lighting cue triggers in QLab)',
+        'Confirm scan animation plays and clears correctly',
+        'Verify "Game Done" OSC fires when the mini-game ends',
+      ],
+    },
+    {
+      id: 'powerups',
+      title: '❓ ? Box Power-Ups',
+      items: [
+        'Shell station — scan code, confirm Mario shell animation plays',
+        'Shell station — confirm orange flash overlay appears on all tablets',
+        'Shell station — fire shell twice within 10s, confirm second fires after delay',
+        'Mushroom station — scan code, confirm mushroom sound/animation plays',
+        'Mushroom station — confirm OSC cue fires in QLab',
+        '1-Up station — scan code, confirm 1-Up animation plays',
+        '1-Up station — confirm Firestore activity entry is created',
+        'Star station — scan code, confirm star power animation plays',
+        'Star station — confirm coins are awarded correctly',
+      ],
+    },
+    {
+      id: 'peach',
+      title: '👸 Princess Peach Rescue',
+      items: [
+        'Open station.html and select the Peach rescue station',
+        'Scan a kid who has NOT rescued Peach — confirm rescue animation plays',
+        'Verify savedPeach flag is written to that kid\'s Firestore doc',
+        'Scan the same kid again — confirm "already rescued" message shows',
+        'Scan a different kid — confirm they can also rescue Peach independently',
+      ],
+    },
+    {
+      id: 'no-start',
+      title: '🚫 No-Start Blocker',
+      items: [
+        'Scan a kid at a coin station before they have passed through start',
+        'Confirm red "Staff is coming" overlay fires on the station iPad for 10s',
+        'Confirm alert appears in admin dashboard with kid name and station',
+        'Click admin "Start Kid" button on the alert',
+        'Confirm green "Keep going!" overlay fires on the station iPad for 5s',
+        'Confirm mazeStartTime is backdated 3 minutes in Firestore',
+        'Confirm alert card disappears from admin dashboard after dismissal',
+      ],
+    },
+    {
+      id: 'bowser',
+      title: '🐉 Bowser Finish Line',
+      items: [
+        'Open station.html and select the Bowser station',
+        'Scan a kid who has completed at least one station — confirm finish sequence plays',
+        'Verify completionTime is written to kid\'s Firestore doc',
+        'Verify Peach rescue bonus is applied if kid rescued Peach',
+        'Verify kid appears on leaderboard immediately after finishing',
+        'Bowser defeated OSC fires and finish lighting cue triggers in QLab',
+      ],
+    },
+    {
+      id: 'leaderboard',
+      title: '🏆 Leaderboard & Participant Page',
+      items: [
+        'Open leaderboard.html — confirm finisher list populates',
+        'Verify coin count (not combined score) is displayed per row',
+        'Verify sort order uses score formula (coins + time bonus)',
+        'Open participant.html — confirm in-maze and finished sections both show data',
+        'Confirm elapsed time counts up for in-maze kids',
+      ],
+    },
+    {
+      id: 'admin-dash',
+      title: '📊 Admin Dashboard',
+      items: [
+        'Live tab — confirm kid count and coin total update in real time',
+        'Participants tab — confirm full list loads and search works',
+        'Stations tab — confirm all station IDs are shown',
+        'No-start alerts section is visible in live tab',
+        '"Start Kid" button sends go-message and removes alert',
+        'Event reset button is password-protected — do NOT press during live event',
+      ],
+    },
+    {
+      id: 'osc',
+      title: '🎛 OSC Summary',
+      items: [
+        'QLab is open and OSC receive is enabled on the correct port',
+        'Test each OSC address from Mission Control — confirm QLab fires',
+        'Shell OSC fires and orange flash overlay appears on all tablets',
+        'Bowser finish OSC fires and finish lighting cue triggers',
+        'Peach rescue OSC fires (if configured)',
+        'Start station OSC fires on first scan',
+      ],
+    },
+    {
+      id: 'kiosk',
+      title: '📱 Kiosk Lockdown',
+      items: [
+        'Enable iOS Guided Access on each station iPad (triple-click Home/Side button)',
+        'Set a Guided Access passcode all staff know',
+        'Verify kids cannot exit the browser or access other apps',
+        'Screen Auto-Lock set to Never in Settings on each iPad',
+        'Brightness at maximum for dim lighting conditions',
+      ],
+    },
+    {
+      id: 'final',
+      title: '🌟 Final Checks',
+      items: [
+        'All station iPads are charged above 80%',
+        'All physical wristband codes written and match Firestore entries',
+        'Admin iPad assigned to a staff member for the full event',
+        'Walk the maze end-to-end once with a test code before opening to kids',
+      ],
+    },
+  ];
+
+  const STORAGE_KEY = 'ltn2026_dayofcheck_v1';
+
+  function loadState(){
+    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch{ return {}; }
+  }
+  function saveState(s){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+    catch{}
+  }
+
+  function itemKey(sectionId, i){ return sectionId + '_' + i; }
+
+  let state = loadState();
+
+  function render(){
+    const root = document.getElementById('checklistRoot');
+    root.innerHTML = '';
+
+    SECTIONS.forEach(section => {
+      const doneCount = section.items.filter((_,i) => state[itemKey(section.id,i)]).length;
+
+      const card = document.createElement('div');
+      card.className = 'section-card';
+
+      const header = document.createElement('div');
+      header.className = 'section-header';
+      header.innerHTML = `
+        <div class="section-title">${section.title}</div>
+        <div class="section-count" id="sc-${section.id}">${doneCount}/${section.items.length}</div>`;
+      card.appendChild(header);
+
+      const ul = document.createElement('ul');
+      ul.className = 'check-list';
+      section.items.forEach((text, i) => {
+        const checked = !!state[itemKey(section.id, i)];
+        const li = document.createElement('li');
+        li.className = 'check-item' + (checked ? ' done' : '');
+        li.innerHTML = `<div class="check-box"><span class="check-mark">✓</span></div><div class="check-text">${text}</div>`;
+        li.addEventListener('click', () => toggle(section, i, li));
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+      root.appendChild(card);
+    });
+
+    updateProgress();
+  }
+
+  function toggle(section, i, li){
+    const key = itemKey(section.id, i);
+    state[key] = !state[key];
+    saveState(state);
+    li.classList.toggle('done', !!state[key]);
+
+    const doneCount = section.items.filter((_,j) => state[itemKey(section.id,j)]).length;
+    const scEl = document.getElementById('sc-' + section.id);
+    if(scEl) scEl.textContent = doneCount + '/' + section.items.length;
+
+    updateProgress();
+  }
+
+  function updateProgress(){
+    const total = SECTIONS.reduce((s,sec) => s + sec.items.length, 0);
+    const done  = SECTIONS.reduce((s,sec) => s + sec.items.filter((_,i) => state[itemKey(sec.id,i)]).length, 0);
+    const pct = total ? Math.round(done / total * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressCount').textContent = done + ' / ' + total;
+  }
+
+  document.getElementById('btnClear').addEventListener('click', () => {
+    if(!confirm('Clear all checkmarks?')) return;
+    state = {};
+    saveState(state);
+    render();
+  });
+
+  render();
+
+  /* ── Background canvas ─────────────────────────────────────────────────── */
+  (function(){
+    const bc = document.getElementById('bgCanvas');
+    const bx = bc.getContext('2d');
+    const img = new Image();
+    img.src = 'mario-tiles.png';
+    function drawCloud(cx,cy,ts){
+      const L=Math.round(cx-ts*1.5),T=Math.round(cy-ts);
+      [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+        bx.drawImage(img,sx,sy,16,16,L+(i%3)*ts,T+Math.floor(i/3)*ts,ts,ts);
+      });
+    }
+    function draw(){
+      const W=bc.width=window.innerWidth,H=bc.height=window.innerHeight;
+      bx.imageSmoothingEnabled=false;
+      bx.fillStyle='#5c94fc'; bx.fillRect(0,0,W,H);
+      const groundH=56,gy=H-groundH;
+      if(img.complete&&img.naturalWidth>0){
+        const cs=Math.round(W*0.065);
+        drawCloud(W*0.13,H*0.12,cs);
+        drawCloud(W*0.50,H*0.09,Math.round(cs*1.2));
+        drawCloud(W*0.82,H*0.14,Math.round(cs*0.85));
+        const gt=Math.round(groundH/2),cols=Math.ceil(W/gt)+1;
+        for(let c=0;c<cols;c++) bx.drawImage(img,16,0,16,16,c*gt,gy,gt,gt);
+        for(let c=0;c<cols;c++) bx.drawImage(img,0,0,16,16,c*gt,gy+gt,gt,gt);
+      } else {
+        bx.fillStyle='#c8601c'; bx.fillRect(0,gy,W,groundH);
+        bx.fillStyle='#231207'; bx.fillRect(0,gy,W,3);
+      }
+    }
+    img.onload=draw; draw();
+    window.addEventListener('resize',draw);
+  })();
+  </script>
+</body>
+</html>

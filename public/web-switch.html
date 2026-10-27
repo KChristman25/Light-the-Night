@@ -891,7 +891,7 @@ async function parseGroupAi(groupId){
     if(runBtn) runBtn.disabled=true;
     if(preEl) preEl.style.display='none';
     if(stEl) stEl.textContent='Cleared — nothing will fire.';
-    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[],'stationGroupAiText.'+groupId:''}).catch(()=>{});
+    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[], ['stationGroupAiText.'+groupId]:''}).catch(()=>{});
     return;
   }
   if(stEl) stEl.textContent='Parsing…';
@@ -993,7 +993,7 @@ async function parseStationAi(groupId){
     if(doneBtn) doneBtn.disabled=true;
     if(preEl) preEl.style.display='none';
     if(stEl) stEl.textContent='Cleared — nothing will fire.';
-    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[],'stationGroupAiParsed.'+groupId+'_done':[],'stationGroupAiText.'+groupId:''}).catch(()=>{});
+    CONFIG_DOC.update({['stationGroupAiParsed.'+groupId]:[], ['stationGroupAiParsed.'+groupId+'_done']:[], ['stationGroupAiText.'+groupId]:''}).catch(()=>{});
     return;
   }
   if(stEl) stEl.textContent='Parsing…';

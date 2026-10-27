@@ -833,6 +833,10 @@ Sequencing:
 - "wait X seconds" → {"type":"delay","ms":X*1000}
 - gpio_flash blocks for its full durationMs — no extra delay needed after it
 
+Cooldown:
+- "cooldown X seconds" / "use a cooldown of X" / "X second cooldown" / "ignore duplicates within X" → {"type":"cooldown","ms":X*1000}
+- Include as a step if mentioned; strip from sequence before executing
+
 Return ONLY a JSON array, no prose, no markdown fences.`;
 
 function _seqPreview(steps){
@@ -842,6 +846,7 @@ function _seqPreview(steps){
     if(s.type==='gpio')       return `${i+1}. GPIO pin ${s.pin} → ${s.state}`;
     if(s.type==='gpio_flash') return `${i+1}. Flash pin ${s.pin} ${s.durationMs}ms (${s.intervalMs}ms interval)`;
     if(s.type==='delay')      return `${i+1}. Wait ${s.ms}ms`;
+    if(s.type==='cooldown')   return `⏱ Cooldown set to ${s.ms/1000}s`;
     return `${i+1}. ${s.type}`;
   }).join('\n');
 }
@@ -897,21 +902,32 @@ async function parseGroupAi(groupId){
     const match = raw.match(/\[[\s\S]*\]/);
     if(!match) throw new Error('No JSON array in response');
     const parsed = JSON.parse(match[0]);
-    _parsedGroupSeqs[groupId]    = parsed;
+
+    // Extract cooldown step (if any) — apply to UI and save separately, not as a sequence step
+    const cooldownStep = parsed.find(s => s.type === 'cooldown');
+    const steps = parsed.filter(s => s.type !== 'cooldown');
+    if(cooldownStep){
+      const cdInput = document.querySelector(`.osc-cooldown[data-key="${groupId}"]`);
+      if(cdInput) cdInput.value = cooldownStep.ms / 1000;
+      if(!_stationOscCues[groupId]) _stationOscCues[groupId] = {};
+      _stationOscCues[groupId].cooldownMs = cooldownStep.ms;
+      CONFIG_DOC.update({['stationOscCues.'+groupId+'.cooldownMs']: cooldownStep.ms}).catch(()=>{});
+    }
+
+    _parsedGroupSeqs[groupId]    = steps;
     _stationGroupAiText[groupId] = text;
     const compSelParse = document.querySelector(`.grp-ai-comp[data-grp="${groupId}"]`);
     if(compSelParse&&compSelParse.value) _stationGroupAiComp[groupId]=compSelParse.value;
-    // Save parsed steps to Firestore so station/rescue pages can auto-execute them
     const _saveData = {
       ['stationGroupAiText.'+groupId]:   text,
-      ['stationGroupAiParsed.'+groupId]: parsed,
+      ['stationGroupAiParsed.'+groupId]: steps,
     };
     if(_stationGroupAiComp[groupId]) _saveData['stationGroupAiComp.'+groupId] = _stationGroupAiComp[groupId];
     CONFIG_DOC.update(_saveData).catch(()=>{
-      CONFIG_DOC.set({stationGroupAiText:{[groupId]:text},stationGroupAiParsed:{[groupId]:parsed}},{merge:true}).catch(()=>{});
+      CONFIG_DOC.set({stationGroupAiText:{[groupId]:text},stationGroupAiParsed:{[groupId]:steps}},{merge:true}).catch(()=>{});
     });
-    if(preEl){ preEl.textContent=_seqPreview(parsed); preEl.style.display='block'; }
-    if(stEl)  stEl.textContent=`✅ ${parsed.length} steps — hit ▶ to run`;
+    if(preEl){ preEl.textContent=_seqPreview(cooldownStep?[...steps,cooldownStep]:steps); preEl.style.display='block'; }
+    if(stEl)  stEl.textContent=`✅ ${steps.length} step(s)${cooldownStep?' · cooldown '+cooldownStep.ms/1000+'s':''} — hit ▶ to run`;
     if(runBtn) runBtn.disabled=false;
   }catch(e){ if(stEl) stEl.textContent='❌ '+e.message; }
 }

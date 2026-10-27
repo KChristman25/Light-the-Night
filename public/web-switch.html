@@ -1375,16 +1375,22 @@ function renderStationOscEvents(){
   root.innerHTML = html;
 
   document.querySelectorAll('.grp-ai-ta').forEach(ta=>{
-    ta.addEventListener('input',()=>{ _stationGroupAiText[ta.dataset.grp]=ta.value; });
+    ta.addEventListener('input',()=>{ _stationGroupAiText[ta.dataset.grp]=ta.value; scheduleAutoSave(); });
   });
   document.querySelectorAll('.grp-ai-comp').forEach(sel=>{
-    sel.addEventListener('change',()=>{ _stationGroupAiComp[sel.dataset.grp]=sel.value; });
+    sel.addEventListener('change',()=>{ _stationGroupAiComp[sel.dataset.grp]=sel.value; scheduleAutoSave(); });
   });
 }
 
-async function saveStationOscCues(){
+let _autoSaveTimer = null;
+function scheduleAutoSave(){
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(()=>saveStationOscCues(true), 1500);
+}
+
+async function saveStationOscCues(silent=false){
   const stEl = document.getElementById('stationOscStatus');
-  stEl.textContent = 'Saving…';
+  if(!silent) stEl.textContent = 'Saving…';
   saveDomOscCues();
   // Collect text and handle clears — empty boxes must explicitly zero out Firestore
   const dotUpdates = {};
@@ -1411,8 +1417,8 @@ async function saveStationOscCues(){
     // First write dot-notation clears for empty boxes, then full overwrite for the rest
     if(Object.keys(dotUpdates).length) await CONFIG_DOC.update(dotUpdates).catch(()=>{});
     await CONFIG_DOC.set({stationOscCues: _stationOscCues, stationGroupAiText: _stationGroupAiText, stationGroupAiComp: _stationGroupAiComp, stationGroupAiParsed: _parsedGroupSeqs}, {merge:true});
-    stEl.textContent = '✅ OSC cues saved.';
-  }catch(e){ stEl.textContent = '❌ ' + e.message; }
+    if(!silent) stEl.textContent = '✅ OSC cues saved.';
+  }catch(e){ if(!silent) stEl.textContent = '❌ ' + e.message; }
 }
 
 async function testOscEvent(key){

@@ -487,9 +487,48 @@ def write_heartbeat(token, my_url):
     fs_patch(token, "webswitch/config", {"baseUrl": my_url})
 
 
+# ── Self-update (checks GitHub every 5 min, restarts via systemd if changed) ──
+GITHUB_RAW = ("https://raw.githubusercontent.com/KChristman25/"
+              "Light-the-Night/2026/rpi/webswitch_agent_2025.py")
+UPDATE_INTERVAL_S = 300  # check every 5 minutes
+
+def _file_md5(path):
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except Exception:
+        return None
+
+def self_update_loop():
+    import sys
+    while True:
+        time.sleep(UPDATE_INTERVAL_S)
+        try:
+            r = requests.get(GITHUB_RAW, timeout=15)
+            if r.status_code != 200:
+                continue
+            new_content = r.content
+            import hashlib
+            new_hash = hashlib.md5(new_content).hexdigest()
+            old_hash = _file_md5(os.path.abspath(__file__))
+            if new_hash != old_hash:
+                print("[update] New version detected — applying and restarting…")
+                with open(os.path.abspath(__file__), "wb") as f:
+                    f.write(new_content)
+                # systemd Restart=always will bring it back up
+                sys.exit(0)
+            else:
+                print("[update] Up to date.")
+        except Exception as e:
+            print(f"[update] check failed: {e}")
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     print("=== LTN Web-Switch Agent ===")
+    # Start self-update checker in background
+    t = threading.Thread(target=self_update_loop, daemon=True)
+    t.start()
     start_health_server()
     my_ip  = get_local_ip()
     my_url = f"https://{my_ip}:{HEALTH_PORT}"

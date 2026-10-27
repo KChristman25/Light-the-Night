@@ -1194,10 +1194,10 @@ async function runAiGroup(key){
     if(step.type==='osc'){
       const payload={...base,type:'osc',address:_normalizeOsc(step.address)};
       if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
-      await QUEUE_COL.add(payload);
+      QUEUE_COL.add(payload).catch(()=>{});
     }
-    if(step.type==='gpio')  await QUEUE_COL.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
-    if(step.type==='power') await QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state});
+    if(step.type==='gpio')  QUEUE_COL.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500}).catch(()=>{});
+    if(step.type==='power') QUEUE_COL.add({...base,type:'power',outlet:step.outlet,state:step.state}).catch(()=>{});
     if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
   }
 }
@@ -1958,23 +1958,17 @@ async function loadQlabCues(){
     };
   });
 }
-async function sendConfiguredOsc(key){
+function sendConfiguredOsc(key){
   const cfg = _qlabCues[key];
   const qBase = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
   if(cfg){
     if(cfg.cue){
-      const p = {type:'osc', address:cfg.cue, qlabIp:cfg.qlabIp||undefined, qlabPort:cfg.qlabPort||53000};
-      try{ await _sendViaPi(p); }
-      catch(e){
-        const qp={...qBase,type:'osc',address:cfg.cue};
-        if(cfg.qlabIp){qp.qlabIp=cfg.qlabIp;qp.qlabPort=cfg.qlabPort||53000;}
-        await QUEUE_COL.add(qp);
-      }
+      const qp={...qBase,type:'osc',address:cfg.cue};
+      if(cfg.qlabIp){qp.qlabIp=cfg.qlabIp;qp.qlabPort=cfg.qlabPort||53000;}
+      QUEUE_COL.add(qp).catch(()=>{});
     }
     if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
-      const p={type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500};
-      try{ await _sendViaPi(p); }
-      catch(e){ await QUEUE_COL.add({...qBase,...p}); }
+      QUEUE_COL.add({...qBase,type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500}).catch(()=>{});
     }
   }
   runAiGroup(key).catch(()=>{});

@@ -174,7 +174,7 @@
   <header>
     <div class="title">🎮 Mission Control</div>
     <div class="pill" style="display:none" id="ipPill">IP: <span id="switchIp">…</span></div>
-    <div id="netStatus" class="pill">Link: <span id="netStatusText">checking…</span></div>
+    <div id="netStatus" class="pill">Link: <span id="netStatusText">checking…</span> <span id="piUrlBadge" style="display:none;margin-left:6px;font-size:9px;opacity:.75"></span></div>
     <div id="hdr-right">
       <div class="pill" style="opacity:.7;font-size:10px"><span id="authStatus">signing in…</span></div>
     </div>
@@ -371,6 +371,13 @@ async function loadConfig(){
     const baseUrl = (data.baseUrl || data["base url"] || "").trim();
     BASE_URL = baseUrl || "";
     ipSpan.textContent = baseUrl ? baseUrl.replace(/^https?:\/\//,'').replace(/\/+$/,'') : "unknown";
+    const badge = document.getElementById('piUrlBadge');
+    if(badge && baseUrl){
+      const isHttps = baseUrl.startsWith('https://');
+      badge.textContent = isHttps ? '🔒 '+baseUrl : '⚠️ '+baseUrl;
+      badge.style.display = 'inline';
+      badge.title = isHttps ? 'Direct HTTPS — fast path active' : 'HTTP — mixed content may block direct path';
+    }
 
     renderCards(OUTLET_NAMES);
   } catch(e) { setError(e); }
@@ -867,10 +874,10 @@ async function _runSteps(steps, stEl, compId){
     if(step.type==='osc'){
       const oscPayload={...doc,type:'osc',address:normalizeOsc(step.address)};
       if(comp){oscPayload.qlabIp=comp.ip;oscPayload.qlabPort=comp.port||53000;}
-      await QUEUE_COL.add(oscPayload);
+      QUEUE_COL.add(oscPayload).catch(()=>{});
     }
-    if(step.type==='power')   await QUEUE_COL.add({...doc,type:'power',outlet:step.outlet,state:step.state});
-    if(step.type==='gpio')    await QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:step.state});
+    if(step.type==='power')   QUEUE_COL.add({...doc,type:'power',outlet:step.outlet,state:step.state}).catch(()=>{});
+    if(step.type==='gpio')    QUEUE_COL.add({...doc,type:'gpio',pin:step.pin,state:step.state}).catch(()=>{});
     if(step.type==='delay')   await new Promise(r=>setTimeout(r,step.ms||0));
     if(step.type==='gpio_flash'){
       const intMs  = step.intervalMs || 100;

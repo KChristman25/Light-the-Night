@@ -1957,14 +1957,6 @@ async function loadQlabCues(){
       cooldownMs:cfg.cooldownMs!=null?cfg.cooldownMs:2000
     };
   });
-  // Simple bowserGpio shortcut — overrides stationOscCues.bowser_defeated if set
-  const bg = d.bowserGpio||{};
-  if(bg.pin){
-    _qlabCues['bowser_defeated'] = {
-      cue:'', qlabIp:null, qlabPort:53000,
-      gpioPin:Number(bg.pin), gpioState:(bg.state||'PULSE').toUpperCase(), gpioPulseMs:Number(bg.pulseMs||5000)
-    };
-  }
 }
 async function sendConfiguredOsc(key){
   const cfg = _qlabCues[key];

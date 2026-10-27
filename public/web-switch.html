@@ -352,6 +352,10 @@ auth.onAuthStateChanged(async user => {
       return;
     }
     authSpan.textContent = `uid: ${user.uid.slice(0,6)}…`;
+    // Warm up Firestore write path and keep it hot
+    const _keepAlive = ()=>QUEUE_COL.add({_warmup:true,processed:true,ts:firebase.firestore.FieldValue.serverTimestamp()}).then(d=>d.delete()).catch(()=>{});
+    _keepAlive();
+    setInterval(_keepAlive, 25000);
     await loadConfig();
     // later sections start monitors + overlays
     subscribeState(); // per-outlet LEDs

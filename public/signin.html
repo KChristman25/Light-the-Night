@@ -333,7 +333,7 @@
 
     let codeLength = 6;
 
-    firebase.auth().signInAnonymously().then(()=>probe()).catch(()=>{
+    firebase.auth().signInAnonymously().then(()=>{ probe(); openCheckin(); }).catch(()=>{
       setChip('err','Auth failed');
     });
 

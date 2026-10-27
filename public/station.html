@@ -1785,37 +1785,45 @@ async function handleStartStation(docRef, kidData){
   showSpecialResult('🏁', name, 'GOOD LUCK!', '', 3);
   sendConfiguredOsc('maze_start').catch(()=>{});
 
-  // Re-run: save best-ever data then wipe game state so they start fresh (fire OSC first, then reset)
+  // Write mazeStartTime immediately on scan — don't wait for the countdown to finish
+  const startNow = firebase.firestore.Timestamp.now();
+
+  // Re-run: save best-ever data, wipe game state, and set new start time in one write
   if(kidData.completed===true||kidData.mazeEndTime){
     const prevCoins  = kidData.coins||0;
     const prevDurMs  = typeof kidData.durationMs==='number' ? kidData.durationMs : null;
     const prevEnd    = kidData.mazeEndTime||null;
     const curBestDur = typeof kidData.bestDurationMs==='number' ? kidData.bestDurationMs : null;
     const newBest    = prevDurMs!==null && (curBestDur===null || prevDurMs<curBestDur);
-    await docRef.set({
+    docRef.set({
       bestCoins:       Math.max(kidData.bestCoins||0, prevCoins),
       bestDurationMs:  newBest ? prevDurMs : (curBestDur!==null ? curBestDur : prevDurMs),
       bestMazeEndTime: newBest ? prevEnd   : (kidData.bestMazeEndTime||prevEnd),
-      coins: 0, scans: [], completed: false, frozen: false,
-      mazeStartTime:   FSV.delete(), mazeEndTime:  FSV.delete(),
+      coins: startCoins, scans: ['start'], completed: false, frozen: false,
+      mazeStartTime:   startNow, mazeEndTime: FSV.delete(),
       completionTime:  FSV.delete(), durationMs:   FSV.delete(),
       completedBy:     FSV.delete(), shellShield:  FSV.delete(),
       superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete()
-    },{merge:true});
-  }
-  const doStart = async ()=>{
-    const now=firebase.firestore.Timestamp.now();
-    await docRef.update({
+    },{merge:true}).catch(()=>{});
+  } else {
+    // First-time start: write mazeStartTime, scans, and coins right now
+    docRef.update({
       scans:FSV.arrayUnion('start'),
       'scanCounts.start':FSV.increment(1),
-      mazeStartTime:now,
+      mazeStartTime:startNow,
       coins:FSV.increment(startCoins)
     }).catch(()=>{});
-    await db.collection('scans').add({
-      kidId:docRef.id, name, station:'start',
-      coins:startCoins, gameType:'start',
-      timestamp:now
-    }).catch(()=>{});
+  }
+  db.collection('scans').add({
+    kidId:docRef.id, name, station:'start',
+    coins:startCoins, gameType:'start', timestamp:startNow
+  }).catch(()=>{});
+
+  const doStart = async ()=>{
+    // scanCounts update still happens after countdown for re-run path
+    if(kidData.completed===true||kidData.mazeEndTime){
+      docRef.update({'scanCounts.start':FSV.increment(1)}).catch(()=>{});
+    }
     codeBuffer=''; updateDisplay(); setStatus('');
   };
   setTimeout(()=>{

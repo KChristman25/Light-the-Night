@@ -303,7 +303,7 @@ function calcScore(coins, mazeStartTime, mazeEndTime) {
   const startMs = mazeStartTime.toMillis ? mazeStartTime.toMillis() : mazeStartTime;
   const endMs   = mazeEndTime.toMillis   ? mazeEndTime.toMillis()   : mazeEndTime;
   const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
-  const maxTimeSec = 45 * 60;
+  const maxTimeSec = 30 * 60;
   const timeBonus = Math.max(0, Math.floor((maxTimeSec - elapsedSec) / 10));
   return base + timeBonus;
 }

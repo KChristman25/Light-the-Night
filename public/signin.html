@@ -494,20 +494,34 @@
     });
 
     function loadLiveList(){
+      let _init = false;
       db.collection('kids').orderBy('timestamp','desc').onSnapshot(snap => {
         const list  = document.getElementById('liveList');
         const count = document.getElementById('totalCount');
         const chip  = document.getElementById('checkedInCountChip');
-        list.innerHTML = '';
         count.textContent = 'Total checked in: ' + snap.size;
         if (chip) chip.textContent = snap.size + ' in';
-        snap.forEach(doc => {
-          const d    = doc.data();
-          const name = d.name || '(no name)';
-          const code = d.code || d.barcode || '';
-          list.insertAdjacentHTML('beforeend',
-            `<li><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
-        });
+        if (!_init) {
+          _init = true;
+          list.innerHTML = '';
+          snap.forEach(doc => {
+            const d = doc.data();
+            const name = d.name || '(no name)';
+            const code = d.code || d.barcode || '';
+            list.insertAdjacentHTML('beforeend',
+              `<li data-id="${doc.id}"><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
+          });
+        } else {
+          snap.docChanges().forEach(change => {
+            if (change.type === 'added') {
+              const d = change.doc.data();
+              const name = d.name || '(no name)';
+              const code = d.code || d.barcode || '';
+              list.insertAdjacentHTML('afterbegin',
+                `<li data-id="${change.doc.id}"><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
+            }
+          });
+        }
       }, () => setChip('err','Live list blocked'));
     }
 

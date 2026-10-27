@@ -484,6 +484,12 @@
     <div id="live" class="section">
       <div class="page-title">Dashboard</div>
 
+      <!-- No-start alerts: kids who scanned without starting -->
+      <div id="noStartAlerts" style="display:none;margin-bottom:16px">
+        <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:#dc2626;margin-bottom:10px;letter-spacing:.04em">🚨 KIDS AT WRONG STATION</div>
+        <div id="noStartAlertList"></div>
+      </div>
+
       <!-- Missing kids alert -->
       <div id="dashMissingAlert" class="alert-card danger">
         <h4>⚠ Missing Kids</h4>
@@ -1653,6 +1659,26 @@ if(id==='allvisitors')  initAllVisitors();
       })
     );
 
+    // ── No-start alerts ──────────────────────────────────────────────────────
+    listeners.push(
+      db.collection('alerts').where('type','==','no_start').onSnapshot(snap=>{
+        const panel=document.getElementById('noStartAlerts');
+        const list=document.getElementById('noStartAlertList');
+        if(!panel||!list)return;
+        if(snap.empty){panel.style.display='none';list.innerHTML='';return;}
+        panel.style.display='block';
+        list.innerHTML='';
+        snap.forEach(doc=>{
+          const d=doc.data();
+          const ago=d.createdAt?Math.round((Date.now()-d.createdAt.toMillis())/1000)+'s ago':'';
+          const row=document.createElement('div');
+          row.style.cssText='display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff1f2;border:2px solid #fca5a5;border-radius:6px;margin-bottom:8px';
+          row.innerHTML=`<div style="flex:1;min-width:160px"><div style="font-weight:700;font-size:14px">${escapeHtml(d.name||'?')} <span style="font-family:monospace;font-size:12px;color:#666">${escapeHtml(d.code||'')}</span></div><div style="font-size:12px;color:#991b1b;margin-top:2px">Scanned at <strong>${escapeHtml(d.stationLabel||d.stationId||'?')}</strong> without starting &nbsp;·&nbsp; ${ago}</div></div><button class="btn" style="background:#16a34a;color:#fff;font-size:12px;padding:8px 14px;white-space:nowrap" onclick="adminStartKid('${doc.id}','${escapeHtml(d.kidId||'')}','${escapeHtml(d.stationId||'')}','${escapeHtml(d.name||'').replace(/'/g,"\\'")}')">▶ Start Now (+3 min)</button>`;
+          list.appendChild(row);
+        });
+      })
+    );
+
     // ── Activity feed ────────────────────────────────────────────────────────
     const _feedIcons = {
       start:'🏁', coin:'🪙', coin_direct:'🪙',
@@ -2113,6 +2139,26 @@ if(id==='allvisitors')  initAllVisitors();
   }
   function updateField(id,field,val){ db.collection("kids").doc(id).update({[field]:val}); }
   function updateCoins(id,val){ const n=parseInt(val,10); if(!isNaN(n)&&n>=0) db.collection("kids").doc(id).update({coins:n}); }
+  async function adminStartKid(alertDocId, kidId, stationId, kidName){
+    if(!kidId) return;
+    try{
+      // Start their timer 3 minutes ago to compensate for lost time
+      const startTime = firebase.firestore.Timestamp.fromMillis(Date.now() - 3*60*1000);
+      await db.collection('kids').doc(kidId).update({
+        mazeStartTime: startTime
+      });
+      // Send "go" message to that station's message doc
+      if(stationId){
+        await db.collection('stationMessages').doc(String(stationId)).set({
+          type:'go',
+          expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 30000)
+        });
+      }
+      // Delete the alert
+      await db.collection('alerts').doc(alertDocId).delete();
+    }catch(e){ console.error('adminStartKid error',e); alert('Error starting kid: '+e.message); }
+  }
+
   function resetKid(id){
     db.collection("kids").doc(id).set({
       scans:[], completed:false, durationMs:null, completionTime:null, startMaze:null,
@@ -2866,8 +2912,6 @@ if(id==='allvisitors')  initAllVisitors();
             <div style="font-size:11px;margin-top:2px;${rescuedStyle}">${d.rescued ? '✅ Rescued by '+( d.rescuedByName||'?') : '🔒 Locked'}</div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <a href="rescue.html?id=${doc.id}" target="_blank" style="font-size:11px;padding:6px 10px;background:#fff;border:2px solid #231207;border-radius:4px;text-decoration:none;font-weight:700;color:#231207">Open iPad Page ↗</a>
-            <button class="btn" style="font-size:11px;padding:6px 10px;background:${d.rescued?'#e52521':'#248a26'};color:#fff" onclick="toggleRescue('${doc.id}',${!!d.rescued})">${d.rescued?'Reset Lock':'Mark Rescued'}</button>
             <button class="btn btn-warn" style="font-size:11px;padding:6px 10px" onclick="deleteRescueStation('${doc.id}')">Delete</button>
           </div>`;
         list.appendChild(div);

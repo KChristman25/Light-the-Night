@@ -1649,8 +1649,8 @@ async function submitStationCode(code){
   // Start station sets its own mazeStartTime during the countdown
   if(currentStationMode==='start')          return handleStartStation(docRef,kidData);
 
-  // Block kids who haven't started yet — must scan START station first
-  if(!kidData.mazeStartTime){
+  // Block kids who haven't started yet — must scan START station first (bypassed in test mode)
+  if(!kidData.mazeStartTime && !allowMultiScan){
     const stationLabel=titleEl.textContent||('Station '+currentStationId);
     db.collection('alerts').add({
       type:'no_start', kidId:docRef.id, name, code,
@@ -1781,7 +1781,11 @@ async function handleStartStation(docRef, kidData){
   const name=kidData.name||kidData.displayName||'Participant';
   const startCoins=CFG.startCoins||10;
 
-  // Re-run: save best-ever data then wipe game state so they start fresh
+  beep();
+  showSpecialResult('🏁', name, 'GOOD LUCK!', '', 3);
+  sendConfiguredOsc('maze_start').catch(()=>{});
+
+  // Re-run: save best-ever data then wipe game state so they start fresh (fire OSC first, then reset)
   if(kidData.completed===true||kidData.mazeEndTime){
     const prevCoins  = kidData.coins||0;
     const prevDurMs  = typeof kidData.durationMs==='number' ? kidData.durationMs : null;
@@ -1799,10 +1803,6 @@ async function handleStartStation(docRef, kidData){
       superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete()
     },{merge:true});
   }
-
-  beep();
-  showSpecialResult('🏁', name, 'GOOD LUCK!', '', 3);
-  sendConfiguredOsc('maze_start').catch(()=>{});
   const doStart = async ()=>{
     const now=firebase.firestore.Timestamp.now();
     await docRef.update({

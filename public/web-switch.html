@@ -931,6 +931,105 @@ async function runGroupAi(groupId){
   if(runBtn) runBtn.disabled=false;
 }
 
+/* ==== Dual-timing AI parser for multi-event station groups ==== */
+const _STATION_SYS_PROMPT = `You are a show-control sequence parser for a live maze event. The user describes what should happen at TWO moments during a station visit:
+1. SCAN — when a kid scans/enters their code. Trigger phrases: "when scanned", "after code", "on entry", "when entered", "when code inputted", "at scan", "on scan", "when they scan"
+2. DONE — when the game is finished. Trigger phrases: "when done", "after game", "when finished", "after game played", "when game ends", "after completed", "when game is done", "after they play"
+
+Output ONLY a JSON object with two keys: {"scan":[...steps],"done":[...steps]}
+Leave an array empty [] if nothing is described for that moment.
+If no timing phrases appear at all, put everything under "scan".
+
+Each step is one of:
+{"type":"osc","address":"/cue/NUM/start"}
+{"type":"delay","ms":NUMBER}
+{"type":"gpio","pin":N,"state":"HIGH"|"LOW"}
+{"type":"power","outlet":N,"state":"on"|"off"}
+
+Rules:
+- "fire cue N" / "cue N" / "start cue N" → {"type":"osc","address":"/cue/N/start"}
+- "wait X seconds" → {"type":"delay","ms":X*1000}
+- "turn on outlet N" → {"type":"power","outlet":N,"state":"on"}
+
+Return ONLY the JSON object, no prose, no markdown fences.`;
+
+async function parseStationAi(groupId){
+  const ta    = document.querySelector(`.grp-ai-ta[data-grp="${groupId}"]`);
+  const stEl  = document.querySelector(`.grp-ai-st[data-grp="${groupId}"]`);
+  const preEl = document.querySelector(`.grp-ai-pre[data-grp="${groupId}"]`);
+  if(!ta) return;
+  const text = ta.value.trim();
+  if(!text){ if(stEl) stEl.textContent='Type a description first.'; return; }
+  if(stEl) stEl.textContent='Parsing…';
+  if(preEl) preEl.style.display='none';
+  try{
+    const apiKey = await getAnthropicKey();
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,system:_STATION_SYS_PROMPT,messages:[{role:'user',content:text}]})
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error?.message||resp.status);
+    const raw   = data.content[0].text.trim();
+    const match = raw.match(/\{[\s\S]*\}/);
+    if(!match) throw new Error('No JSON in response');
+    const parsed    = JSON.parse(match[0]);
+    const scanSteps = Array.isArray(parsed.scan) ? parsed.scan : [];
+    const doneSteps = Array.isArray(parsed.done) ? parsed.done : [];
+
+    _parsedGroupSeqs[groupId]          = scanSteps;
+    _parsedGroupSeqs[groupId+'_done']  = doneSteps;
+    _stationGroupAiText[groupId]       = text;
+
+    const compSel = document.querySelector(`.grp-ai-comp[data-grp="${groupId}"]`);
+    const compId  = compSel ? compSel.value : '';
+    if(compId){
+      _stationGroupAiComp[groupId]         = compId;
+      _stationGroupAiComp[groupId+'_done'] = compId;
+    }
+
+    const saveData = {
+      ['stationGroupAiText.'+groupId]:           text,
+      ['stationGroupAiParsed.'+groupId]:         scanSteps,
+      ['stationGroupAiParsed.'+groupId+'_done']: doneSteps,
+    };
+    if(compId){
+      saveData['stationGroupAiComp.'+groupId]          = compId;
+      saveData['stationGroupAiComp.'+groupId+'_done']  = compId;
+    }
+    CONFIG_DOC.update(saveData).catch(()=>{
+      CONFIG_DOC.set({stationGroupAiText:{[groupId]:text},stationGroupAiParsed:{[groupId]:scanSteps,[groupId+'_done']:doneSteps}},{merge:true}).catch(()=>{});
+    });
+
+    const lines = [];
+    if(scanSteps.length) lines.push('── When Scanned ──\n'+_seqPreview(scanSteps));
+    if(doneSteps.length) lines.push('── When Done ──\n'+_seqPreview(doneSteps));
+    if(preEl){ preEl.textContent=lines.join('\n\n')||'(nothing to do)'; preEl.style.display='block'; }
+    if(stEl)  stEl.textContent=`✅ Scan: ${scanSteps.length} step(s) · Done: ${doneSteps.length} step(s)`;
+
+    const scanBtn = document.querySelector(`.grp-ai-run[data-grp="${groupId}"]`);
+    const doneBtn = document.querySelector(`.grp-ai-run-done[data-grp="${groupId}"]`);
+    if(scanBtn) scanBtn.disabled=!scanSteps.length;
+    if(doneBtn) doneBtn.disabled=!doneSteps.length;
+  }catch(e){ if(stEl) stEl.textContent='❌ '+e.message; }
+}
+
+async function runGroupAiDone(groupId){
+  const stEl    = document.querySelector(`.grp-ai-st[data-grp="${groupId}"]`);
+  const runBtn  = document.querySelector(`.grp-ai-run-done[data-grp="${groupId}"]`);
+  const compSel = document.querySelector(`.grp-ai-comp[data-grp="${groupId}"]`);
+  const steps   = _parsedGroupSeqs[groupId+'_done'];
+  if(!steps||!steps.length){ if(stEl) stEl.textContent='Parse first.'; return; }
+  if(stEl) stEl.textContent='Running done sequence…';
+  if(runBtn) runBtn.disabled=true;
+  try{
+    await _runSteps(steps, stEl, compSel?compSel.value:'');
+    if(stEl) stEl.textContent='✅ Done!';
+  }catch(e){ if(stEl) stEl.textContent='❌ '+e.message; }
+  if(runBtn) runBtn.disabled=false;
+}
+
 /* ==== GPIO Quick Fire (Automation tab) ==== */
 async function mcFireGpio(){
   const pin  = parseInt(document.getElementById('mcGpioPin').value);
@@ -1103,7 +1202,7 @@ function saveDomOscCues(){
     const hasGpio = !isNaN(pin) && pin >= 2 && state && state !== 'none';
     const cooldownEl = document.querySelector(`.osc-cooldown[data-key="${ev.key}"]`);
     const cooldownMs = cooldownEl ? Math.round(parseFloat(cooldownEl.value||'2')*1000) : null;
-    if(hasOsc || hasGpio){
+    if(hasOsc || hasGpio || cooldownMs != null){
       _stationOscCues[ev.key] = {
         computerId, cue,
         ...(hasGpio ? {arduinoPin:pin, arduinoState:state, arduinoPulseMs:ms} : {}),
@@ -1165,110 +1264,86 @@ function renderStationOscEvents(){
   const inp = 'padding:6px 8px;border:2px solid var(--ink);border-radius:4px;font-family:"Inter",sans-serif;font-size:12px;background:#fff;';
   let html = '';
   groups.forEach(grp=>{
+    const multiEvent = grp.events.length > 1;
+    const aiId = grp.id;
+
+    // For multi-event groups, migrate old per-event texts if a combined text isn't saved yet
+    let aiSaved;
+    if(multiEvent){
+      const combined = _stationGroupAiText[aiId] || '';
+      const doneOnly = _stationGroupAiText[aiId+'_done'] || '';
+      if(combined && doneOnly && combined !== doneOnly){
+        aiSaved = escapeHtml(`When scanned: ${combined}\nWhen done: ${doneOnly}`);
+      } else {
+        aiSaved = escapeHtml(combined || doneOnly);
+      }
+    } else {
+      aiSaved = escapeHtml(_stationGroupAiText[aiId]||'');
+    }
+
+    const aiCompSel  = _stationGroupAiComp[aiId]||'';
+    const aiCompOpts = _qlabComputers.map(c=>`<option value="${c.id}"${c.id===aiCompSel?' selected':''}>${escapeHtml(c.name)}</option>`).join('');
+    const hasScan    = !!(_parsedGroupSeqs[aiId]&&_parsedGroupSeqs[aiId].length);
+    const hasDone    = !!(_parsedGroupSeqs[aiId+'_done']&&_parsedGroupSeqs[aiId+'_done'].length);
+    const hasSeq     = multiEvent ? (hasScan||hasDone) : hasScan;
+
+    const placeholder = multiEvent
+      ? 'e.g. "When scanned fire cue 20. When done fire cue 21."'
+      : 'Describe what should happen in plain English…';
+
     html += `<div style="margin-bottom:10px;border:2px solid var(--ink);border-radius:6px;box-shadow:2px 2px 0 var(--ink);overflow:hidden">`;
+
+    // Header
     html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:${grp.color};border-bottom:2px solid rgba(35,18,7,.15)">
       <div style="width:8px;height:8px;border-radius:50%;background:${grp.accent};flex-shrink:0"></div>
       <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${grp.accent}">${escapeHtml(grp.label)}</span>
     </div>`;
-    // For multi-event groups each event gets its own AI box; single-event groups use grp.id for backward compat
-    const multiEvent = grp.events.length > 1;
-    grp.events.forEach((ev,idx)=>{
-      const saved     = _stationOscCues[ev.key]||{};
-      const selVal    = saved.computerId||'';
-      const cueVal    = escapeHtml(saved.cue||'');
-      const gpioPin   = saved.arduinoPin   != null ? saved.arduinoPin   : '';
-      const gpioState = saved.arduinoState || 'none';
-      const gpioMs    = saved.arduinoPulseMs || 500;
-      const hasCue    = !!saved.cue;
-      const hasGpio   = !!(saved.arduinoPin && saved.arduinoState && saved.arduinoState !== 'none');
-      const dot       = hasCue ? '#16a34a' : (hasGpio ? '#d97706' : '#c0b8a0');
-      const opts      = _qlabComputers.map(c=>
-        `<option value="${c.id}"${c.id===selVal?' selected':''}>${escapeHtml(c.name)}</option>`
-      ).join('');
-      const sep = idx > 0 ? 'border-top:2px solid rgba(35,18,7,.12);' : '';
-      html += `<div style="${sep}">`;
-      html += `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fff;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:6px;min-width:100px;flex-shrink:0">
-          <span style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0" title="${hasCue?'OSC set':hasGpio?'GPIO only':'Not set'}"></span>
-          <span style="font-size:12px;font-weight:700;color:var(--ink)">${escapeHtml(ev.label)}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:200px">
-          <span style="font-size:10px;font-weight:700;color:var(--muted);flex-shrink:0">QLab</span>
-          <select class="osc-comp-sel" data-key="${ev.key}" style="${inp}min-width:90px;flex-shrink:0">
-            <option value="">&#8212; none &#8212;</option>${opts}
-          </select>
-          <input type="text" class="osc-cue-inp" data-key="${ev.key}" value="${cueVal}" placeholder="cue #" style="${inp}flex:1;min-width:60px"/>
-        </div>
-        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-          <span style="font-size:10px;font-weight:700;color:var(--muted)">GPIO</span>
-          <input type="number" class="osc-gpio-pin" data-key="${ev.key}" value="${gpioPin}" placeholder="pin" min="2" max="27" style="${inp}width:52px" title="BCM pin 2-27"/>
-          <select class="osc-gpio-state" data-key="${ev.key}" style="${inp}width:72px">
-            <option value="none"${gpioState==='none'?' selected':''}>&#8212; off &#8212;</option>
-            <option value="HIGH"${gpioState==='HIGH'?' selected':''}>HIGH</option>
-            <option value="LOW" ${gpioState==='LOW' ?' selected':''}>LOW</option>
-            <option value="PULSE"${gpioState==='PULSE'?' selected':''}>PULSE</option>
-          </select>
-          <input type="number" class="osc-gpio-ms" data-key="${ev.key}" value="${gpioMs}" placeholder="ms" min="50" style="${inp}width:56px" title="Pulse ms"/>
-          <span style="font-size:11px;color:var(--muted)">ms</span>
-        </div>
-        <button onclick="testOscEvent('${ev.key}')" style="padding:5px 10px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0">&#9654;</button>
-      </div>`;
-      // AI box — per-event for multi-event groups, per-group for single-event groups
-      if(multiEvent){
-        const aiId       = ev.key;
-        const aiSaved    = escapeHtml(_stationGroupAiText[aiId]||'');
-        const aiCompSel  = _stationGroupAiComp[aiId]||'';
-        const hasSeq     = !!(_parsedGroupSeqs[aiId]&&_parsedGroupSeqs[aiId].length);
-        const aiCompOpts = _qlabComputers.map(c=>`<option value="${c.id}"${c.id===aiCompSel?' selected':''}>${escapeHtml(c.name)}</option>`).join('');
-        html += `<div style="border-top:1px solid rgba(35,18,7,.07);padding:6px 12px;background:#fffdf5;display:flex;gap:6px;align-items:flex-start">
-          <span style="font-size:9px;font-weight:700;color:#d97706;min-width:24px;padding-top:7px;flex-shrink:0">AI</span>
-          <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
-            ${_qlabComputers.length>1?`<select class="grp-ai-comp" data-grp="${aiId}" onchange="_stationGroupAiComp['${aiId}']=this.value" style="${inp}font-size:11px"><option value="">— any QLab —</option>${aiCompOpts}</select>`:`<select class="grp-ai-comp" data-grp="${aiId}" style="display:none"><option value="${aiCompSel}">${aiCompSel}</option></select>`}
-            <textarea class="grp-ai-ta" data-grp="${aiId}" rows="2" placeholder="Describe what should happen in plain English…" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4;width:100%">${aiSaved}</textarea>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-            <button onclick="parseGroupAi('${aiId}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Parse with AI">✨</button>
-            <button class="grp-ai-run" data-grp="${aiId}" onclick="runGroupAi('${aiId}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Run parsed sequence"${hasSeq?'':' disabled'}>▶</button>
-          </div>
-        </div>
-        <pre class="grp-ai-pre" data-grp="${aiId}" style="display:none;margin:0;padding:8px 12px;font-size:11px;background:#f5ecd5;border-top:1px solid rgba(35,18,7,.1);white-space:pre-wrap"></pre>
-        <div class="grp-ai-st" data-grp="${aiId}" style="font-size:11px;color:var(--muted);min-height:0;padding:0 12px 6px"></div>`;
-      }
-      html += `</div>`;
-    });
-    // Cooldown row (for jump group)
+
+    // Cooldown row (jump group only)
     if(grp.hasCooldown){
       const savedCooldown = (_stationOscCues[grp.events[0].key]||{}).cooldownMs;
-      const cooldownSecs = savedCooldown != null ? (savedCooldown/1000) : 2;
-      html += `<div style="border-top:1px solid rgba(35,18,7,.08);padding:7px 12px;background:#f9fafb;display:flex;align-items:center;gap:8px">
+      const cooldownSecs  = savedCooldown != null ? (savedCooldown/1000) : 2;
+      html += `<div style="padding:7px 14px;background:#f9fafb;border-bottom:1px solid rgba(35,18,7,.08);display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;font-weight:700;color:var(--muted)">COOLDOWN</span>
         <input type="number" class="osc-cooldown" data-key="${grp.events[0].key}" value="${cooldownSecs}" min="0" max="30" step="0.5" style="padding:5px 7px;border:2px solid var(--ink);border-radius:4px;font-size:12px;width:70px"/>
-        <span style="font-size:11px;color:var(--muted)">sec — ignore duplicate jumps within this window</span>
+        <span style="font-size:11px;color:var(--muted)">sec between jumps</span>
       </div>`;
     }
-    // Single-event groups: AI box at the bottom of the card (uses grp.id — backward compatible with EVENT_GROUP_MAP)
-    if(!multiEvent){
-    const aiSaved    = escapeHtml(_stationGroupAiText[grp.id]||'');
-    const aiCompSel  = _stationGroupAiComp[grp.id]||'';
-    const hasSeq     = !!(_parsedGroupSeqs[grp.id]&&_parsedGroupSeqs[grp.id].length);
-    const aiCompOpts = _qlabComputers.map(c=>`<option value="${c.id}"${c.id===aiCompSel?' selected':''}>${escapeHtml(c.name)}</option>`).join('');
-    html += `<div style="border-top:2px solid rgba(35,18,7,.1);padding:8px 12px;background:#fffdf5;display:flex;gap:6px;align-items:flex-start">
-      <span style="font-size:10px;font-weight:700;color:#d97706;min-width:24px;padding-top:7px;flex-shrink:0">AI</span>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
-        ${_qlabComputers.length>1?`<select class="grp-ai-comp" data-grp="${grp.id}" onchange="_stationGroupAiComp['${grp.id}']=this.value" style="${inp}font-size:11px"><option value="">— any QLab —</option>${aiCompOpts}</select>`:`<select class="grp-ai-comp" data-grp="${grp.id}" style="display:none"><option value="${aiCompSel}">${aiCompSel}</option></select>`}
-        <textarea class="grp-ai-ta" data-grp="${grp.id}" rows="2" placeholder="Describe what should happen here in plain English…" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4;width:100%">${aiSaved}</textarea>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-        <button onclick="parseGroupAi('${grp.id}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Parse with AI">✨</button>
-        <button class="grp-ai-run" data-grp="${grp.id}" onclick="runGroupAi('${grp.id}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Run parsed sequence"${hasSeq?'':' disabled'}>▶</button>
-      </div>
-    </div>
-    <pre class="grp-ai-pre" data-grp="${grp.id}" style="display:none;margin:0;padding:8px 12px;font-size:11px;background:#f5ecd5;border-top:1px solid rgba(35,18,7,.1);white-space:pre-wrap"></pre>
-    <div class="grp-ai-st" data-grp="${grp.id}" style="font-size:11px;color:var(--muted);min-height:0;padding:0 12px 6px"></div>`;
+
+    // AI box
+    html += `<div style="padding:10px 14px;background:#fffdf5;">`;
+    if(_qlabComputers.length>1){
+      html += `<select class="grp-ai-comp" data-grp="${aiId}" onchange="_stationGroupAiComp['${aiId}']=this.value" style="${inp}font-size:11px;margin-bottom:6px;width:100%"><option value="">— any QLab —</option>${aiCompOpts}</select>`;
+    } else {
+      html += `<select class="grp-ai-comp" data-grp="${aiId}" style="display:none"><option value="${aiCompSel}">${aiCompSel}</option></select>`;
     }
+    html += `<textarea class="grp-ai-ta" data-grp="${aiId}" rows="${multiEvent?3:2}" placeholder="${placeholder}" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.5;width:100%;display:block">${aiSaved}</textarea>`;
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap">`;
+
+    const parseFunc = multiEvent ? `parseStationAi('${aiId}')` : `parseGroupAi('${aiId}')`;
+    html += `<button onclick="${parseFunc}" style="padding:5px 10px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Parse with AI">✨ Parse</button>`;
+
+    if(multiEvent){
+      html += `<button class="grp-ai-run" data-grp="${aiId}" onclick="runGroupAi('${aiId}')" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)"${hasScan?'':' disabled'} title="Test scan sequence">▶ Scan</button>`;
+      html += `<button class="grp-ai-run-done" data-grp="${aiId}" onclick="runGroupAiDone('${aiId}')" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)"${hasDone?'':' disabled'} title="Test done sequence">▶ Done</button>`;
+    } else {
+      html += `<button class="grp-ai-run" data-grp="${aiId}" onclick="runGroupAi('${aiId}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)"${hasSeq?'':' disabled'} title="Run sequence">▶ Run</button>`;
+    }
+
     html += `</div>`;
+    html += `<pre class="grp-ai-pre" data-grp="${aiId}" style="display:none;margin:6px 0 0;padding:8px 10px;font-size:11px;background:#f5ecd5;border:1px solid rgba(35,18,7,.1);border-radius:4px;white-space:pre-wrap"></pre>`;
+    html += `<div class="grp-ai-st" data-grp="${aiId}" style="font-size:11px;color:var(--muted);padding-top:4px;min-height:0"></div>`;
+    html += `</div>`; // close AI box
+    html += `</div>`; // close card
   });
   root.innerHTML = html;
+
+  document.querySelectorAll('.grp-ai-ta').forEach(ta=>{
+    ta.addEventListener('input',()=>{ _stationGroupAiText[ta.dataset.grp]=ta.value; });
+  });
+  document.querySelectorAll('.grp-ai-comp').forEach(sel=>{
+    sel.addEventListener('change',()=>{ _stationGroupAiComp[sel.dataset.grp]=sel.value; });
+  });
 }
 
 async function saveStationOscCues(){
@@ -1331,8 +1406,9 @@ async function loadQlabConfig(){
     _qlabComputers       = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
     _stationOscCues      = d.stationOscCues || {};
     _oscAiText           = d.stationOscAiText || {};
-    _stationGroupAiText  = d.stationGroupAiText || {};
-    _stationGroupAiComp  = d.stationGroupAiComp || {};
+    _stationGroupAiText  = d.stationGroupAiText  || {};
+    _stationGroupAiComp  = d.stationGroupAiComp  || {};
+    _parsedGroupSeqs     = d.stationGroupAiParsed || {};
     renderQlabComputers();
     // Legacy backwards compat fields
     if(d.qlabIp)          { const el=document.getElementById('qlabIpInput');          if(el) el.value=d.qlabIp; }

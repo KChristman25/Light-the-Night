@@ -1828,9 +1828,11 @@ async function handleStartStation(docRef, kidData){
 }
 
 // ── Special result overlay ─────────────────────────────────────
+let _specialResultTimer = null;
 function showSpecialResult(icon,title,sub,detail,autoCloseSecs=5){
   const el=$('specialResult');
   if(!el)return;
+  clearTimeout(_specialResultTimer);
   $('spIcon').innerHTML=icon;
   $('spTitle').innerHTML=title.replace(/\n/g,'<br>');
   $('spSub').textContent=sub;
@@ -1839,7 +1841,7 @@ function showSpecialResult(icon,title,sub,detail,autoCloseSecs=5){
   // Hide the keypad section so it doesn't show through the dark overlay
   const keypad=$('view-control');
   if(keypad) keypad.style.visibility='hidden';
-  setTimeout(()=>{
+  _specialResultTimer = setTimeout(()=>{
     el.style.display='none';
     if(keypad) keypad.style.visibility='';
     codeBuffer='';updateDisplay();setStatus('');
@@ -1945,15 +1947,13 @@ async function handleBowserStation(docRef,kidData){
   showSpecialResult('⭐',name,'MAZE COMPLETE!','🎉 Hunt complete! 🎉',6);
 }
 
-async function sendSwitchCommand(outlet,state){
-  const p={type:'power',outlet:Number(outlet),state:String(state).toLowerCase()};
-  try{ await _sendViaPi(p); }
-  catch(e){ await QUEUE_COL.add({...p,processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')}); }
+function sendSwitchCommand(outlet,state){
+  const p={type:'power',outlet:Number(outlet),state:String(state).toLowerCase(),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')};
+  QUEUE_COL.add(p).catch(()=>{});
 }
-async function sendOscQueueCommand(address){
-  const payload={type:'osc',address:String(address)};
-  try{ await _sendViaPi(payload); }
-  catch(e){ await QUEUE_COL.add({...payload,processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')}); }
+function sendOscQueueCommand(address){
+  const payload={type:'osc',address:String(address),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')};
+  QUEUE_COL.add(payload).catch(()=>{});
 }
 async function loadQlabCues(){
   // Keep _piBaseUrl live so we always send to the Pi's current IP

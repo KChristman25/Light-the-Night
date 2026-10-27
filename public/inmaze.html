@@ -304,7 +304,7 @@ function render() {
   }
 
   const rows = inMaze.map((k, i) => {
-    const startMs = k.mazeStartTime?.toMillis?.() ?? (k.mazeStartTime?.seconds ? k.mazeStartTime.seconds * 1000 : Date.now());
+    const startMs = _kidStartMs[k.id]?.localMs ?? Date.now();
     const powerups = [
       k.superMarioActive ? `<img src="icons/mushroom.png" alt="Mushroom" title="Has Mushroom">` : '',
       (k.shellStation && !k.usedShell) ? `<img src="icons/red_shell.webp" alt="Red Shell" title="Has Red Shell">` : '',
@@ -334,15 +334,35 @@ setInterval(() => {
   });
 }, 1000);
 
+// Per-kid start-time anchor on THIS device's clock.
+// Avoids clock-drift between the station tablet (which writes mazeStartTime)
+// and the display device (which computes Date.now() for the elapsed timer).
+const _kidStartMs = {}; // kidId → { serverMs, localMs }
+
 // Firestore listener
 firebase.auth().signInAnonymously().catch(() => {});
 firebase.auth().onAuthStateChanged(user => {
   if (!user) return;
   db.collection('kids').onSnapshot(snap => {
+    const snapNow = Date.now();
     latestKids = [];
     snap.forEach(doc => {
       const d = doc.data();
       if (d.revoked) return;
+      if (d.mazeStartTime && !d.mazeEndTime) {
+        const serverMs = d.mazeStartTime?.toMillis?.() ??
+          (d.mazeStartTime?.seconds ? d.mazeStartTime.seconds * 1000 : 0);
+        const prev = _kidStartMs[doc.id];
+        if (!prev || prev.serverMs !== serverMs) {
+          // Honour server time if it's in the past on this device; if clock is
+          // ahead on the station tablet (drift), anchor to right now so the
+          // timer always starts at 0:00 and counts up.
+          const localMs = serverMs > 0 && serverMs <= snapNow ? serverMs : snapNow;
+          _kidStartMs[doc.id] = { serverMs, localMs };
+        }
+      } else {
+        delete _kidStartMs[doc.id];
+      }
       latestKids.push({ id: doc.id, ...d });
     });
     render();

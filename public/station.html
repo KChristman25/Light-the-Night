@@ -1831,22 +1831,15 @@ async function handleStartStation(docRef, kidData, code){
     };
   }
 
-  // Re-run: save best-ever data, wipe game state, and set new start time in one write
+  // Re-run: wipe previous run state and set new start time in one write
   if(kidData.completed===true||kidData.mazeEndTime){
-    const prevCoins  = kidData.coins||0;
-    const prevDurMs  = typeof kidData.durationMs==='number' ? kidData.durationMs : null;
-    const prevEnd    = kidData.mazeEndTime||null;
-    const curBestDur = typeof kidData.bestDurationMs==='number' ? kidData.bestDurationMs : null;
-    const newBest    = prevDurMs!==null && (curBestDur===null || prevDurMs<curBestDur);
     docRef.set({
-      bestCoins:       Math.max(kidData.bestCoins||0, prevCoins),
-      bestDurationMs:  newBest ? prevDurMs : (curBestDur!==null ? curBestDur : prevDurMs),
-      bestMazeEndTime: newBest ? prevEnd   : (kidData.bestMazeEndTime||prevEnd),
       coins: startCoins, scans: ['start'], completed: false, frozen: false,
       mazeStartTime:   startNow, mazeEndTime: FSV.delete(),
       completionTime:  FSV.delete(), durationMs:   FSV.delete(),
       completedBy:     FSV.delete(), shellShield:  FSV.delete(),
-      superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete()
+      superMarioActive:FSV.delete(), superMarioExpiry:FSV.delete(),
+      bestMazeEndTime: FSV.delete(), bestDurationMs: FSV.delete(), bestCoins: FSV.delete()
     },{merge:true}).catch(e=>{console.error('start re-run write failed:',e);_setStartStatus('WRITE ERROR: '+e.message,true);});
   } else {
     // First-time start: write mazeStartTime, scans, and coins right now.
@@ -1981,15 +1974,10 @@ async function handleBowserStation(docRef,kidData){
   const now=firebase.firestore.Timestamp.now();
   const startTime=kidData.mazeStartTime||now;
   const durationMs=kidData.mazeStartTime?(now.toMillis()-kidData.mazeStartTime.toMillis()):0;
-  const curBestDur=typeof kidData.bestDurationMs==='number'?kidData.bestDurationMs:null;
-  const newBestRun=curBestDur===null||durationMs<curBestDur;
 
   docRef.update({
     scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),
-    completed:true, mazeEndTime:now, mazeStartTime:startTime, durationMs,
-    bestCoins:      Math.max(kidData.bestCoins||0, kidData.coins||0),
-    bestDurationMs: newBestRun ? durationMs : curBestDur,
-    bestMazeEndTime:newBestRun ? now        : (kidData.bestMazeEndTime||now)
+    completed:true, mazeEndTime:now, mazeStartTime:startTime, durationMs
   }).catch(()=>{});
 
   db.collection('scans').add({kidId:docRef.id,name,station:'bowser',coins:0,gameType:'bowser',timestamp:now}).catch(()=>{});

@@ -542,16 +542,7 @@ const QR_ROW = `<div class="qr-row"><img src="${QR_IMG}" width="140" height="140
 
 function initRender(kids) {
   const finishers = kids
-    .filter(k => k.mazeEndTime || k.bestMazeEndTime)
-    .map(k => {
-      // During a re-run, mazeEndTime is cleared — use best-run data for display
-      if(!k.mazeEndTime && k.bestMazeEndTime){
-        const durMs = k.bestDurationMs||0;
-        const fakeStart = { toMillis:()=>k.bestMazeEndTime.toMillis()-durMs };
-        return {...k, coins:k.bestCoins||0, mazeEndTime:k.bestMazeEndTime, mazeStartTime:fakeStart};
-      }
-      return k;
-    })
+    .filter(k => k.mazeEndTime)
     .map(k => ({ ...k, score: calcScore(k.coins, k.mazeStartTime, k.mazeEndTime) }))
     .sort((a, b) => b.score - a.score || (a.name||'').localeCompare(b.name||''));
   committedList = finishers;
@@ -671,7 +662,7 @@ firebase.auth().onAuthStateChanged(user => {
 
         const d = change.doc.data();
 
-        // Doc modified and lost its mazeEndTime (unfinish or reset)
+        // Doc modified and lost its mazeEndTime (re-run, unfinish, or reset)
         if (change.type === 'modified' && !d.mazeEndTime) {
           if (committedList.some(c => c.id === id)) needsRebuild = true;
           return;

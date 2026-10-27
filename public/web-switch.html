@@ -1170,6 +1170,8 @@ function renderStationOscEvents(){
       <div style="width:8px;height:8px;border-radius:50%;background:${grp.accent};flex-shrink:0"></div>
       <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${grp.accent}">${escapeHtml(grp.label)}</span>
     </div>`;
+    // For multi-event groups each event gets its own AI box; single-event groups use grp.id for backward compat
+    const multiEvent = grp.events.length > 1;
     grp.events.forEach((ev,idx)=>{
       const saved     = _stationOscCues[ev.key]||{};
       const selVal    = saved.computerId||'';
@@ -1183,8 +1185,9 @@ function renderStationOscEvents(){
       const opts      = _qlabComputers.map(c=>
         `<option value="${c.id}"${c.id===selVal?' selected':''}>${escapeHtml(c.name)}</option>`
       ).join('');
-      const sep = idx > 0 ? 'border-top:1px solid rgba(35,18,7,.08);' : '';
-      html += `<div style="${sep}display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fff;flex-wrap:wrap">
+      const sep = idx > 0 ? 'border-top:2px solid rgba(35,18,7,.12);' : '';
+      html += `<div style="${sep}">`;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fff;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:6px;min-width:100px;flex-shrink:0">
           <span style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0" title="${hasCue?'OSC set':hasGpio?'GPIO only':'Not set'}"></span>
           <span style="font-size:12px;font-weight:700;color:var(--ink)">${escapeHtml(ev.label)}</span>
@@ -1210,6 +1213,28 @@ function renderStationOscEvents(){
         </div>
         <button onclick="testOscEvent('${ev.key}')" style="padding:5px 10px;font-size:11px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);flex-shrink:0">&#9654;</button>
       </div>`;
+      // AI box — per-event for multi-event groups, per-group for single-event groups
+      if(multiEvent){
+        const aiId       = ev.key;
+        const aiSaved    = escapeHtml(_stationGroupAiText[aiId]||'');
+        const aiCompSel  = _stationGroupAiComp[aiId]||'';
+        const hasSeq     = !!(_parsedGroupSeqs[aiId]&&_parsedGroupSeqs[aiId].length);
+        const aiCompOpts = _qlabComputers.map(c=>`<option value="${c.id}"${c.id===aiCompSel?' selected':''}>${escapeHtml(c.name)}</option>`).join('');
+        html += `<div style="border-top:1px solid rgba(35,18,7,.07);padding:6px 12px;background:#fffdf5;display:flex;gap:6px;align-items:flex-start">
+          <span style="font-size:9px;font-weight:700;color:#d97706;min-width:24px;padding-top:7px;flex-shrink:0">AI</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
+            ${_qlabComputers.length>1?`<select class="grp-ai-comp" data-grp="${aiId}" onchange="_stationGroupAiComp['${aiId}']=this.value" style="${inp}font-size:11px"><option value="">— any QLab —</option>${aiCompOpts}</select>`:`<select class="grp-ai-comp" data-grp="${aiId}" style="display:none"><option value="${aiCompSel}">${aiCompSel}</option></select>`}
+            <textarea class="grp-ai-ta" data-grp="${aiId}" rows="2" placeholder="Describe what should happen in plain English…" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.4;width:100%">${aiSaved}</textarea>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button onclick="parseGroupAi('${aiId}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Parse with AI">✨</button>
+            <button class="grp-ai-run" data-grp="${aiId}" onclick="runGroupAi('${aiId}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)" title="Run parsed sequence"${hasSeq?'':' disabled'}>▶</button>
+          </div>
+        </div>
+        <pre class="grp-ai-pre" data-grp="${aiId}" style="display:none;margin:0;padding:8px 12px;font-size:11px;background:#f5ecd5;border-top:1px solid rgba(35,18,7,.1);white-space:pre-wrap"></pre>
+        <div class="grp-ai-st" data-grp="${aiId}" style="font-size:11px;color:var(--muted);min-height:0;padding:0 12px 6px"></div>`;
+      }
+      html += `</div>`;
     });
     // Cooldown row (for jump group)
     if(grp.hasCooldown){
@@ -1221,7 +1246,8 @@ function renderStationOscEvents(){
         <span style="font-size:11px;color:var(--muted)">sec — ignore duplicate jumps within this window</span>
       </div>`;
     }
-    // AI row at the bottom of each station card
+    // Single-event groups: AI box at the bottom of the card (uses grp.id — backward compatible with EVENT_GROUP_MAP)
+    if(!multiEvent){
     const aiSaved    = escapeHtml(_stationGroupAiText[grp.id]||'');
     const aiCompSel  = _stationGroupAiComp[grp.id]||'';
     const hasSeq     = !!(_parsedGroupSeqs[grp.id]&&_parsedGroupSeqs[grp.id].length);
@@ -1239,6 +1265,7 @@ function renderStationOscEvents(){
     </div>
     <pre class="grp-ai-pre" data-grp="${grp.id}" style="display:none;margin:0;padding:8px 12px;font-size:11px;background:#f5ecd5;border-top:1px solid rgba(35,18,7,.1);white-space:pre-wrap"></pre>
     <div class="grp-ai-st" data-grp="${grp.id}" style="font-size:11px;color:var(--muted);min-height:0;padding:0 12px 6px"></div>`;
+    }
     html += `</div>`;
   });
   root.innerHTML = html;

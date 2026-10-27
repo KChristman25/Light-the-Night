@@ -2743,8 +2743,11 @@ const SFX = (function(){
             station:currentStationId,coins:0,gameType:'timed_out',timestamp:firebase.firestore.Timestamp.now()});
           lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
           await maybeTriggerWebSwitch();
-          sendConfiguredOsc('station_'+currentStationId+'_done').catch(()=>{});
-          if(currentStationMode.startsWith('land_')) sendConfiguredOsc(currentStationMode+'_done').catch(()=>{});
+          if(currentStationMode.startsWith('land_')){
+            sendConfiguredOsc(currentStationMode+'_done').catch(()=>{});
+          } else {
+            sendConfiguredOsc('station_'+currentStationId+'_done').catch(()=>{});
+          }
         }
       }catch(e){console.error('showTimedOut',e);}
     })();
@@ -2874,8 +2877,11 @@ const SFX = (function(){
         .catch(e=>console.error('scans.add',e));
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       maybeTriggerWebSwitch().catch(e=>console.error('webswitch',e));
-      sendConfiguredOsc('station_'+currentStationId+'_done').catch(()=>{});
-      if(currentStationMode.startsWith('land_')) sendConfiguredOsc(currentStationMode+'_done').catch(()=>{});
+      if(currentStationMode.startsWith('land_')){
+        sendConfiguredOsc(currentStationMode+'_done').catch(()=>{});
+      } else {
+        sendConfiguredOsc('station_'+currentStationId+'_done').catch(()=>{});
+      }
       return actualCoins;
     }catch(e){console.error('applyCoins',e); return (G.kidData.coins||0)+amount;}
   }

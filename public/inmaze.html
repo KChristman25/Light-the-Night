@@ -304,7 +304,7 @@ function render() {
   }
 
   const rows = inMaze.map((k, i) => {
-    const startMs = k.mazeStartTime.toMillis();
+    const startMs = k.mazeStartTime?.toMillis?.() ?? (k.mazeStartTime?.seconds ? k.mazeStartTime.seconds * 1000 : Date.now());
     const powerups = [
       k.superMarioActive ? `<img src="icons/mushroom.png" alt="Mushroom" title="Has Mushroom">` : '',
       (k.shellStation && !k.usedShell) ? `<img src="icons/red_shell.webp" alt="Red Shell" title="Has Red Shell">` : '',
@@ -327,7 +327,8 @@ function render() {
 // Tick elapsed times every second
 setInterval(() => {
   scrollInner.querySelectorAll('[data-start]').forEach(row => {
-    const ms = Date.now() - parseInt(row.dataset.start, 10);
+    const ts = parseInt(row.dataset.start, 10);
+    const ms = isNaN(ts) ? 0 : Date.now() - ts;
     const el = row.querySelector('.im-elapsed');
     if (el) el.textContent = fmtTime(ms);
   });

@@ -312,6 +312,7 @@ const db   = firebase.firestore();
 
 /* ==== Firestore refs ==== */
 const CONFIG_DOC       = db.collection("webswitch").doc("config");
+window.OUTLET_NAMES = {}; // initialized early so subscribeState snapshot never throws ReferenceError
 const CONTROL_DOC      = db.collection("webswitch").doc("control");
 const QUEUE_COL        = db.collection("webswitch").doc("queueRoot").collection("queue");
 const UPTIME_COL       = db.collection("webswitch").doc("health").collection("uptimeEvents");

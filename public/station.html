@@ -1160,7 +1160,7 @@ async function _sendViaPi(payload) {
     if (!r.ok) throw new Error('pi ' + r.status);
     _piUnreachableUntil = 0; // success — reset
   } catch(e) {
-    _piUnreachableUntil = Date.now() + 30000; // skip direct path for 30s after any failure
+    _piUnreachableUntil = Date.now() + 600000; // skip direct path for 10 min after any failure
     throw e;
   } finally { clearTimeout(t); }
 }

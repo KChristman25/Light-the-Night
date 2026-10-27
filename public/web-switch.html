@@ -459,7 +459,7 @@ async function sendCommand(outlet, state, statusEl){
     } else {
       await CONTROL_DOC.set(payload, { merge: true });
     }
-    if (statusEl) statusEl.textContent = `Sent: outlet ${outlet} → ${state} (${new Date().toLocaleTimeString()})`;
+    if (statusEl) statusEl.textContent = `Sent: outlet ${outlet} → ${state} (${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})})`;
     if (globalStatus) globalStatus.textContent = "Sent ✓";
     log(`➡️ ${state} outlet ${outlet}`);
   }catch(e){
@@ -482,7 +482,7 @@ async function emergencyAllOff(){
       QUEUE_COL.add({ outlet:Number(n), state:'off', nonce:mkNonce(),
         ts:firebase.firestore.FieldValue.serverTimestamp(), uid:user.uid, processed:false })
     ));
-    if(stEl) stEl.textContent = '✅ All off — ' + new Date().toLocaleTimeString();
+    if(stEl) stEl.textContent = '✅ All off — ' + new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
   }catch(e){
     if(stEl) stEl.textContent = '❌ ' + e.message;
   }
@@ -651,7 +651,7 @@ async function drawHealth(){
     const x = ((t - startMs)/(endMs - startMs))*W;
     ctx.fillRect(x, H-18, 1, 10);
     const d = new Date(t);
-    ctx.fillText(d.getHours().toString().padStart(2,'0')+":00", x, H-2);
+    ctx.fillText(d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true}), x, H-2);
   }
 
   // segments: green=online, red=offline
@@ -670,7 +670,7 @@ async function drawHealth(){
     <span>Window: <strong>${hours}h</strong></span>
     <span>Online: <strong>${(upPct).toFixed(1)}%</strong></span>
     <span>Offline: <strong>${(downPct).toFixed(1)}%</strong></span>
-    <span>Last agent heartbeat: <strong>${lastAgentSeen?new Date(lastAgentSeen).toLocaleString(): '—'}</strong></span>
+    <span>Last agent heartbeat: <strong>${lastAgentSeen?new Date(lastAgentSeen).toLocaleString([],{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true,month:'short',day:'numeric'}): '—'}</strong></span>
   `;
   healthMsg.textContent = segs.length ? "" : "No health events yet. Status bar reflects current link only.";
 }

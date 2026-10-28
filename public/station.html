@@ -2145,7 +2145,7 @@ async function handleBowserStation(docRef,kidData){
     usedMushroom:!!kidData.usedMushroom, usedShell:!!kidData.usedShell
   }],updatedAt:now}).catch(()=>{});
 
-  sendConfiguredOsc('bowser_defeated').catch(()=>{});
+  await sendConfiguredOsc('bowser_defeated').catch(()=>{});
   fireConfetti();
   showBowserReveal(name, kidData.coins || 0);
 }
@@ -2184,18 +2184,19 @@ function sendConfiguredOsc(key){
   if(!oscEnabled) return Promise.resolve();
   const cfg = _qlabCues[key];
   const qBase = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
+  const writes = [];
   if(cfg){
     if(cfg.cue){
       const qp={...qBase,type:'osc',address:cfg.cue};
       if(cfg.qlabIp){qp.qlabIp=cfg.qlabIp;qp.qlabPort=cfg.qlabPort||53000;}
-      QUEUE_COL.add(qp).catch(()=>{});
+      writes.push(QUEUE_COL.add(qp).catch(()=>{}));
     }
     if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
-      QUEUE_COL.add({...qBase,type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500}).catch(()=>{});
+      writes.push(QUEUE_COL.add({...qBase,type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500}).catch(()=>{}));
     }
   }
   runAiGroup(key).catch(()=>{});
-  return Promise.resolve();
+  return writes.length ? Promise.all(writes) : Promise.resolve();
 }
 async function runPhoneRuleForStation(stationNum,timing){
   const matchingRules=PHONE_RULES.filter(r=>

@@ -267,7 +267,9 @@
             (d.mazeStartTime && d.mazeEndTime
               ? d.mazeEndTime.toMillis() - d.mazeStartTime.toMillis()
               : null);
-          finishers.push({ name, coins, durationMs });
+          finishers.push({ name, coins, durationMs,
+            usedShell: !!(d.usedShell || d.collectedShell),
+            savedPeach: !!d.savedPeach });
         } else if (d.mazeStartTime) {
           const scans = Array.isArray(d.scans) ? d.scans.length : 0;
           inMaze.push({ name, coins, scans });
@@ -293,10 +295,15 @@
           const rankStr = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
           const cls = i === 0 ? ' first' : i === 1 ? ' second' : i === 2 ? ' third' : '';
           const timeStr = f.durationMs ? `<span class="entry-sub">${fmtTime(f.durationMs)}</span>` : '';
+          const badges = [
+            f.usedShell  ? `<img src="https://light-the-night.web.app/icons/red_shell.webp" style="height:1.4em;vertical-align:middle">` : '',
+            f.savedPeach ? `<img src="https://light-the-night.web.app/icons/princess_peach.png" style="height:1.8em;vertical-align:middle">` : '',
+          ].join('');
           return `<div class="entry${cls}">
             <span class="entry-rank">${rankStr}</span>
             <span class="entry-name">${escHtml(f.name)}</span>
             ${timeStr}
+            ${badges}
             <span class="entry-coins">${COIN_SVG}${f.coins}</span>
           </div>`;
         }).join('');

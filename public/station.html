@@ -1308,7 +1308,7 @@ firebase.auth().onAuthStateChanged(user=>{
     const ts=d.triggeredAt?d.triggeredAt.toMillis():null;
     if(!ts||ts===_lastShellTs) return;
     _lastShellTs=ts;
-    if(Date.now()-ts>120_000) return;
+    if(Date.now()-ts>5_000) return;
     if(currentStationMode==='shell'||currentStationMode==='start'||currentStationMode==='bowser') return;
     const flash=document.getElementById('shellFlash');
     const pen=document.getElementById('shellFlashPenalty');

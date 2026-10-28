@@ -74,7 +74,6 @@
       background: #e52521;
       border-bottom: 3px solid #231207;
       padding-top: clamp(12px,1.8svh,20px);
-      margin-top: var(--header-offset, 0px);
     }
     body.kiosk header {
       background: linear-gradient(to bottom, #5c94fc 48px, #e52521 48px);
@@ -888,6 +887,11 @@
   <!-- Hub: station type picker (fixed, centered) -->
   <section id="view-hub" class="hide">
     <div class="hub-grid">
+      <button class="hub-btn hub-bowser" onclick="pickSpecialStation('bowser')">
+        <span class="hub-icon">🔥</span>
+        <span class="hub-text"><span class="hub-label">FIGHT BOWSER</span><span class="hub-desc">Fire at Bowser!</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
       <button class="hub-btn hub-coin" onclick="showCoinList()">
         <span class="hub-icon"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"></span>
         <span class="hub-text"><span class="hub-label">COIN STATIONS</span><span class="hub-desc">Regular earn stations</span></span>
@@ -896,11 +900,6 @@
       <button class="hub-btn hub-rescue" onclick="show('rescue')">
         <span class="hub-icon">⭐</span>
         <span class="hub-text"><span class="hub-label">CHARACTER RESCUE</span><span class="hub-desc">Save a character</span></span>
-        <span class="hub-arrow">▶</span>
-      </button>
-      <button class="hub-btn hub-bowser" onclick="pickSpecialStation('bowser')">
-        <span class="hub-icon">🔥</span>
-        <span class="hub-text"><span class="hub-label">FIGHT BOWSER</span><span class="hub-desc">Fire at Bowser!</span></span>
         <span class="hub-arrow">▶</span>
       </button>
       <button class="hub-btn hub-lands" onclick="show('lands')">
@@ -1581,7 +1580,6 @@ async function startControlForStation(skipFullscreen=false){
     const pn=document.getElementById('portraitStationName');
     if(pn) pn.textContent=stLabel;
     currentStationCfg={outlet:(d.outlet!=null?d.outlet:null),onState:(d.onState||'ON'),pulseMs:(typeof d.pulseMs==='number'?d.pulseMs:null)};
-    document.documentElement.style.setProperty('--header-offset', (d.headerOffset||0)+'px');
     // Offline banner
     let offBanner=document.getElementById('_stationOfflineBanner');
     if(d.active===false){

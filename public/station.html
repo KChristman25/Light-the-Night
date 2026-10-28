@@ -3103,7 +3103,7 @@ const SFX = (function(){
 
   async function applyShell(){
     try{
-      const shellUpd={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(CFG.coinsMin)};
+      const shellUpd={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(CFG.coinsMin),collectedShell:true};
       if(G.powerupType==='shell') shellUpd.usedShell=true;
       await G.kidRef.update(shellUpd);
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',

@@ -2112,10 +2112,11 @@ function handleRescueStation(docRef,kidData,character,characterName,code){
     _kidsCache[String(code)].data = {..._kidsCache[String(code)].data, savedPeach:true};
   }
   setStatus(''); fireConfetti();
-  showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','+0 bonus coins!',8);
+  const startCoins = kidData.coins || 0;
+  showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉',startCoins+' coins',5);
   // Animate coin count in detail
   const det=$('spDetail');
-  if(det) animateCoinCount(det, 0, bonus, 1200, v=>'+'+v+' bonus coins!');
+  if(det) animateCoinCount(det, startCoins, startCoins + bonus, 1200, v=>v+' coins');
 }
 
 // ── Bowser Station (finish line) ───────────────────────────────

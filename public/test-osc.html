@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OSC Test</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="/pw.js"></script>
+<style>
+  body { margin:0; background:#231207; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:'Press Start 2P',monospace; gap:20px; padding:24px; box-sizing:border-box; }
+  h1 { color:#e8a000; font-size:clamp(11px,2vw,16px); text-align:center; line-height:1.8; text-shadow:2px 2px 0 #000; }
+  #fireBtn {
+    background:#e52521; color:#fff; border:3px solid #e8a000;
+    border-radius:4px; box-shadow:6px 6px 0 #e8a000;
+    font-family:'Press Start 2P',monospace; font-size:clamp(14px,3vw,22px);
+    padding:clamp(16px,3vw,24px) clamp(28px,5vw,48px);
+    cursor:pointer; touch-action:manipulation;
+    transition:transform .08s, box-shadow .08s;
+  }
+  #fireBtn:active { transform:translate(3px,3px); box-shadow:3px 3px 0 #e8a000; }
+  #fireBtn:disabled { background:#555; border-color:#888; box-shadow:3px 3px 0 #888; cursor:default; }
+  #status { font-size:10px; color:#4cff50; min-height:20px; text-align:center; line-height:1.8; }
+  #status.err { color:#ff8080; }
+  #info { font-size:8px; color:#7a5c44; text-align:center; line-height:2; }
+</style>
+</head>
+<body>
+<h1>🎵 OSC TEST 🎵</h1>
+<button id="fireBtn" onclick="fire()">▶ FIRE CUE 200</button>
+<div id="status">Loading…</div>
+<div id="info" id="info"></div>
+
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId:"light-the-night-2025"
+});
+const db = firebase.firestore();
+let _piUrl = null, _qlabIp = null, _qlabPort = 53000;
+
+firebase.auth().signInAnonymously().then(()=>{
+  return db.collection('webswitch').doc('config').get();
+}).then(snap=>{
+  const d = snap.data()||{};
+  _piUrl = d.baseUrl || null;
+  const computers = Array.isArray(d.qlabComputers) ? d.qlabComputers : [];
+  if(computers.length){ _qlabIp = computers[0].ip; _qlabPort = computers[0].port||53000; }
+  document.getElementById('status').textContent = 'Ready';
+  document.getElementById('info').textContent =
+    'Pi: ' + (_piUrl||'not found') + '\nQLab: ' + (_qlabIp||'not configured') + ':' + _qlabPort;
+  document.getElementById('fireBtn').disabled = false;
+}).catch(e=>{
+  document.getElementById('status').textContent = 'Error: ' + e.message;
+  document.getElementById('status').className = 'err';
+});
+
+document.getElementById('fireBtn').disabled = true;
+
+async function fire(){
+  const btn = document.getElementById('fireBtn');
+  const st  = document.getElementById('status');
+  btn.disabled = true;
+  st.className = '';
+  st.textContent = 'Firing…';
+
+  const payload = {type:'osc', address:'/cue/200/start', qlabIp:_qlabIp, qlabPort:_qlabPort};
+
+  // Try Pi directly first
+  if(_piUrl){
+    try{
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 3000);
+      const r = await fetch(_piUrl+'/cmd', {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
+      clearTimeout(t);
+      if(r.ok){ st.textContent='✅ Sent via Pi!'; btn.disabled=false; return; }
+    } catch(e){ /* fall through */ }
+  }
+
+  // Fallback: Firestore queue
+  try{
+    await db.collection('webswitch').doc('queueRoot').collection('queue').add({
+      ...payload, processed:false,
+      ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'test'
+    });
+    st.textContent='⚠️ Pi unreachable — sent via Firestore queue';
+  } catch(e){
+    st.className='err'; st.textContent='❌ Failed: '+e.message;
+  }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

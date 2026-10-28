@@ -108,7 +108,7 @@
     overflow: hidden;
   }
   .lb-row.lb-row-alt { background: rgba(255,255,255,.72); }
-  .lb-row.gold   { background: rgba(232,160,0,.55);   border-bottom-color: rgba(232,160,0,.4); }
+  .lb-row.gold   { background: rgba(232,160,0,.82);   border-bottom-color: rgba(232,160,0,.6); }
   .lb-row.silver { background: rgba(192,192,192,.55); border-bottom-color: rgba(160,160,160,.4); }
   .lb-row.bronze { background: rgba(205,127,50,.45);  border-bottom-color: rgba(180,100,30,.35); }
 
@@ -132,16 +132,17 @@
   }
 
   .lb-time {
-    font-size: clamp(12px, 1.6vw, 20px);
-    color: #7a5c44; flex-shrink: 0;
-    min-width: clamp(56px,7vw,100px); text-align: right;
+    font-size: clamp(15px, 2.1vw, 26px);
+    font-weight: 800;
+    color: #000; flex-shrink: 0;
+    min-width: clamp(68px,9vw,120px); text-align: right;
     font-variant-numeric: tabular-nums;
   }
   .lb-score {
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(10px, 1.6vw, 20px);
+    font-size: clamp(13px, 2.1vw, 26px);
     color: #e8a000; flex-shrink: 0;
-    min-width: clamp(60px,8vw,110px); text-align: right;
+    min-width: clamp(70px,9vw,130px); text-align: center;
   }
 
   .lb-badges {
@@ -150,7 +151,7 @@
     flex-shrink: 0;
   }
   .lb-badges img {
-    height: clamp(18px, 2.8vh, 34px);
+    height: clamp(28px, 4.2vh, 52px);
     width: auto;
     image-rendering: pixelated;
     filter: drop-shadow(1px 1px 0 rgba(0,0,0,.35));
@@ -165,18 +166,6 @@
     line-height: 2.2;
   }
 
-  /* ── QR row ── */
-  .qr-row {
-    display: flex; align-items: center; justify-content: center;
-    gap: clamp(20px,3vw,40px);
-    padding: clamp(20px,3vh,40px) clamp(20px,3vw,48px);
-    background: #231207;
-    border-bottom: 2px solid rgba(232,160,0,.2);
-  }
-  .qr-row img { border: 4px solid #e8a000; border-radius: 4px; display: block; }
-  .qr-text { font-family: 'Press Start 2P', monospace; color: #e8a000; line-height: 2; text-align: left; }
-  .qr-text .qr-headline { font-size: clamp(11px,1.8vw,18px); }
-  .qr-text .qr-sub { font-size: clamp(8px,1.1vw,12px); color: rgba(255,255,255,.5); margin-top: 6px; }
 
   /* ── New-finisher wipe animation ── */
   @keyframes goldFlash {
@@ -330,14 +319,13 @@ function fmtTime(ms) {
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function calcScore(coins, mazeStartTime, mazeEndTime) {
-  const base = coins || 0;
-  if (!mazeStartTime || !mazeEndTime) return base;
-  const startMs = mazeStartTime.toMillis ? mazeStartTime.toMillis() : mazeStartTime;
-  const endMs   = mazeEndTime.toMillis   ? mazeEndTime.toMillis()   : mazeEndTime;
-  const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
-  const timeBonus = Math.max(0, Math.floor((1800 - elapsedSec) / 10));
-  return base + timeBonus;
+function calcScore(coins) {
+  return coins || 0;
+}
+function elapsedMs(item) {
+  const s = item.mazeStartTime?.toMillis?.() ?? (item.mazeStartTime || 0);
+  const e = item.mazeEndTime?.toMillis?.()   ?? (item.mazeEndTime   || 0);
+  return e - s;
 }
 
 // ── State ────────────────────────────────────────────────
@@ -358,9 +346,12 @@ function buildRowEl(item, rank) {
   const cls = ['gold','silver','bronze'][rank] || '';
   const rankStr = rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
   const bdgs = [];
-  if (item.usedMushroom) bdgs.push('<img src="icons/mushroom.png" alt="Mushroom">');
-  if (item.usedShell)    bdgs.push('<img src="icons/red_shell.webp" alt="Red Shell">');
-  if (item.savedPeach)   bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach">');
+  if (item.land_ice)   bdgs.push('<span style="font-size:2.6em">🧊</span>');
+  if (item.land_water) bdgs.push('<span style="font-size:2.6em">🌊</span>');
+  if (item.land_fire)  bdgs.push('<span style="font-size:2.6em">🔥</span>');
+  if (item.land_lava)  bdgs.push('<span style="font-size:2.6em">🌋</span>');
+  if (item.collectedShell) bdgs.push('<img src="icons/red_shell.webp" alt="Red Shell" style="height:clamp(42px,6.2vh,76px)">');
+  if (item.savedPeach)     bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach" style="height:clamp(42px,6.2vh,76px)">');
   const el = document.createElement('div');
   const alt = rank % 2 === 1 ? ' lb-row-alt' : '';
   el.className = `lb-row${cls?' '+cls:''}${alt}`;
@@ -388,9 +379,11 @@ function rebuildAllRanks() {
 }
 
 function _calcRank(item) {
-  // 0-based index where item belongs in committedList (score desc, name asc)
+  // 0-based index where item belongs in committedList (score desc, time asc, name asc)
   return committedList.filter(c =>
-    c.score > item.score || (c.score === item.score && (c.name||'') < (item.name||''))
+    c.score > item.score ||
+    (c.score === item.score && elapsedMs(c) < elapsedMs(item)) ||
+    (c.score === item.score && elapsedMs(c) === elapsedMs(item) && (c.name||'') < (item.name||''))
   ).length;
 }
 
@@ -402,7 +395,7 @@ function stopScroll() {
 }
 
 function _rebuildDOM() {
-  scrollInner.innerHTML = committedList.map((k, i) => buildRowEl(k, i).outerHTML).join('') + QR_ROW;
+  scrollInner.innerHTML = committedList.map((k, i) => buildRowEl(k, i).outerHTML).join('');
 }
 
 const MAX_PER_REVOLUTION = 5;
@@ -430,12 +423,11 @@ function _tryAddToSecondHalf() {
   const minRank = newRanks[0];
 
   const allRows = Array.from(scrollInner.querySelectorAll('.lb-row'));
-  const secondQR = scrollInner.querySelectorAll('.qr-row')[1] || null;
 
   // Insert each new row at its correct second-half position
   for (const rank of newRanks) {
     const newRow = buildRowEl(committedList[rank], rank);
-    scrollInner.insertBefore(newRow, allRows[_firstHalfCount + rank] || secondQR || null);
+    scrollInner.insertBefore(newRow, allRows[_firstHalfCount + rank] || null);
     allRows.splice(_firstHalfCount + rank, 0, newRow); // keep array in sync for subsequent inserts
   }
 
@@ -459,11 +451,9 @@ function _atSeam() {
   scrollAnim = null;
   scrollPos = 0; isLooped = false;
 
-  // Remove old first-half rows and its QR row — second half becomes the new first half
+  // Remove old first-half rows — second half becomes the new first half
   const rows = Array.from(scrollInner.querySelectorAll('.lb-row'));
-  const qrs  = Array.from(scrollInner.querySelectorAll('.qr-row'));
   for (let i = _firstHalfCount - 1; i >= 0; i--) { if (rows[i]) rows[i].remove(); }
-  if (qrs[0]) qrs[0].remove();
 
   // Clone the surviving content (new first half) as the new second half
   const frag = document.createDocumentFragment();
@@ -519,11 +509,9 @@ function _tryProcessQueue() {
     if (committedList.length === 0) {
       const empty = scrollInner.querySelector('.empty-msg');
       if (empty) empty.remove();
-      if (!scrollInner.querySelector('.qr-row')) scrollInner.insertAdjacentHTML('beforeend', QR_ROW);
     }
     const all = Array.from(scrollInner.querySelectorAll('.lb-row'));
-    const qrs = Array.from(scrollInner.querySelectorAll('.qr-row'));
-    scrollInner.insertBefore(buildRowEl(item, rank), all[rank] || qrs[0] || null);
+    scrollInner.insertBefore(buildRowEl(item, rank), all[rank] || null);
     committedList.splice(rank, 0, item);
     if (queueDocId) db.collection('leaderboardQueue').doc(queueDocId).delete().catch(() => {});
   }
@@ -534,24 +522,24 @@ function _tryProcessQueue() {
 
 // ── Initial render (no animation) ────────────────────────
 const scrollWrap = document.getElementById('scrollWrap');
-const QR_URL = 'https://light-the-night.web.app/participant.html';
-const QR_IMG = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=ffe896&bgcolor=231207&data=${encodeURIComponent(QR_URL)}`;
-const QR_ROW = `<div class="qr-row"><img src="${QR_IMG}" width="140" height="140" alt="QR">
-  <div class="qr-text"><div class="qr-headline">See the scores!</div>
-  <div class="qr-sub">Scan to view the<br>live leaderboard</div></div></div>`;
+
+function _addLandFields(d) {
+  const hasScan = id => Array.isArray(d.scans) && d.scans.some(s => s===id||(s&&s.station===id));
+  return { ...d, land_ice: hasScan('land_ice'), land_water: hasScan('land_water'), land_fire: hasScan('land_fire'), land_lava: hasScan('land_lava') };
+}
 
 function initRender(kids) {
   const finishers = kids
     .filter(k => k.mazeEndTime)
-    .map(k => ({ ...k, score: calcScore(k.coins, k.mazeStartTime, k.mazeEndTime) }))
-    .sort((a, b) => b.score - a.score || (a.name||'').localeCompare(b.name||''));
+    .map(k => ({ ..._addLandFields(k), score: calcScore(k.coins) }))
+    .sort((a, b) => b.score - a.score || elapsedMs(a) - elapsedMs(b) || (a.name||'').localeCompare(b.name||''));
   committedList = finishers;
   countEl.textContent = finishers.length + (finishers.length===1?' finisher':' finishers');
   if (!finishers.length) {
     scrollInner.innerHTML = '<div class="empty-msg">No finishers yet…<br>be the first!</div>';
     return;
   }
-  scrollInner.innerHTML = finishers.map((k,i) => buildRowEl(k,i).outerHTML).join('') + QR_ROW;
+  scrollInner.innerHTML = finishers.map((k,i) => buildRowEl(k,i).outerHTML).join('');
   requestAnimationFrame(maybeStartScroll);
 }
 
@@ -589,11 +577,11 @@ function _testAddOne() {
     id: `_test_${idx}`, name,
     coins: 50 + Math.floor(Math.random() * 251),
     mazeStartTime: ts(endMs - dur), mazeEndTime: ts(endMs),
-    usedMushroom: Math.random() > 0.5,
-    usedShell:    Math.random() > 0.6,
+    collectedMushroom: Math.random() > 0.5,
+    collectedShell:    Math.random() > 0.6,
     savedPeach:   Math.random() > 0.7,
   };
-  item.score = calcScore(item.coins, item.mazeStartTime, item.mazeEndTime);
+  item.score = calcScore(item.coins);
   if (committedList.some(c => c.id === item.id) || pendingQueue.some(p => p.item.id === item.id)) return true;
   pendingQueue.push({ item, queueDocId: null });
   return true;
@@ -639,6 +627,17 @@ firebase.auth().signInAnonymously().catch(() => {});
 firebase.auth().onAuthStateChanged(user => {
   if (!user) return;
 
+  let _lbReloadTs = Number(sessionStorage.getItem('ltn_lb_reload_ts') || 0);
+  db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap => {
+    if (!snap.exists) return;
+    const ts = snap.data().triggeredAt ? snap.data().triggeredAt.toMillis() : null;
+    if (!ts || ts === _lbReloadTs) return;
+    _lbReloadTs = ts;
+    sessionStorage.setItem('ltn_lb_reload_ts', ts);
+    if (Date.now() - ts > 30000) return;
+    setTimeout(() => location.reload(), 500);
+  });
+
   // One-time load of existing finishers — renders immediately, no animation
   db.collection('kids').get().then(snap => {
     const kids = [];
@@ -669,13 +668,37 @@ firebase.auth().onAuthStateChanged(user => {
         }
 
         if (!d.mazeEndTime || d.revoked) return;
-        if (committedList.some(c => c.id === id)) return;
+
+        // Already on leaderboard — update coins/badges in-place
+        const existingIdx = committedList.findIndex(c => c.id === id);
+        if (existingIdx !== -1) {
+          committedList[existingIdx] = {
+            ...committedList[existingIdx],
+            coins: d.coins ?? committedList[existingIdx].coins,
+            savedPeach: !!d.savedPeach,
+            collectedShell: !!d.collectedShell,
+            collectedMushroom: !!d.collectedMushroom,
+            land_ice:   Array.isArray(d.scans)&&d.scans.some(s=>s==='land_ice'  ||(s&&s.station==='land_ice')),
+            land_water: Array.isArray(d.scans)&&d.scans.some(s=>s==='land_water'||(s&&s.station==='land_water')),
+            land_fire:  Array.isArray(d.scans)&&d.scans.some(s=>s==='land_fire' ||(s&&s.station==='land_fire')),
+            land_lava:  Array.isArray(d.scans)&&d.scans.some(s=>s==='land_lava' ||(s&&s.station==='land_lava')),
+            score: calcScore(d.coins)
+          };
+          scrollInner.querySelectorAll(`.lb-row[data-id="${id}"]`).forEach(row => {
+            row.replaceWith(buildRowEl(committedList[existingIdx], existingIdx));
+          });
+          return;
+        }
         if (pendingQueue.some(p => p.item.id === id)) return;
         const item = {
           id, name: d.name, coins: d.coins || 0,
           mazeStartTime: d.mazeStartTime, mazeEndTime: d.mazeEndTime,
-          savedPeach: !!d.savedPeach, usedMushroom: !!d.usedMushroom, usedShell: !!d.usedShell,
-          score: calcScore(d.coins, d.mazeStartTime, d.mazeEndTime)
+          savedPeach: !!d.savedPeach, collectedMushroom: !!d.collectedMushroom, collectedShell: !!d.collectedShell,
+          land_ice:   Array.isArray(d.scans)&&d.scans.some(s=>s==='land_ice'  ||(s&&s.station==='land_ice')),
+          land_water: Array.isArray(d.scans)&&d.scans.some(s=>s==='land_water'||(s&&s.station==='land_water')),
+          land_fire:  Array.isArray(d.scans)&&d.scans.some(s=>s==='land_fire' ||(s&&s.station==='land_fire')),
+          land_lava:  Array.isArray(d.scans)&&d.scans.some(s=>s==='land_lava' ||(s&&s.station==='land_lava')),
+          score: calcScore(d.coins)
         };
         pendingQueue.push({ item, queueDocId: null });
         if (!scrollAnim) _tryProcessQueue();

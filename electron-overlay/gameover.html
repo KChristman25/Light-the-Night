@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Game Over Overlay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  #overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  #overlay.show { opacity: 1; }
+
+  /* ── Card: warm golden glass ── */
+  .go-card {
+    display: flex; flex-direction: column;
+    align-items: center; text-align: center;
+    gap: clamp(24px, 4.5vh, 52px);
+    width: clamp(560px, 64vw, 980px);
+    padding: clamp(48px, 8vh, 92px) clamp(60px, 9vw, 136px);
+    background: rgba(255, 244, 195, 0.2);
+    border-radius: 28px;
+    box-shadow: 0 24px 120px rgba(0,0,0,.65);
+  }
+
+  /* ── Title pill ── */
+  .go-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 1.8vw, 18px);
+    color: #1a0e00;
+    background: #f0c020;
+    padding: .55em 1.4em .5em;
+    border-radius: 100px;
+    letter-spacing: .1em;
+    box-shadow: 0 3px 0 #a07800, 0 6px 24px rgba(240,192,32,.45);
+    animation: pillBounce 2.4s ease-in-out infinite;
+  }
+  @keyframes pillBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+
+  /* ── Content stack ── */
+  #goContent {
+    display: flex; flex-direction: column;
+    align-items: center;
+    gap: clamp(24px, 4.2vh, 48px);
+    width: 100%;
+  }
+
+  /* ── Player name: big, personal, Inter ── */
+  .go-name {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 900;
+    font-size: clamp(52px, 9vw, 108px);
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -.02em;
+    text-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 60px rgba(255,255,255,.2);
+    animation: nameIn .5s cubic-bezier(.17,.89,.32,1.28) both;
+  }
+  @keyframes nameIn { from{opacity:0;transform:scale(.6) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+  /* ── Gold rule ── */
+  .go-bar {
+    width: 100%; height: 1.5px;
+    background: linear-gradient(90deg, transparent 0%, #f0c020 25%, #f0c020 75%, transparent 100%);
+    opacity: .55;
+  }
+
+  /* ── Stats ── */
+  .go-stats {
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(20px, 4vw, 56px);
+  }
+  .go-stat {
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(10px, 1.8vh, 20px);
+  }
+  .go-stat-value {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(26px, 4.5vw, 56px);
+    color: #ffe040;
+    text-shadow: 3px 3px 0 #000, 0 0 30px rgba(255,224,64,.5);
+  }
+  .go-stat-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(7px, 1vw, 12px);
+    color: #fff;
+    letter-spacing: .12em;
+    text-shadow: 1px 1px 0 rgba(0,0,0,.8);
+  }
+  .go-divider {
+    width: 1px; height: clamp(40px, 6.5vh, 72px);
+    background: linear-gradient(to bottom, transparent, rgba(255,255,255,.25) 35%, rgba(255,255,255,.25) 65%, transparent);
+  }
+
+  /* ── Badges ── */
+  .go-badges {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: clamp(28px, 5vw, 64px);
+  }
+  .go-badge {
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(10px, 1.5vh, 16px);
+    opacity: .18;
+    transition: opacity .5s, filter .5s;
+    filter: grayscale(1);
+  }
+  .go-badge.earned {
+    opacity: 1;
+    filter: none;
+  }
+  .go-badge-icon {
+    font-size: clamp(32px, 5.5vw, 64px);
+  }
+  .go-badge.earned .go-badge-icon {
+    filter: drop-shadow(0 0 14px rgba(240,192,32,.75));
+  }
+  .go-badge-icon img {
+    height: clamp(32px, 5.5vw, 64px);
+    width: auto; vertical-align: middle;
+  }
+  .go-badge-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(5px, .75vw, 9px);
+    color: rgba(255,255,255,.45);
+    line-height: 2;
+    letter-spacing: .06em;
+  }
+  .go-badge.earned .go-badge-label { color: #f0c020; }
+
+  /* ── Multi-player ── */
+  .go-players {
+    display: flex; flex-direction: column;
+    width: 100%; gap: 0;
+  }
+  .go-player-sep {
+    display: flex; align-items: center; gap: 14px;
+    padding: clamp(8px,1.5vh,16px) 0;
+    color: rgba(240,192,32,.5);
+    font-size: 14px;
+  }
+  .go-player-sep::before, .go-player-sep::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(240,192,32,.35));
+  }
+  .go-player-sep::after { transform: scaleX(-1); }
+
+  .go-player-card {
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(14px, 2.2vh, 26px);
+    padding: clamp(4px,1vh,12px) 0;
+    animation: cardIn .5s cubic-bezier(.17,.89,.32,1.28) both;
+  }
+  @keyframes cardIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+  .go-player-name {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 900;
+    font-size: clamp(28px, 4.5vw, 56px);
+    color: #fff;
+    letter-spacing: -.02em;
+    text-shadow: 0 3px 0 rgba(0,0,0,.5);
+  }
+  .go-player-stats {
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(16px, 3vw, 44px);
+  }
+  .go-player-stat { display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.4vh,16px); }
+  .go-player-stat-val {
+    font-family: 'Press Start 2P', monospace;
+    font-size:clamp(16px,2.6vw,34px); color:#ffe040;
+    text-shadow:2px 2px 0 #000, 0 0 20px rgba(255,224,64,.4);
+  }
+  .go-player-stat-lbl {
+    font-family: 'Press Start 2P', monospace;
+    font-size:clamp(5px,.75vw,9px); color:rgba(255,255,255,.85); letter-spacing:.12em;
+  }
+  .go-player-divider { width:1px; height:clamp(28px,4vh,48px); background:rgba(255,255,255,.2); }
+  .go-player-badges {
+    display:flex; gap:clamp(20px,3.2vw,44px);
+    font-size:clamp(20px,3.2vw,40px);
+    justify-content:center; align-items:center;
+  }
+  .go-player-badge { opacity:.18; transition:opacity .5s; filter:grayscale(1); }
+  .go-player-badge.on { opacity:1; filter:none; }
+
+  /* ── Grid mode: 3+ players ── */
+  .go-card {
+    max-height: calc(100vh - 96px);
+    overflow: hidden;
+  }
+  .go-card.grid-mode {
+    width: clamp(700px, 92vw, 1500px);
+    padding: clamp(24px, 3.5vh, 48px) clamp(24px, 3vw, 60px);
+    gap: clamp(14px, 2.5vh, 28px);
+  }
+  .go-players.grid-mode {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(8px, 1vw, 14px);
+    width: 100%;
+  }
+  .go-grid-card {
+    flex: 0 0 calc(var(--card-pct, 25%) - 12px);
+    min-width: 0;
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(6px, 1vh, 12px);
+    padding: clamp(10px, 1.6vh, 18px) clamp(8px, 1vw, 14px);
+    background: rgba(255, 244, 195, 0.12);
+    border: 1px solid rgba(240, 192, 32, 0.28);
+    border-radius: 14px;
+    text-align: center;
+    animation: cardIn .4s cubic-bezier(.17,.89,.32,1.28) both;
+  }
+  .go-grid-name {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 900;
+    font-size: clamp(15px, 2vw, 26px);
+    color: #fff;
+    letter-spacing: -.02em;
+    text-shadow: 0 2px 0 rgba(0,0,0,.5);
+    line-height: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .go-grid-score {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(13px, 1.8vw, 22px);
+    color: #ffe040;
+    text-shadow: 2px 2px 0 rgba(0,0,0,.8);
+    line-height: 1;
+  }
+  .go-grid-meta {
+    display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px);
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, .9vw, 11px);
+    color: rgba(255,255,255,.75);
+    text-shadow: 1px 1px 0 rgba(0,0,0,.6);
+    line-height: 1;
+  }
+  .go-grid-badges {
+    display: flex; gap: 5px;
+    font-size: clamp(13px, 1.8vw, 20px);
+    align-items: center; justify-content: center;
+  }
+  .go-grid-badge { opacity: .18; filter: grayscale(1); }
+  .go-grid-badge.on { opacity: 1; filter: none; }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="go-card">
+    <div class="go-label" id="goLabel">MAZE COMPLETE!</div>
+    <div id="goContent"></div>
+  </div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db = firebase.firestore();
+
+function fmtTime(ms) {
+  if (!ms || ms < 0) return '—';
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+function calcScore(coins, startTs, endTs) {
+  const base = coins || 0;
+  if (!startTs || !endTs) return base;
+  const startMs = startTs.toMillis ? startTs.toMillis() : (startTs.seconds ? startTs.seconds*1000 : 0);
+  const endMs   = endTs.toMillis   ? endTs.toMillis()   : (endTs.seconds   ? endTs.seconds*1000   : 0);
+  const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
+  return base + Math.max(0, Math.floor((2700 - elapsedSec) / 10));
+}
+
+function renderPlayers(players) {
+  const content = document.getElementById('goContent');
+  const label   = document.getElementById('goLabel');
+  const card    = document.querySelector('.go-card');
+
+  card.classList.remove('grid-mode');
+
+  if (players.length === 1) {
+    // Single player — full layout
+    const p = players[0];
+    const durationMs = (p.mazeStartTime && p.mazeEndTime)
+      ? (p.mazeEndTime.toMillis ? p.mazeEndTime.toMillis() : p.mazeEndTime.seconds*1000)
+        - (p.mazeStartTime.toMillis ? p.mazeStartTime.toMillis() : p.mazeStartTime.seconds*1000)
+      : null;
+    const score = calcScore(p.coins, p.mazeStartTime, p.mazeEndTime);
+    label.textContent = 'MAZE COMPLETE!';
+    content.innerHTML = `
+      <div class="go-name">${p.name}</div>
+      <div class="go-bar"></div>
+      <div class="go-stats">
+        <div class="go-stat"><div class="go-stat-value">${p.coins??0}</div><div class="go-stat-label">COINS</div></div>
+        <div class="go-divider"></div>
+        <div class="go-stat"><div class="go-stat-value">${durationMs?fmtTime(durationMs):'—'}</div><div class="go-stat-label">TIME</div></div>
+        <div class="go-divider"></div>
+        <div class="go-stat"><div class="go-stat-value">${score}</div><div class="go-stat-label">SCORE</div></div>
+      </div>
+      <div class="go-badges">
+        <div class="go-badge${p.savedPeach?' earned':''}">
+          <div class="go-badge-icon"><img src="assets/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></div>
+          <div class="go-badge-label">SAVED<br>PEACH</div>
+        </div>
+        <div class="go-badge${p.usedMushroom?' earned':''}">
+          <div class="go-badge-icon"><img src="assets/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></div><div class="go-badge-label">MUSHROOM<br>POWER</div>
+        </div>
+        <div class="go-badge${p.usedShell?' earned':''}">
+          <div class="go-badge-icon"><img src="assets/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></div><div class="go-badge-label">RED<br>SHELL</div>
+        </div>
+      </div>`;
+
+  } else if (players.length === 2) {
+    // 2 players — stacked with star separator
+    label.textContent = 'BOWSER DEFEATED!';
+    content.innerHTML = `<div class="go-players">${players.map((p, i) => {
+      const dMs = (p.mazeStartTime && p.mazeEndTime)
+        ? (p.mazeEndTime.toMillis?p.mazeEndTime.toMillis():p.mazeEndTime.seconds*1000)
+          - (p.mazeStartTime.toMillis?p.mazeStartTime.toMillis():p.mazeStartTime.seconds*1000)
+        : null;
+      const score = calcScore(p.coins, p.mazeStartTime, p.mazeEndTime);
+      const sep = i > 0 ? '<div class="go-player-sep">⭐</div>' : '';
+      return `${sep}<div class="go-player-card" style="animation-delay:${i*0.12}s">
+        <div class="go-player-name">${p.name}</div>
+        <div class="go-player-stats">
+          <div class="go-player-stat"><div class="go-player-stat-val">${p.coins??0}</div><div class="go-player-stat-lbl">COINS</div></div>
+          <div class="go-player-divider"></div>
+          <div class="go-player-stat"><div class="go-player-stat-val">${dMs?fmtTime(dMs):'—'}</div><div class="go-player-stat-lbl">TIME</div></div>
+          <div class="go-player-divider"></div>
+          <div class="go-player-stat"><div class="go-player-stat-val">${score}</div><div class="go-player-stat-lbl">SCORE</div></div>
+        </div>
+        <div class="go-player-badges">
+          <span class="go-player-badge${p.savedPeach?' on':''}"><img src="assets/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>
+          <span class="go-player-badge${p.usedMushroom?' on':''}"><img src="assets/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></span>
+          <span class="go-player-badge${p.usedShell?' on':''}"><img src="assets/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+
+  } else {
+    // 3–10 players — compact grid
+    // 3 players: 1 row of 3 (bigger cards); 4+: rows of 4 (smaller, stays same size)
+    card.classList.add('grid-mode');
+    label.textContent = 'BOWSER DEFEATED!';
+    const perRow = Math.min(players.length, 4);
+    const cardPct = (100 / perRow).toFixed(2);
+    content.innerHTML = `<div class="go-players grid-mode" style="--card-pct:${cardPct}%">${players.map((p, i) => {
+      const dMs = (p.mazeStartTime && p.mazeEndTime)
+        ? (p.mazeEndTime.toMillis?p.mazeEndTime.toMillis():p.mazeEndTime.seconds*1000)
+          - (p.mazeStartTime.toMillis?p.mazeStartTime.toMillis():p.mazeStartTime.seconds*1000)
+        : null;
+      const score = calcScore(p.coins, p.mazeStartTime, p.mazeEndTime);
+      return `<div class="go-grid-card" style="animation-delay:${i*0.07}s">
+        <div class="go-grid-name">${p.name}</div>
+        <div class="go-grid-score">${score}</div>
+        <div class="go-grid-meta"><span><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${p.coins??0}</span><span>⏱ ${dMs?fmtTime(dMs):'—'}</span></div>
+        <div class="go-grid-badges">
+          <span class="go-grid-badge${p.savedPeach?' on':''}"><img src="assets/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>
+          <span class="go-grid-badge${p.usedMushroom?' on':''}"><img src="assets/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></span>
+          <span class="go-grid-badge${p.usedShell?' on':''}"><img src="assets/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+}
+
+let lastUpdatedAt = null;
+let bootDone = false;
+
+firebase.auth().signInAnonymously().catch(() => {});
+firebase.auth().onAuthStateChanged(user => {
+  if (!user) return;
+  db.collection('config').doc('currentFinisher').onSnapshot(snap => {
+    const d = snap.exists ? snap.data() : null;
+    const ua = d && d.updatedAt ? d.updatedAt.toMillis() : 0;
+
+    if (!bootDone) {
+      lastUpdatedAt = ua;
+      bootDone = true;
+      return;
+    }
+
+    if (!d || (!d.name && !d.players)) return;
+    if (ua === lastUpdatedAt) return;
+    lastUpdatedAt = ua;
+
+    const players = Array.isArray(d.players) ? d.players
+      : [{ name: d.name, coins: d.coins||0, mazeStartTime: d.mazeStartTime||null,
+           mazeEndTime: d.mazeEndTime||null, savedPeach: d.savedPeach, usedMushroom: d.usedMushroom, usedShell: d.usedShell }];
+
+    renderPlayers(players);
+
+    const ov = document.getElementById('overlay');
+    ov.classList.remove('show');
+    void ov.offsetWidth;
+    ov.classList.add('show');
+
+    clearTimeout(window._goTimeout);
+    window._goTimeout = setTimeout(() => ov.classList.remove('show'), 10000);
+  });
+});
+</script>
+</body>
+</html>

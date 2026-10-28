@@ -74,6 +74,7 @@
       background: #e52521;
       border-bottom: 3px solid #231207;
       padding-top: clamp(12px,1.8svh,20px);
+      margin-top: var(--header-offset, 0px);
     }
     body.kiosk header {
       background: linear-gradient(to bottom, #5c94fc 48px, #e52521 48px);
@@ -770,6 +771,8 @@
     }
     #shellFlash.show { display: flex; animation: shellFlashIn .15s ease-out; }
     @keyframes shellFlashIn { from{opacity:0} to{opacity:1} }
+    #mushroomFlash.show { display: flex; animation: mushroomFlashIn .15s ease-out; }
+    @keyframes mushroomFlashIn { from{opacity:0} to{opacity:1} }
     .flash-title { font-family:'Press Start 2P',monospace; font-size:clamp(28px,7vw,56px); color:#fff; text-shadow:3px 3px 0 #900; line-height:1.5; }
     .flash-sub   { font-family:'Press Start 2P',monospace; font-size:clamp(16px,4vw,30px); color:#ffd0d0; }
   </style>
@@ -806,6 +809,7 @@
     100% { transform: rotate(90deg); }
   }
 </style>
+
 
 <!-- Shell flash overlay -->
 <div id="shellFlash">
@@ -951,12 +955,31 @@
     </div>
   </section>
 
-  <!-- Special result overlay (shell, mushroom, rescue, bowser) -->
+  <!-- Special result overlay (shell, mushroom, rescue) -->
   <div id="specialResult">
     <div id="spIcon"></div>
     <div id="spTitle"></div>
     <div id="spSub"></div>
     <div id="spDetail"></div>
+  </div>
+
+  <!-- Bowser score reveal overlay -->
+  <div id="bowserReveal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.95);flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:32px 24px">
+    <div style="font-size:clamp(48px,10vw,80px);line-height:1;animation:iconPop .45s cubic-bezier(.17,.89,.32,1.28)">⭐</div>
+    <div id="brName" style="font-family:'Press Start 2P',monospace;font-size:clamp(13px,2.8vw,20px);color:#e8a000;text-shadow:2px 2px 0 #000;line-height:1.8"></div>
+    <div style="font-family:'Press Start 2P',monospace;font-size:clamp(10px,2vw,15px);color:#fff;line-height:1.8">MAZE COMPLETE!</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <img src="coin.svg" style="height:clamp(40px,8vw,64px);width:auto;image-rendering:pixelated">
+      <div id="brCoins" style="font-family:'Press Start 2P',monospace;font-size:clamp(32px,8vw,64px);color:#e8a000;text-shadow:3px 3px 0 #7a5400;min-width:3ch;text-align:left">0</div>
+    </div>
+    <div id="brRank" style="font-family:'Press Start 2P',monospace;font-size:clamp(12px,2.5vw,18px);color:#fff;opacity:0;transition:opacity .6s;margin-top:8px;line-height:1.8"></div>
+    <div style="font-family:'Inter',sans-serif;font-size:clamp(12px,1.8vw,16px);color:#c4956a;margin-top:4px">Hunt complete! 🎉</div>
+  </div>
+
+  <!-- Global mushroom flash overlay -->
+  <div id="mushroomFlash" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(80,200,30,.45);flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;pointer-events:none;animation:mushroomFlashIn .15s ease-out">
+    <div class="flash-title"><img src="icons/mushroom.png" style="height:.9em;width:auto;vertical-align:middle"> MUSHROOM!</div>
+    <div class="flash-sub" id="mushroomFlashSub">EVERYONE HAS SHELL IMMUNITY!</div>
   </div>
 
   <!-- Start station: transparent overlay — countdown plays over the sky -->
@@ -1237,6 +1260,37 @@ firebase.auth().onAuthStateChanged(user=>{
   });
   loadQlabCues().catch(()=>{});
 
+  // Restore station after a broadcast-triggered reload
+  const _RESUME_KEY='ltn_resume';
+  const _resumeSaved=sessionStorage.getItem(_RESUME_KEY);
+  if(_resumeSaved){
+    sessionStorage.removeItem(_RESUME_KEY);
+    try{
+      const rv=JSON.parse(_resumeSaved);
+      if(rv.mode==='coin'){currentStationId=rv.id;startControlForStation(true);}
+      else if(rv.mode&&rv.mode.startsWith('land_'))pickLandStation(rv.mode.replace('land_',''),true);
+      else if(rv.mode)pickSpecialStation(rv.mode,true);
+      // Show tap-to-fullscreen overlay with big coin
+      const _fsDiv=document.createElement('div');
+      _fsDiv.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.01);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation';
+      _fsDiv.innerHTML='<div style="background:#5c3a1e;border:4px solid #e8a000;border-radius:12px;padding:24px 40px;font-family:\'Press Start 2P\',monospace;font-size:clamp(16px,4vw,28px);color:#e8a000;text-shadow:3px 3px 0 #000;text-align:center;line-height:2;pointer-events:none;user-select:none;box-shadow:0 6px 0 #3a2010">TAP TO RESUME</div>';
+      document.body.appendChild(_fsDiv);
+      let _fsDone=false;
+      function _fsOnce(e){
+        if(_fsDone) return;
+        _fsDone=true;
+        e.preventDefault();
+        _fsDiv.remove();
+        const el=document.documentElement;
+        if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+        else if(el.webkitRequestFullscreen){const r=el.webkitRequestFullscreen();if(r&&r.catch)r.catch(()=>{});}
+        if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});
+      }
+      _fsDiv.addEventListener('touchend',_fsOnce,{once:true});
+      _fsDiv.addEventListener('click',_fsOnce,{once:true});
+    }catch(_){}
+  }
+
   // Broadcast banner listener
   db.collection('config').doc('broadcast').onSnapshot(doc=>{
     const d=doc.exists?doc.data():{};
@@ -1256,11 +1310,55 @@ firebase.auth().onAuthStateChanged(user=>{
     if(!ts||ts===_lastShellTs) return;
     _lastShellTs=ts;
     if(Date.now()-ts>120_000) return;
-    if(currentStationMode==='shell') return; // don't flash the iPad that fired the shell
+    if(currentStationMode==='shell'||currentStationMode==='start'||currentStationMode==='bowser') return;
     const flash=document.getElementById('shellFlash');
     const pen=document.getElementById('shellFlashPenalty');
     if(pen) pen.textContent='−'+(d.penalty||10)+' POINTS FOR ALL PLAYERS';
-    if(flash){ flash.classList.add('show'); setTimeout(()=>flash.classList.remove('show'),3000); }
+    if(flash){
+      let blinks=0;
+      function doFlash(){
+        if(blinks>=3) return;
+        blinks++;
+        flash.classList.add('show');
+        setTimeout(()=>{
+          flash.classList.remove('show');
+          if(blinks<3) setTimeout(doFlash,1000);
+        },1000);
+      }
+      doFlash();
+    }
+  });
+
+  // Reload broadcast listener — saves station to sessionStorage then reloads for new JS
+  const _RELOAD_TS_KEY='ltn_last_reload_ts';
+  let _lastReloadTs2=Number(sessionStorage.getItem(_RELOAD_TS_KEY)||0);
+  db.collection('config').doc('reloadBroadcast').onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d=snap.data()||{};
+    const ts=d.triggeredAt?d.triggeredAt.toMillis():null;
+    if(!ts||ts===_lastReloadTs2) return;
+    _lastReloadTs2=ts;
+    sessionStorage.setItem(_RELOAD_TS_KEY,ts);
+    if(Date.now()-ts>30_000) return;
+    if(!currentStationId) return;
+    try{sessionStorage.setItem(_RESUME_KEY,JSON.stringify({mode:currentStationMode,id:currentStationId}));}catch(_){}
+    setTimeout(()=>location.reload(),800);
+  });
+
+  // Global mushroom flash listener
+  let _lastMushroomTs=null;
+  db.collection('config').doc('mushroomBroadcast').onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d=snap.data()||{};
+    const ts=d.triggeredAt?d.triggeredAt.toMillis():null;
+    if(!ts||ts===_lastMushroomTs) return;
+    _lastMushroomTs=ts;
+    if(Date.now()-ts>120_000) return;
+    const flash=document.getElementById('mushroomFlash');
+    const sub=document.getElementById('mushroomFlashSub');
+    const secs=d.seconds||60;
+    if(sub) sub.textContent=`EVERYONE HAS SHELL IMMUNITY FOR ${secs}s!`;
+    if(flash){ flash.classList.add('show'); setTimeout(()=>flash.classList.remove('show'),4000); }
   });
 
   // Phone rules listener
@@ -1269,12 +1367,13 @@ firebase.auth().onAuthStateChanged(user=>{
     PHONE_RULES = Array.isArray(d.rules) ? d.rules : [];
   });
 
-  // Game settings (xray, multi-scan, countdown) — must be inside auth handler
+  // Game settings (xray, multi-scan, countdown, osc) — must be inside auth handler
   db.collection('config').doc('gameSettings').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : {};
     xrayBoxes = d.xrayBoxes === true;
     allowMultiScan = d.allowMultiScan === true;
     window._countdownEnabled = d.countdownEnabled !== false;
+    oscEnabled = d.oscEnabled !== false;
   });
 });
 
@@ -1287,6 +1386,7 @@ const statusMsg=$('statusMsg');
 const fireBtn=$('fireBtn');
 const titleEl=$('title');
 const ding=null; // no longer used
+
 
 let currentStationId=null, listUnsub=null, stationDocUnsub=null;
 let heartbeatInterval=null, currentStationCfg=null, totalStations=6;
@@ -1337,7 +1437,7 @@ function attachStationMsgListener(stId){
 
 let wakeLockObj=null, noSleep=null;
 async function kioskEnter(){
-  try{const el=document.documentElement;if(!document.fullscreenElement){if(el.requestFullscreen)await el.requestFullscreen();else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();}if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(_){}
+  try{const el=document.documentElement;if(!document.fullscreenElement){if(el.requestFullscreen)await el.requestFullscreen();else if(el.webkitRequestFullscreen){const _r=el.webkitRequestFullscreen();if(_r&&_r.catch)_r.catch(()=>{});}}if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(_){}
   try{if('wakeLock'in navigator&&navigator.wakeLock&&navigator.wakeLock.request){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj&&wakeLockObj.addEventListener){wakeLockObj.addEventListener('release',function(){wakeLockObj=null;});}}else{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}}catch(_){try{if(!noSleep)noSleep=new NoSleep();if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}}
 }
 async function kioskExit(){
@@ -1394,11 +1494,12 @@ function startHub(){
   currentStationMode='coin';
   show('hub');
 }
+
 function showCoinList(){
   currentStationMode='coin';
   startList();
 }
-async function pickSpecialStation(mode){
+async function pickSpecialStation(mode, skipFullscreen=false){
   primeAudio();
   // Prime countdown video inside the gesture so Safari allows future unmuted playback
   if(mode==='start'){
@@ -1408,7 +1509,7 @@ async function pickSpecialStation(mode){
   currentStationMode=mode;
   currentStationId=mode;
   show(mode==='start'?'start':'control');
-  await kioskEnter();
+  if(!skipFullscreen) await kioskEnter();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
   prevScanTs=null;
@@ -1421,14 +1522,14 @@ async function pickSpecialStation(mode){
   codeBuffer='';updateDisplay();setStatus('');
   attachStationMsgListener(currentStationId);
 }
-async function pickLandStation(theme){
+async function pickLandStation(theme, skipFullscreen=false){
   primeAudio();
   const LAND_NAMES={ice:'ICE LAND',water:'WATER LAND',fire:'FIRE LAND',lava:'LAVA LAND'};
   const LAND_ICONS={ice:'🧊',water:'🌊',fire:'🔥',lava:'🌋'};
   currentStationMode='land_'+theme;
   currentStationId='land_'+theme;
   show('control');
-  await kioskEnter();
+  if(!skipFullscreen) await kioskEnter();
   if(stationDocUnsub){stationDocUnsub();stationDocUnsub=null;}
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
   prevScanTs=null;
@@ -1466,9 +1567,9 @@ function startList(){
 window.pick=function(id){primeAudio();currentStationId=String(id);startControlForStation();};
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
-async function startControlForStation(){
+async function startControlForStation(skipFullscreen=false){
   show('control');
-  await kioskEnter();
+  if(!skipFullscreen) await kioskEnter();
   if(stationDocUnsub)stationDocUnsub();
   if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}
   prevScanTs=null;
@@ -1480,6 +1581,7 @@ async function startControlForStation(){
     const pn=document.getElementById('portraitStationName');
     if(pn) pn.textContent=stLabel;
     currentStationCfg={outlet:(d.outlet!=null?d.outlet:null),onState:(d.onState||'ON'),pulseMs:(typeof d.pulseMs==='number'?d.pulseMs:null)};
+    document.documentElement.style.setProperty('--header-offset', (d.headerOffset||0)+'px');
     // Offline banner
     let offBanner=document.getElementById('_stationOfflineBanner');
     if(d.active===false){
@@ -1657,14 +1759,14 @@ async function submitStationCode(code){
   if(!allowMultiScan&&!isRerun){
     const existingScans=Array.isArray(kidData.scans)?kidData.scans:[];
     const already=existingScans.some(s=>{const id=typeof s==='object'&&s!==null?s.station:s;return String(id)===String(currentStationId);});
-    if(already){showScanMsg('Already started! '+name,'#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}
+    if(already){showScanMsg(name+' already scanned here! Move to next station.','#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}
   }
 
   // Start station sets its own mazeStartTime during the countdown
   if(currentStationMode==='start')          return handleStartStation(docRef,kidData,code);
 
-  // Block kids who haven't started yet — must scan START station first (bypassed in test mode)
-  if(!kidData.mazeStartTime && !allowMultiScan){
+  // Block kids who haven't started yet — must scan START station first (always enforced)
+  if(!kidData.mazeStartTime){
     const stationLabel=titleEl.textContent||('Station '+currentStationId);
     db.collection('alerts').add({
       type:'no_start', kidId:docRef.id, name, code,
@@ -1817,10 +1919,12 @@ async function handleStartStation(docRef, kidData, code){
   // (Firestore round-trip takes 200-500ms; cache snapshot lags behind)
   if(_kidsCache && code != null && _kidsCache[String(code)]){
     const cached = _kidsCache[String(code)];
+    const _cacheIsRerun = kidData.completed===true||!!kidData.mazeEndTime;
     cached.data = {
       ...cached.data,
       mazeStartTime: startNow,
-      coins: startCoins,
+      // Re-run resets to startCoins absolutely; first-time increments from previous balance
+      coins: _cacheIsRerun ? startCoins : (kidData.coins||0) + startCoins,
       completed: false,
       mazeEndTime: null,
       scans: ['start'],
@@ -1852,9 +1956,11 @@ async function handleStartStation(docRef, kidData, code){
       coins:FSV.increment(startCoins)
     }).catch(e=>{console.error('start write failed:',e);_setStartStatus('WRITE ERROR: '+e.message,true);});
   }
+  const _startIsRerun=kidData.completed===true||!!kidData.mazeEndTime;
+  const _startNewTotal=_startIsRerun?startCoins:((kidData.coins||0)+startCoins);
   db.collection('scans').add({
-    kidId:docRef.id, name, station:'start',
-    coins:startCoins, gameType:'start', timestamp:startNow
+    kidId:docRef.id, name, station:'start', stationLabel:'Start Line',
+    coins:startCoins, gameType:'start', timestamp:startNow, newTotal:_startNewTotal
   }).catch(()=>{});
 
   const doStart = async ()=>{
@@ -1871,6 +1977,53 @@ async function handleStartStation(docRef, kidData, code){
       doStart();
     }
   }, 3000);
+}
+
+// ── Coin count-up animation ────────────────────────────────────
+function animateCoinCount(el, fromVal, toVal, durationMs, formatFn){
+  if(!el) return;
+  const start = performance.now();
+  function tick(now){
+    const t = Math.min(1, (now - start) / durationMs);
+    const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    el.textContent = formatFn ? formatFn(Math.round(fromVal + (toVal-fromVal)*ease)) : Math.round(fromVal + (toVal-fromVal)*ease);
+    if(t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Bowser score reveal ────────────────────────────────────────
+async function showBowserReveal(name, coins){
+  const el = document.getElementById('bowserReveal');
+  if(!el) return;
+  document.getElementById('brName').textContent = name.toUpperCase();
+  document.getElementById('brCoins').textContent = '0';
+  document.getElementById('brRank').style.opacity = '0';
+  document.getElementById('brRank').textContent = '';
+  el.style.display = 'flex';
+  const keypad = $('view-control');
+  if(keypad) keypad.style.visibility = 'hidden';
+  // Count up coins over 2 seconds
+  await new Promise(r=>setTimeout(r, 400));
+  animateCoinCount(document.getElementById('brCoins'), 0, coins, 2000);
+  // After count-up, fetch rank
+  await new Promise(r=>setTimeout(r, 2500));
+  try{
+    const snap = await db.collection('kids').where('completed','==',true).get();
+    let ahead = 0;
+    snap.forEach(doc=>{ const d=doc.data()||{}; if((d.coins||0) > coins) ahead++; });
+    const rank = ahead + 1;
+    const suffix = rank===1?'ST':rank===2?'ND':rank===3?'RD':'TH';
+    document.getElementById('brRank').textContent = `#${rank}${suffix} PLACE!`;
+    document.getElementById('brRank').style.opacity = '1';
+  }catch(e){ console.warn('rank fetch error',e); }
+  // Auto-close after 7 more seconds
+  setTimeout(()=>{
+    el.style.display = 'none';
+    if(keypad) keypad.style.visibility = '';
+    codeBuffer=''; updateDisplay(); setStatus('');
+    checkPendingGoMsg();
+  }, 7000);
 }
 
 // ── Special result overlay ─────────────────────────────────────
@@ -1902,7 +2055,7 @@ async function handleShellStation(docRef,kidData){
   const finderCoins=CFG.shellStationCoins||0;
   setStatus('Firing shell…');
   try{
-    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedShell:true};
+    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedShell:true,collectedShell:true};
     if(finderCoins>0) updates.coins=FSV.increment(finderCoins);
     await docRef.update(updates);
     let affected=0,shielded=0;
@@ -1917,7 +2070,7 @@ async function handleShellStation(docRef,kidData){
       affected++;
     });
     await batch.commit();
-    await db.collection('scans').add({kidId:docRef.id,name,station:'shell',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now()});
+    await db.collection('scans').add({kidId:docRef.id,name,station:'shell',stationLabel:'Red Shell Station',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now(),newTotal:(kidData.coins||0)+finderCoins});
     sendConfiguredOsc('shell_fired').catch(()=>{});
     setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">','SHELL FIRED!',name+' launched a Red Shell!',
@@ -1933,10 +2086,10 @@ async function handleMushroomStation(docRef,kidData){
   setStatus('Granting mushroom…');
   try{
     const expiry=new Date(Date.now()+secs*1000);
-    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
+    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedMushroom:true,collectedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
     if(coins>0) updates.coins=FSV.increment(coins);
     await docRef.update(updates);
-    await db.collection('scans').add({kidId:docRef.id,name,station:'mushroom',coins,gameType:'mushroom',timestamp:firebase.firestore.Timestamp.now()});
+    await db.collection('scans').add({kidId:docRef.id,name,station:'mushroom',stationLabel:'Mushroom Station',coins,gameType:'mushroom',timestamp:firebase.firestore.Timestamp.now(),newTotal:(kidData.coins||0)+coins});
     sendConfiguredOsc('mushroom_used').catch(()=>{});
     setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">','MUSHROOM!',name+' got a Mushroom!',
@@ -1954,20 +2107,23 @@ function handleRescueStation(docRef,kidData,character,characterName,code){
   const bonus=50;
   const now=firebase.firestore.Timestamp.now();
   docRef.update({scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(bonus),savedPeach:true}).catch(()=>{});
-  db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,coins:bonus,gameType:'rescue',timestamp:now}).catch(()=>{});
+  db.collection('scans').add({kidId:docRef.id,name,station:'rescue_'+character,stationLabel:'Princess Peach Rescue',coins:bonus,gameType:'rescue',timestamp:now,newTotal:(kidData.coins||0)+bonus}).catch(()=>{});
   sendConfiguredOsc('peach_rescue').catch(()=>{});
   // Update local cache so re-scan check is accurate until Firestore snapshot arrives
   if(_kidsCache && code != null && _kidsCache[String(code)]){
     _kidsCache[String(code)].data = {..._kidsCache[String(code)].data, savedPeach:true};
   }
   setStatus(''); fireConfetti();
-  showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','Rescued '+characterName+'! +'+bonus+' bonus coins!',8);
+  showSpecialResult('<img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle">','YOU SAVED\n'+characterName.toUpperCase()+'!','🎉 '+name+' is a HERO! 🎉','+0 bonus coins!',8);
+  // Animate coin count in detail
+  const det=$('spDetail');
+  if(det) animateCoinCount(det, 0, bonus, 1200, v=>'+'+v+' bonus coins!');
 }
 
 // ── Bowser Station (finish line) ───────────────────────────────
 async function handleBowserStation(docRef,kidData){
   const name=kidData.name||kidData.displayName||'Participant';
-  if(!kidData.mazeStartTime && !allowMultiScan){
+  if(!kidData.mazeStartTime){
     showScanMsg('Must scan START LINE first!','#ff8080','#ff8080','rgba(255,128,128,.15)','',4000);
     return;
   }
@@ -1980,7 +2136,7 @@ async function handleBowserStation(docRef,kidData){
     completed:true, mazeEndTime:now, mazeStartTime:startTime, durationMs
   }).catch(()=>{});
 
-  db.collection('scans').add({kidId:docRef.id,name,station:'bowser',coins:0,gameType:'bowser',timestamp:now}).catch(()=>{});
+  db.collection('scans').add({kidId:docRef.id,name,station:'bowser',stationLabel:'Bowser',coins:0,gameType:'bowser',timestamp:now,newTotal:kidData.coins||0}).catch(()=>{});
 
   db.collection('config').doc('currentFinisher').set({players:[{
     name:kidData.name||name, coins:kidData.coins||0,
@@ -1991,7 +2147,7 @@ async function handleBowserStation(docRef,kidData){
 
   sendConfiguredOsc('bowser_defeated').catch(()=>{});
   fireConfetti();
-  showSpecialResult('⭐',name,'MAZE COMPLETE!','🎉 Hunt complete! 🎉',6);
+  showBowserReveal(name, kidData.coins || 0);
 }
 
 function sendSwitchCommand(outlet,state){
@@ -2025,6 +2181,7 @@ async function loadQlabCues(){
   });
 }
 function sendConfiguredOsc(key){
+  if(!oscEnabled) return Promise.resolve();
   const cfg = _qlabCues[key];
   const qBase = {processed:false, ts:FSV.serverTimestamp(), uid:'station:'+key};
   if(cfg){
@@ -2127,6 +2284,7 @@ function adminChangeStation(){
 
 let xrayBoxes = false;
 let allowMultiScan = false;
+let oscEnabled = true;
 
 async function showStationHealth(){
   $('adminMenuView').style.display = 'none';
@@ -2798,7 +2956,7 @@ const SFX = (function(){
         if(!G.isPowerupMode && !G.isFrozen){
           await G.kidRef.update({scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1)});
           await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-            station:currentStationId,coins:0,gameType:'timed_out',timestamp:firebase.firestore.Timestamp.now()});
+            station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:0,gameType:'timed_out',timestamp:firebase.firestore.Timestamp.now(),newTotal:G.kidData.coins||0});
           lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
           await maybeTriggerWebSwitch();
           if(currentStationMode.startsWith('land_')){
@@ -2930,8 +3088,8 @@ const SFX = (function(){
       const actualCoins = (G.kidData.coins||0) + amount;
       // fire-and-forget remaining writes so animation doesn't wait on them
       db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-        station:currentStationId,coins:amount,gameType:G.targetBox.type,
-        powerupMode:!!G.isPowerupMode,timestamp:firebase.firestore.Timestamp.now()})
+        station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:amount,gameType:G.targetBox.type,
+        powerupMode:!!G.isPowerupMode,timestamp:firebase.firestore.Timestamp.now(),newTotal:actualCoins})
         .catch(e=>console.error('scans.add',e));
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       maybeTriggerWebSwitch().catch(e=>console.error('webswitch',e));
@@ -2950,7 +3108,7 @@ const SFX = (function(){
       if(G.powerupType==='shell') shellUpd.usedShell=true;
       await G.kidRef.update(shellUpd);
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-        station:currentStationId,coins:CFG.coinsMin,gameType:'shell',timestamp:firebase.firestore.Timestamp.now()});
+        station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:CFG.coinsMin,gameType:'shell',timestamp:firebase.firestore.Timestamp.now(),newTotal:(G.kidData.coins||0)+CFG.coinsMin});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       await maybeTriggerWebSwitch();
 
@@ -2971,9 +3129,11 @@ const SFX = (function(){
       });
       if(n+shielded>0) await batch.commit();
 
-      // Broadcast flash to all tablets
+      // Broadcast flash to all tablets — pre-set _lastShellTs so this tablet skips its own flash
+      const _shellNow = firebase.firestore.Timestamp.now();
+      _lastShellTs = _shellNow.toMillis();
       await db.collection('config').doc('shellBroadcast').set({
-        triggeredAt:firebase.firestore.Timestamp.now(),
+        triggeredAt:_shellNow,
         by:G.kidRef.id,byName:G.kidData.name||'Participant',
         penalty:CFG.shellPenalty,affectedCount:n,shieldedCount:shielded
       });
@@ -3006,7 +3166,7 @@ const SFX = (function(){
       if(G.powerupType==='mushroom') mushUpd.usedMushroom=true;
       await G.kidRef.update(mushUpd);
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-        station:currentStationId,coins:0,gameType:'powerup',timestamp:firebase.firestore.Timestamp.now()});
+        station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:0,gameType:'powerup',timestamp:firebase.firestore.Timestamp.now(),newTotal:G.kidData.coins||0});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       await maybeTriggerWebSwitch();
       // Expiry is tracked in Firestore only — no on-screen countdown shown
@@ -3017,7 +3177,7 @@ const SFX = (function(){
     try{
       await G.kidRef.update({frozen:FSV.delete(),scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1)});
       await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-        station:currentStationId,coins:0,gameType:'frozen_shell',timestamp:firebase.firestore.Timestamp.now()});
+        station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:0,gameType:'frozen_shell',timestamp:firebase.firestore.Timestamp.now(),newTotal:G.kidData.coins||0});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       await maybeTriggerWebSwitch();
     }catch(e){console.error('applyFrozen',e);}

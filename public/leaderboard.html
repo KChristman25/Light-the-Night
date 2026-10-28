@@ -351,7 +351,7 @@ function buildRowEl(item, rank) {
   if (item.land_fire)  bdgs.push('<span style="font-size:2.6em">🔥</span>');
   if (item.land_lava)  bdgs.push('<span style="font-size:2.6em">🌋</span>');
   if (item.collectedShell) bdgs.push('<img src="icons/red_shell.webp" alt="Red Shell" style="height:clamp(42px,6.2vh,76px)">');
-  if (item.savedPeach)     bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach" style="height:clamp(42px,6.2vh,76px)">');
+  if (item.savedPeach)     bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach" style="height:clamp(64px,9.5vh,120px)">');
   const el = document.createElement('div');
   const alt = rank % 2 === 1 ? ' lb-row-alt' : '';
   el.className = `lb-row${cls?' '+cls:''}${alt}`;

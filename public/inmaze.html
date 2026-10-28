@@ -117,22 +117,24 @@
   }
   .im-powerups {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    font-size: clamp(24px, 3.6vw, 46px);
   }
   .im-powerups img {
-    height: clamp(18px, 2.8vh, 34px); width: auto;
+    height: clamp(28px, 4.2vh, 52px); width: auto;
     image-rendering: pixelated;
     filter: drop-shadow(1px 1px 0 rgba(0,0,0,.35));
   }
   .im-coins {
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(10px, 1.6vw, 20px);
+    font-size: clamp(13px, 2.1vw, 26px);
     color: #e8a000; flex-shrink: 0;
-    min-width: clamp(60px,8vw,110px); text-align: right;
+    min-width: clamp(70px,9vw,130px); text-align: right;
   }
   .im-elapsed {
-    font-size: clamp(12px, 1.6vw, 20px);
-    color: #7a5c44; flex-shrink: 0;
-    min-width: clamp(56px,7vw,100px); text-align: right;
+    font-size: clamp(15px, 2.1vw, 26px);
+    font-weight: 800;
+    color: #000; flex-shrink: 0;
+    min-width: clamp(68px,9vw,120px); text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
@@ -145,17 +147,6 @@
     line-height: 2.2;
   }
 
-  /* ── QR row ── */
-  .qr-row {
-    display: flex; align-items: center; justify-content: center; gap: clamp(20px,3vw,40px);
-    padding: clamp(20px,3vh,40px) clamp(20px,3vw,48px);
-    background: #231207;
-    border-bottom: 2px solid rgba(232,160,0,.2);
-  }
-  .qr-row img { border: 4px solid #e8a000; border-radius: 4px; display: block; }
-  .qr-text { font-family: 'Press Start 2P', monospace; color: #e8a000; line-height: 2; text-align: left; }
-  .qr-text .qr-headline { font-size: clamp(11px,1.8vw,18px); }
-  .qr-text .qr-sub { font-size: clamp(8px,1.1vw,12px); color: rgba(255,255,255,.5); margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -276,15 +267,6 @@ function maybeScroll() {
 // ── Render ───────────────────────────────────────────────
 let latestKids = [];
 
-const QR_URL = 'https://light-the-night.web.app/participant.html';
-const QR_IMG = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=ffe896&bgcolor=231207&data=${encodeURIComponent(QR_URL)}`;
-const QR_ROW = `<div class="qr-row">
-  <img src="${QR_IMG}" width="140" height="140" alt="QR code to guest leaderboard">
-  <div class="qr-text">
-    <div class="qr-headline">See the scores!</div>
-    <div class="qr-sub">Scan to view the<br>live leaderboard</div>
-  </div>
-</div>`;
 
 function render() {
   const inMaze = latestKids
@@ -292,7 +274,7 @@ function render() {
     .sort((a, b) => {
       const ta = a.mazeStartTime?.toMillis?.() ?? 0;
       const tb = b.mazeStartTime?.toMillis?.() ?? 0;
-      return ta - tb;
+      return tb - ta; // newest entry first
     });
 
   countEl.textContent = inMaze.length + (inMaze.length === 1 ? ' player' : ' players');
@@ -305,10 +287,14 @@ function render() {
 
   const rows = inMaze.map((k, i) => {
     const startMs = _kidStartMs[k.id]?.localMs ?? Date.now();
+    const _sc = s => Array.isArray(k.scans) && k.scans.some(x => x===s||(x&&typeof x==='object'&&x.station===s));
     const powerups = [
-      k.superMarioActive ? `<img src="icons/mushroom.png" alt="Mushroom" title="Has Mushroom">` : '',
-      (k.shellStation && !k.usedShell) ? `<img src="icons/red_shell.webp" alt="Red Shell" title="Has Red Shell">` : '',
-      k.savedPeach ? `<img src="icons/princess_peach.png" alt="Saved Peach" title="Rescued Princess Peach">` : '',
+      _sc('land_ice')   ? `<span title="Ice Land">🧊</span>`   : '',
+      _sc('land_water') ? `<span title="Water Land">🌊</span>` : '',
+      _sc('land_fire')  ? `<span title="Fire Land">🔥</span>`  : '',
+      _sc('land_lava')  ? `<span title="Lava Land">🌋</span>`  : '',
+      (k.collectedShell && !k.usedShell) ? `<img src="icons/red_shell.webp" alt="Red Shell" title="Has Red Shell" style="height:clamp(42px,6.2vh,76px)">` : '',
+      k.savedPeach ? `<img src="icons/princess_peach.png" alt="Saved Peach" title="Rescued Princess Peach" style="height:clamp(42px,6.2vh,76px)">` : '',
     ].join('');
     const alt = i % 2 === 1 ? ' im-row-alt' : '';
     return `<div class="im-row${alt}" data-start="${startMs}">
@@ -320,7 +306,7 @@ function render() {
     </div>`;
   }).join('');
   stopScroll();
-  scrollInner.innerHTML = rows + QR_ROW;
+  scrollInner.innerHTML = rows;
   requestAnimationFrame(() => maybeScroll());
 }
 
@@ -343,6 +329,18 @@ const _kidStartMs = {}; // kidId → { serverMs, localMs }
 firebase.auth().signInAnonymously().catch(() => {});
 firebase.auth().onAuthStateChanged(user => {
   if (!user) return;
+
+  let _lbReloadTs = Number(sessionStorage.getItem('ltn_lb_reload_ts') || 0);
+  db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap => {
+    if (!snap.exists) return;
+    const ts = snap.data().triggeredAt ? snap.data().triggeredAt.toMillis() : null;
+    if (!ts || ts === _lbReloadTs) return;
+    _lbReloadTs = ts;
+    sessionStorage.setItem('ltn_lb_reload_ts', ts);
+    if (Date.now() - ts > 30000) return;
+    setTimeout(() => location.reload(), 500);
+  });
+
   db.collection('kids').onSnapshot(snap => {
     const snapNow = Date.now();
     latestKids = [];

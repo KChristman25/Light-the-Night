@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <title>Station Kiosk</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;background:#000;overflow:hidden}
+    iframe{position:fixed;inset:0;width:100%;height:100%;border:none;display:block}
+    #tapPrompt{
+      position:fixed;inset:0;z-index:9999;
+      background:#000;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+      cursor:pointer;-webkit-tap-highlight-color:transparent;
+    }
+    #tapPrompt p{
+      font-family:'Press Start 2P',monospace;
+      font-size:clamp(14px,4vw,22px);
+      color:#e8a000;
+      text-align:center;
+      line-height:1.8;
+      text-shadow:2px 2px 0 #000;
+    }
+    #tapPrompt small{
+      font-family:sans-serif;font-size:14px;color:rgba(255,255,255,.5);
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="tapPrompt">
+  <p>TAP TO START</p>
+  <small>Tap anywhere to enter fullscreen</small>
+</div>
+
+<iframe id="stationFrame" src="about:blank" allowfullscreen allow="fullscreen *"></iframe>
+
+<script>
+  const frame = document.getElementById('stationFrame');
+  const prompt = document.getElementById('tapPrompt');
+  let ready = false;
+
+  function enterFullscreen(){
+    const el = document.documentElement;
+    if(el.requestFullscreen) return el.requestFullscreen().catch(()=>{});
+    if(el.webkitRequestFullscreen){ const r=el.webkitRequestFullscreen(); return r&&r.catch?r.catch(()=>{}):Promise.resolve(); }
+    return Promise.resolve();
+  }
+
+  function start(){
+    if(ready) return;
+    ready = true;
+    enterFullscreen().finally(()=>{
+      // Load station.html into the iframe — runs independently from this wrapper
+      frame.src = '/station.html?_t=' + Date.now();
+      prompt.style.display = 'none';
+    });
+  }
+
+  prompt.addEventListener('touchstart', start, {once:true, passive:true});
+  prompt.addEventListener('click', start, {once:true});
+
+  // TEST MARKER — remove after testing
+  const testBadge = document.createElement('div');
+  testBadge.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:80px;z-index:99999;pointer-events:none';
+  testBadge.textContent = '🪙';
+  document.body.appendChild(testBadge);
+
+  // Reload just the iframe when station.html requests it — wrapper stays fullscreen
+  window.addEventListener('message', e => {
+    if(e.data && e.data.type === 'ltn_reload_iframe') {
+      try {
+        // Same-URL reload — less likely to trigger browser fullscreen exit than a src change
+        frame.contentWindow.location.reload();
+      } catch(_) {
+        frame.src = '/station.html?_t=' + Date.now();
+      }
+    }
+  });
+
+  // Re-acquire fullscreen if user somehow exits it (e.g. notification pull-down)
+  document.addEventListener('fullscreenchange', ()=>{
+    if(!document.fullscreenElement && ready){
+      // Brief delay so browser doesn't block the re-request
+      setTimeout(enterFullscreen, 300);
+    }
+  });
+  document.addEventListener('webkitfullscreenchange', ()=>{
+    if(!document.webkitFullscreenElement && ready){
+      setTimeout(enterFullscreen, 300);
+    }
+  });
+</script>
+
+</body>
+</html>

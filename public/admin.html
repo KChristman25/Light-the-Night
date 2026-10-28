@@ -256,6 +256,8 @@
     }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fff8d6; }
+    .pg-add { cursor:pointer; color:#d1d5db; font-size:14px; line-height:1; display:inline-block; width:16px; text-align:center; }
+    .pg-add:hover { color:#16a34a; font-size:18px; }
 
     /* ── Form elements ───────────────────────────────────────────────────── */
     input[type="text"], input[type="password"], input:not([type]),
@@ -726,6 +728,9 @@
     <!-- SETTINGS -->
     <div id="settings" class="section">
       <div class="page-title">Settings</div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="btn" onclick="openUiChangesPanel()" style="background:var(--panel);color:var(--text);border:2px solid var(--border);font-size:13px;padding:8px 18px">🖥 UI Changes</button>
+      </div>
 
       <!-- Game Settings -->
       <h3 style="margin-top:0">🎮 Game</h3>
@@ -811,6 +816,14 @@
             <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Play the countdown video when a player scans in at the Start station. Turn OFF to skip directly to maze.</div>
           </div>
           <button id="countdownToggleBtn" onclick="toggleCountdownAdmin()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">ON</button>
+        </div>
+        <div style="border-top:1px solid var(--border)"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-weight:600;color:var(--text);font-size:13px">OSC Commands</div>
+            <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">When OFF, all OSC commands are silenced — use for testing stations without triggering QLab</div>
+          </div>
+          <button id="oscToggleBtn" onclick="toggleOscAdmin()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">ON</button>
         </div>
       </div>
 
@@ -985,6 +998,20 @@
         <span id="showStatus" style="font-size:13px;color:var(--muted-dk);font-weight:600"></span>
       </div>
 
+      <!-- Refresh All Tablets -->
+      <div class="panel-box" style="max-width:520px;margin-bottom:24px;border-left:4px solid #0055d4">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:20px">🔄</span>
+          <strong style="font-size:15px">Refresh All Tablets</strong>
+        </div>
+        <p style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">Reloads every active station iPad. Each tablet will show a "tap to resume" screen and re-enter their station + fullscreen on tap.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="adminRefreshTablets()" style="background:#0055d4;color:#fff;font-size:14px;padding:10px 22px">🔄 Refresh All Tablets</button>
+          <button class="btn" onclick="adminRefreshLeaderboards()" style="background:#1a7a3a;color:#fff;font-size:14px;padding:10px 22px">🔄 Refresh Leaderboards</button>
+          <span id="adminRefreshStatus" style="font-size:12px;color:var(--muted-dk)"></span>
+        </div>
+      </div>
+
       <!-- Admin Red Shell -->
       <div class="panel-box" style="max-width:520px;margin-bottom:24px;border-left:4px solid #e52521">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
@@ -995,6 +1022,19 @@
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn" onclick="adminFireShell()" style="background:#e52521;color:#fff;font-size:14px;padding:10px 22px">🐚 Fire Shell</button>
           <span id="adminShellStatus" style="font-size:12px;color:var(--muted-dk)"></span>
+        </div>
+      </div>
+
+      <!-- Admin Global Mushroom -->
+      <div class="panel-box" style="max-width:520px;margin-bottom:24px;border-left:4px solid #4caf50">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:20px">🍄</span>
+          <strong style="font-size:15px">Fire Global Mushroom</strong>
+        </div>
+        <p style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">Gives all in-maze players shell immunity for 60 seconds. Flashes all station tablets green. Fires the <code>mushroom_global</code> OSC cue.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="adminFireMushroom()" style="background:#4caf50;color:#fff;font-size:14px;padding:10px 22px">🍄 Fire Mushroom</button>
+          <span id="adminMushroomStatus" style="font-size:12px;color:var(--muted-dk)"></span>
         </div>
       </div>
 
@@ -1471,11 +1511,16 @@ if(id==='allvisitors')  initAllVisitors();
           const done=new Set([...visited].filter(k=>!isNaN(Number(k))));
           _pgKidsMap[doc.id]={
             id: doc.id, name:d.name, done, counts,
-            start:   visited.has('start'),
-            peach:   !!d.savedPeach,
-            mushroom:!!d.usedMushroom,
-            shell:   !!d.usedShell,
-            castle:  !!d.mazeEndTime
+            coins:    d.coins ?? 0,
+            start:    visited.has('start'),
+            peach:    !!d.savedPeach,
+            mushroom: !!d.usedMushroom,
+            shell:    !!d.usedShell,
+            castle:   !!d.mazeEndTime,
+            land_ice:   visited.has('land_ice'),
+            land_water: visited.has('land_water'),
+            land_fire:  visited.has('land_fire'),
+            land_lava:  visited.has('land_lava'),
           };
         });
         renderProgressGrid();
@@ -1501,11 +1546,16 @@ if(id==='allvisitors')  initAllVisitors();
     let head='<thead><tr><th>Name</th>';
     head+='<th style="text-align:center;min-width:32px" title="Start Line">🏁</th>';
     for(let i=1;i<=total;i++) head+=`<th style="text-align:center;min-width:32px">${i}</th>`;
+    head+='<th style="text-align:center;min-width:32px" title="Ice Land">🧊</th>';
+    head+='<th style="text-align:center;min-width:32px" title="Water Land">🌊</th>';
+    head+='<th style="text-align:center;min-width:32px" title="Fire Land">🔥</th>';
+    head+='<th style="text-align:center;min-width:32px" title="Lava Land">🌋</th>';
     head+='<th style="text-align:center;min-width:32px" title="Mushroom"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Red Shell"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Saved Peach"><img src="icons/princess_peach.png" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Castle/Bowser">🏰</th>';
-    head+='<th style="text-align:center;white-space:nowrap">Done</th></tr></thead>';
+    head+='<th style="text-align:center;white-space:nowrap">Done</th>';
+    head+='<th style="text-align:center;min-width:48px" title="Coins">🪙</th></tr></thead>';
 
     let body='<tbody>';
     for(const kid of kids){
@@ -1517,26 +1567,33 @@ if(id==='allvisitors')  initAllVisitors();
       const sc=kid.counts['start']||0;
       body+=sc
         ? `<td style="text-align:center"><span title="Click to remove Start scan" style="cursor:pointer;font-size:15px;position:relative;display:inline-block" onclick="pgUncheckStart('${kid.id}')">🏁${pgBadge(sc)}</span></td>`
-        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+        : `<td style="text-align:center"><span class="pg-add" title="Click to add Start scan" onclick="pgCheckStart('${kid.id}','${escapeHtml(kid.name)}')">+</span></td>`;
       for(let i=1;i<=total;i++){
         const n=kid.counts[String(i)]||0;
         body+=n
           ? `<td style="text-align:center"><span title="Click to remove station ${i}" style="cursor:pointer;color:#16a34a;font-size:16px;position:relative;display:inline-block" onclick="pgUncheckStation('${kid.id}',${i})">✓${pgBadge(n)}</span></td>`
-          : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+          : `<td style="text-align:center"><span class="pg-add" title="Click to add station ${i}" onclick="pgCheckStation('${kid.id}',${i},'${escapeHtml(kid.name)}')">+</span></td>`;
+      }
+      const LANDS=[['land_ice','🧊','Ice Land'],['land_water','🌊','Water Land'],['land_fire','🔥','Fire Land'],['land_lava','🌋','Lava Land']];
+      for(const [lid,icon,label] of LANDS){
+        body+=kid[lid]
+          ? `<td style="text-align:center"><span title="Click to remove ${label}" style="cursor:pointer;font-size:15px" onclick="pgUncheckLand('${kid.id}','${lid}','${label} for ${escapeHtml(kid.name)}')">${icon}</span></td>`
+          : `<td style="text-align:center"><span class="pg-add" title="Click to add ${label}" onclick="pgCheckLand('${kid.id}','${lid}','${escapeHtml(kid.name)}')">+</span></td>`;
       }
       body+=kid.mushroom
         ? `<td style="text-align:center"><span title="Click to remove Mushroom" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','usedMushroom','mushroom for ${escapeHtml(kid.name)}')"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></span></td>`
-        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+        : `<td style="text-align:center"><span class="pg-add" title="Click to add Mushroom" onclick="pgCheckField('${kid.id}','usedMushroom','${escapeHtml(kid.name)}')">+</span></td>`;
       body+=kid.shell
-        ? `<td style="text-align:center"><span title="Click to remove Red Shell" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','usedShell','red shell for ${escapeHtml(kid.name)}')"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></span></td>`
-        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+        ? `<td style="text-align:center"><span title="Click to remove Red Shell (restores coins)" style="cursor:pointer" onclick="pgToggleShell('${kid.id}',true,'${escapeHtml(kid.name)}')"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></span></td>`
+        : `<td style="text-align:center"><span class="pg-add" title="Click to add Red Shell (deducts coins)" onclick="pgToggleShell('${kid.id}',false,'${escapeHtml(kid.name)}')">+</span></td>`;
       body+=kid.peach
         ? `<td style="text-align:center"><span title="Click to remove Saved Peach" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','savedPeach','Peach rescue for ${escapeHtml(kid.name)}')"><img src="icons/princess_peach.png" style="height:16px;width:auto;vertical-align:middle"></span></td>`
-        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+        : `<td style="text-align:center"><span class="pg-add" title="Click to add Peach rescue" onclick="pgCheckField('${kid.id}','savedPeach','${escapeHtml(kid.name)}')">+</span></td>`;
       body+=kid.castle
         ? `<td style="text-align:center"><span title="Click to un-finish (send back to maze)" style="cursor:pointer;font-size:15px" onclick="pgUncheckCastle('${kid.id}','${escapeHtml(kid.name)}')">🏰</span></td>`
         : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
       body+=`<td style="text-align:center;font-weight:700;color:${allDone?'#16a34a':'#8b6040'}">${stationsDone}/${total}</td>`;
+      body+=`<td style="text-align:center;font-weight:700;color:#e8a000">${kid.coins}</td>`;
       body+='</tr>';
     }
     if(!kids.length) body+=`<tr><td colspan="99" class="muted" style="padding:16px">${q?'No match.':'No checked-in participants yet.'}</td></tr>`;
@@ -1580,6 +1637,20 @@ if(id==='allvisitors')  initAllVisitors();
     }catch(e){ alert('Error: '+e.message); }
   }
 
+  async function pgUncheckLand(docId, landId, label){
+    if(!confirm(`Remove ${label}?`)) return;
+    try{
+      const snap=await db.collection('kids').doc(docId).get();
+      const scans=Array.isArray(snap.data()?.scans)?snap.data().scans:[];
+      const filtered=scans.filter(s=>{
+        if(typeof s==='string') return s!==landId;
+        if(s&&typeof s==='object'&&s.station!=null) return s.station!==landId;
+        return true;
+      });
+      await db.collection('kids').doc(docId).update({scans:filtered});
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
   async function pgUncheckCastle(docId, name){
     if(!confirm(`Un-finish ${name}? This removes their completion record and puts them back in the maze.`)) return;
     try{
@@ -1593,6 +1664,91 @@ if(id==='allvisitors')  initAllVisitors();
         bestCoins: firebase.firestore.FieldValue.delete()
       });
     }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckStation(docId, stationNum, name){
+    if(!confirm(`Add station ${stationNum} credit for ${name}?`)) return;
+    try{
+      const FSV=firebase.firestore.FieldValue;
+      await db.collection('kids').doc(docId).update({
+        scans: FSV.arrayUnion({station:String(stationNum),ts:firebase.firestore.Timestamp.now()}),
+        ['scanCounts.'+stationNum]: FSV.increment(1)
+      });
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckStart(docId, name){
+    if(!confirm(`Add Start scan for ${name}?`)) return;
+    try{
+      const FSV=firebase.firestore.FieldValue;
+      await db.collection('kids').doc(docId).update({
+        scans: FSV.arrayUnion('start'),
+        mazeStartTime: firebase.firestore.Timestamp.now()
+      });
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckLand(docId, landId, name){
+    if(!confirm(`Add ${landId.replace('land_','')} land for ${name}?`)) return;
+    try{
+      const FSV=firebase.firestore.FieldValue;
+      await db.collection('kids').doc(docId).update({
+        scans: FSV.arrayUnion(landId),
+        ['scanCounts.'+landId]: FSV.increment(1)
+      });
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckField(docId, field, name){
+    const label = field==='savedPeach' ? 'Peach rescue' : field==='usedMushroom' ? 'Mushroom' : field;
+    if(!confirm(`Add ${label} for ${name}?`)) return;
+    try{
+      await db.collection('kids').doc(docId).update({[field]: true});
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgToggleShell(docId, currentlyHas, name){
+    const cfg = await db.collection('config').doc('config').get();
+    const penalty = (cfg.data()&&cfg.data().gameShellPenalty) || 10;
+    const FSV = firebase.firestore.FieldValue;
+    if(currentlyHas){
+      if(!confirm(`Remove Red Shell from ${name}? Restores ${penalty} coins to all active players.`)) return;
+      try{
+        // Remove shell icon from finder
+        await db.collection('kids').doc(docId).update({
+          collectedShell: FSV.delete(),
+          usedShell: FSV.delete()
+        });
+        // Restore coins to all players currently in the maze
+        const allKids = await db.collection('kids').get();
+        const batch = db.batch();
+        allKids.forEach(doc => {
+          const d = doc.data();
+          if (d.mazeStartTime && !d.mazeEndTime)
+            batch.update(doc.ref, { coins: FSV.increment(penalty) });
+        });
+        await batch.commit();
+      }catch(e){ alert('Error: '+e.message); }
+    } else {
+      if(!confirm(`Fire Red Shell at everyone! ${name} gets the icon, all other active players lose ${penalty} coins.`)) return;
+      try{
+        // Give finder the shell icon (collectedShell only — usedShell stays false so badge shows)
+        await db.collection('kids').doc(docId).update({
+          collectedShell: true,
+          usedShell: FSV.delete()
+        });
+        // Deduct penalty from everyone ELSE currently in the maze
+        const allKids = await db.collection('kids').get();
+        const batch = db.batch();
+        allKids.forEach(doc => {
+          if (doc.id === docId) return;
+          const d = doc.data();
+          if (d.mazeStartTime && !d.mazeEndTime)
+            batch.update(doc.ref, { coins: FSV.increment(-penalty) });
+        });
+        await batch.commit();
+      }catch(e){ alert('Error: '+e.message); }
+    }
   }
 
   /* ── Live Dashboard ───────────────────────────────────────────────────── */
@@ -1688,17 +1844,21 @@ if(id==='allvisitors')  initAllVisitors();
       shell:'🐢', shell_frozen:'🐢', shell_station:'💥',
       mushroom:'🍄', rescue:'👸', bowser:'🏰', timed_out:'⏱',
     };
+    const _tot = (d) => d.newTotal!=null ? ` → ${d.newTotal} coins` : '';
+    const _st  = (d) => d.stationLabel || (d.station ? 'Station '+d.station : '');
     const _feedMsg = {
-      start:      (d) => `${d.name} entered the maze`,
-      coin:       (d) => `${d.name} collected ${d.coins} coins`,
-      coin_direct:(d) => `${d.name} collected ${d.coins} coins`,
-      shell:      (d) => `${d.name} earned a Red Shell`,
-      shell_frozen:(d)=> `${d.name} earned a Frozen Shell`,
-      shell_station:(d)=>`${d.name} fired a Red Shell`,
-      mushroom:   (d) => `${d.name} used a Mushroom (+${d.coins} coins)`,
-      rescue:     (d) => `${d.name} rescued Princess Peach!`,
-      bowser:     (d) => `${d.name} defeated Bowser! 🎉`,
-      timed_out:  (d) => `${d.name} timed out`,
+      start:       (d) => `${d.name} entered the maze${d.coins>0?` (+${d.coins} coins)`:''}${_tot(d)}`,
+      coin:        (d) => `${d.name} got +${d.coins} coins at ${_st(d)}${_tot(d)}`,
+      coin_direct: (d) => `${d.name} got +${d.coins} coins at ${_st(d)}${_tot(d)}`,
+      shell:       (d) => `${d.name} fired a Red Shell at ${_st(d)}${_tot(d)}`,
+      shell_frozen:(d) => `${d.name} hit a Frozen Shell at ${_st(d)}${_tot(d)}`,
+      shell_station:(d)=> `${d.name} fired a Red Shell from Shell Station${_tot(d)}`,
+      mushroom:    (d) => `${d.name} used a Mushroom at ${_st(d)}${d.coins>0?` (+${d.coins} coins)`:''}${_tot(d)}`,
+      rescue:      (d) => `${d.name} rescued Princess Peach! (+${d.coins||50} coins)${_tot(d)}`,
+      bowser:      (d) => `${d.name} defeated Bowser! 🎉${d.newTotal!=null?' Final: '+d.newTotal+' coins':''}`,
+      timed_out:   (d) => `${d.name} timed out at ${_st(d)}`,
+      powerup:     (d) => `${d.name} got a powerup at ${_st(d)}${_tot(d)}`,
+      frozen_shell:(d) => `${d.name} was unfrozen at ${_st(d)}${_tot(d)}`,
     };
     listeners.push(
       db.collection("scans").orderBy("timestamp","desc").limit(20)
@@ -2249,6 +2409,14 @@ if(id==='allvisitors')  initAllVisitors();
       setBtn('xrayToggleBtn', data.xrayBoxes===true);
       setBtn('multiScanToggleBtn', data.allowMultiScan===true);
       setBtn('countdownToggleBtn', data.countdownEnabled!==false);
+      const oscBtn=document.getElementById('oscToggleBtn');
+      if(oscBtn){
+        const on=data.oscEnabled!==false;
+        oscBtn.textContent=on?'ON':'OFF';
+        oscBtn.style.background=on?'#4caf50':data.oscEnabled===false?'#e52521':'var(--panel)';
+        oscBtn.style.color=on?'#fff':'#fff';
+        oscBtn.style.borderColor=on?'#388e3c':'#c0392b';
+      }
     });
     listeners.push(_xrayUnsub);
 
@@ -3187,9 +3355,12 @@ Return ONLY a JSON array, no prose.`;
 
   async function _runStepsAdmin(steps, stEl, statusDone){
     const comp = await _getFirstQlabComp();
+    const cfgSnap = await db.collection('config').doc('gameSettings').get();
+    const oscOn = cfgSnap.exists ? (cfgSnap.data().oscEnabled !== false) : true;
     for(const step of steps){
       const doc={processed:false, ts:firebase.firestore.FieldValue.serverTimestamp(), uid:'showcontrol'};
       if(step.type==='osc'){
+        if(!oscOn){ console.log('OSC disabled — skipping:', step.address); continue; }
         const payload={...doc, type:'osc', address:_normalizeOscAddr(step.address)};
         if(comp){ payload.qlabIp=comp.ip; payload.qlabPort=comp.port||53000; }
         await QUEUE_COL2.add(payload);
@@ -3242,6 +3413,8 @@ Return ONLY a JSON array, no prose.`;
         penalty, affectedCount: affected, shieldedCount: shielded
       });
       // Fire OSC + GPIO for shell_fired event (same as station does)
+      const gsSnap = await db.collection('config').doc('gameSettings').get();
+      const oscOn = gsSnap.exists ? (gsSnap.data().oscEnabled !== false) : true;
       try{
         const wcSnap = await db.collection('webswitch').doc('config').get();
         const wc = wcSnap.exists ? (wcSnap.data()||{}) : {};
@@ -3251,7 +3424,7 @@ Return ONLY a JSON array, no prose.`;
         const base = {processed:false, ts:firebase.firestore.Timestamp.now(), uid:'admin:shell_fired'};
         // Fire stationOscCues entry if set
         const cfg = cues['shell_fired'];
-        if(cfg){
+        if(cfg && oscOn){
           if(cfg.cue){
             const comp = computers.find(c=>c.id===cfg.computerId);
             const payload = {...base, type:'osc', address:cfg.cue};
@@ -3283,6 +3456,100 @@ Return ONLY a JSON array, no prose.`;
       }catch(e){ console.warn('shell OSC error:', e); }
       st.textContent = `✅ Shell fired — ${affected} hit, ${shielded} shielded (-${penalty} coins each)`;
     }catch(e){ st.textContent = '❌ ' + e.message; }
+  }
+
+  async function adminRefreshTablets(){
+    const st = document.getElementById('adminRefreshStatus');
+    if(!confirm('Refresh all active station tablets? Each iPad will reload and show a "tap to resume" screen.')) return;
+    st.textContent = 'Sending…';
+    try{
+      await db.collection('config').doc('reloadBroadcast').set({
+        triggeredAt: firebase.firestore.Timestamp.now(),
+        by: 'admin'
+      });
+      st.textContent = '✅ Refresh sent!';
+      setTimeout(()=>{ st.textContent=''; }, 5000);
+    }catch(e){ st.textContent = '❌ ' + e.message; }
+  }
+
+  async function adminRefreshLeaderboards(){
+    const st = document.getElementById('adminRefreshStatus');
+    st.textContent = 'Sending…';
+    try{
+      await db.collection('config').doc('leaderboardReloadBroadcast').set({
+        triggeredAt: firebase.firestore.Timestamp.now(),
+        by: 'admin'
+      });
+      st.textContent = '✅ Leaderboard refresh sent!';
+      setTimeout(()=>{ st.textContent=''; }, 5000);
+    }catch(e){ st.textContent = '❌ ' + e.message; }
+  }
+
+  async function adminFireMushroom(){
+    const st = document.getElementById('adminMushroomStatus');
+    if(!confirm('Fire Global Mushroom? This gives all in-maze players shell immunity for 60 seconds and flashes all tablets.')) return;
+    st.textContent = 'Firing…';
+    try{
+      const secs = 60;
+      const expiry = new Date(Date.now() + secs * 1000);
+      const expiryTs = firebase.firestore.Timestamp.fromDate(expiry);
+      const allKids = await db.collection('kids').get();
+      const batch = db.batch();
+      let affected = 0;
+      allKids.forEach(doc=>{
+        const d = doc.data()||{};
+        if(d.completed || !d.mazeStartTime) return;
+        batch.update(doc.ref, {shellShield: true, shellShieldExpiry: expiryTs});
+        affected++;
+      });
+      if(affected > 0) await batch.commit();
+      await db.collection('config').doc('mushroomBroadcast').set({
+        triggeredAt: firebase.firestore.Timestamp.now(),
+        by: 'admin', byName: 'Admin',
+        seconds: secs, affectedCount: affected
+      });
+      // Fire mushroom_global OSC
+      try{
+        const wcSnap = await db.collection('webswitch').doc('config').get();
+        const wc = wcSnap.exists ? (wcSnap.data()||{}) : {};
+        const cues = wc.stationOscCues || {};
+        const computers = Array.isArray(wc.qlabComputers) ? wc.qlabComputers : [];
+        const QUEUE = db.collection('webswitch').doc('queueRoot').collection('queue');
+        const base = {processed:false, ts:firebase.firestore.Timestamp.now(), uid:'admin:mushroom_global'};
+        const cfg = cues['mushroom_global'];
+        if(cfg && cfg.cue){
+          const comp = computers.find(c=>c.id===cfg.computerId);
+          const payload = {...base, type:'osc', address:cfg.cue};
+          if(comp){ payload.qlabIp=comp.ip; payload.qlabPort=comp.port||53000; }
+          await QUEUE.add(payload);
+        }
+        // Also fire AI group steps for 'mushroom_global' group
+        const aiParsed = wc.stationGroupAiParsed||{};
+        const aiComp   = wc.stationGroupAiComp||{};
+        const steps    = aiParsed['mushroom_global'];
+        if(steps&&steps.length){
+          const compId = aiComp['mushroom_global'];
+          const comp   = compId ? computers.find(c=>c.id===compId)||computers[0] : computers[0];
+          for(const step of steps){
+            if(step.type==='osc'){
+              const payload={...base,type:'osc',address:_normalizeOscAddr(step.address)};
+              if(comp){payload.qlabIp=comp.ip;payload.qlabPort=comp.port||53000;}
+              await QUEUE.add(payload);
+            }
+            if(step.type==='gpio') await QUEUE.add({...base,type:'gpio',pin:step.pin,state:step.state,pulseMs:step.pulseMs||500});
+            if(step.type==='power') await QUEUE.add({...base,type:'power',outlet:step.outlet,state:step.state});
+            if(step.type==='delay') await new Promise(r=>setTimeout(r,step.ms||0));
+          }
+        }
+      }catch(e){ console.warn('mushroom OSC error:', e); }
+      st.textContent = `✅ Mushroom fired — ${affected} players shielded for ${secs}s`;
+    }catch(e){ st.textContent = '❌ ' + e.message; }
+  }
+
+  async function toggleOscAdmin(){
+    const cfgSnap = await db.collection('config').doc('gameSettings').get();
+    const current = cfgSnap.exists ? (cfgSnap.data().oscEnabled !== false) : true;
+    await db.collection('config').doc('gameSettings').set({oscEnabled: !current}, {merge:true});
   }
 
   /* ---- GPIO pin test ---- */
@@ -3358,6 +3625,62 @@ Return ONLY a JSON array, no prose.`;
       st.textContent = 'Error: ' + e.message;
     }
   }
+
+
+  // ── UI Changes side panel ──────────────────────────────────────
+  let _uiStationsSub = null;
+
+  function openUiChangesPanel(){
+    const panel = document.getElementById('uiChangesPanel');
+    if(panel) { panel.style.transform='translateX(0)'; loadUiStations(); }
+  }
+  function closeUiChangesPanel(){
+    const panel = document.getElementById('uiChangesPanel');
+    if(panel) panel.style.transform='translateX(100%)';
+    if(_uiStationsSub){ _uiStationsSub(); _uiStationsSub=null; }
+  }
+  function loadUiStations(){
+    const list = document.getElementById('uiStationList');
+    if(!list) return;
+    list.innerHTML = '<div style="color:var(--muted-dk);font-size:13px">Loading…</div>';
+    if(_uiStationsSub) _uiStationsSub();
+    _uiStationsSub = db.collection('stations').onSnapshot(snap=>{
+      const stations = [];
+      snap.forEach(doc=>{ stations.push({id:doc.id, ...(doc.data()||{})}); });
+      stations.sort((a,b)=>(a.id||'').localeCompare(b.id||''));
+      if(!stations.length){ list.innerHTML='<div style="color:var(--muted-dk);font-size:13px">No stations found.</div>'; return; }
+      list.innerHTML = stations.map(st=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;font-weight:600;font-size:13px;color:var(--text)">${st.label||st.id}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="adjustHeaderOffset('${st.id}', -10)" style="padding:4px 10px;border-radius:4px;border:2px solid var(--border);background:var(--panel);cursor:pointer;font-size:14px;font-weight:700">−</button>
+            <span id="uiOffset_${st.id}" style="font-size:13px;min-width:52px;text-align:center;color:var(--text)">${st.headerOffset||0}px</span>
+            <button onclick="adjustHeaderOffset('${st.id}', 10)" style="padding:4px 10px;border-radius:4px;border:2px solid var(--border);background:var(--panel);cursor:pointer;font-size:14px;font-weight:700">+</button>
+            <button onclick="resetHeaderOffset('${st.id}')" style="padding:4px 8px;border-radius:4px;border:2px solid var(--border);background:var(--panel);cursor:pointer;font-size:11px;color:var(--muted-dk)">Reset</button>
+          </div>
+        </div>`).join('');
+    });
+  }
+  async function adjustHeaderOffset(stationId, delta){
+    const snap = await db.collection('stations').doc(stationId).get();
+    const current = (snap.exists ? (snap.data().headerOffset||0) : 0) + delta;
+    await db.collection('stations').doc(stationId).set({headerOffset: current}, {merge:true});
+  }
+  async function resetHeaderOffset(stationId){
+    await db.collection('stations').doc(stationId).set({headerOffset: 0}, {merge:true});
+  }
 </script>
+
+<!-- UI Changes Side Panel -->
+<div id="uiChangesPanel" style="position:fixed;top:0;right:0;width:min(380px,95vw);height:100vh;background:var(--bg);border-left:2px solid var(--border);z-index:9000;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-4px 0 16px rgba(0,0,0,.18)">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:2px solid var(--border)">
+    <strong style="font-size:15px;color:var(--text)">🖥 UI Changes</strong>
+    <button onclick="closeUiChangesPanel()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted-dk);line-height:1">×</button>
+  </div>
+  <div style="padding:16px 20px;overflow-y:auto;flex:1">
+    <p style="font-size:12px;color:var(--muted-dk);margin-bottom:16px">Adjust the header bar offset for each station. Changes take effect immediately on that station's iPad.</p>
+    <div id="uiStationList"></div>
+  </div>
+</div>
 </body>
 </html>

@@ -65,10 +65,16 @@
     50%      { transform: scaleX(0.1); background: #c07800; }
   }
 
-  /* ── Single panel ── */
+  /* ── Two-panel layout ── */
   .panels {
     flex: 1; min-height: 0;
     display: flex;
+  }
+
+  .panel-divider {
+    width: 3px;
+    background: rgba(232,160,0,.3);
+    flex-shrink: 0;
   }
 
   .panel {
@@ -206,26 +212,6 @@
     line-height: 2;
   }
 
-  /* ── Follow bar ── */
-  .follow-bar {
-    flex-shrink: 0;
-    background: #231207;
-    padding: 7px 24px;
-    display: flex; justify-content: center;
-    border-bottom: 2px solid rgba(232,160,0,.3);
-  }
-  .follow-bar input {
-    width: 100%; max-width: 380px;
-    padding: 6px 14px;
-    border: 2px solid #e8a000;
-    border-radius: 3px;
-    background: #3a1f0a;
-    color: #fff;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 8px;
-    outline: none;
-  }
-  .follow-bar input::placeholder { color: rgba(232,160,0,.45); }
   .lb-row.follow, .im-row.follow {
     background: rgba(232,160,0,.6) !important;
     outline: 3px solid #e8a000;
@@ -252,15 +238,27 @@
     <span class="topbar-coin"></span>
   </div>
 
-  <div class="follow-bar">
-    <input id="followSearch" type="text" placeholder="Type your kid's name to follow them…" oninput="applyFollow()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
-  </div>
 
   <div class="panels">
-    <!-- LEFT: Finished leaderboard -->
+    <!-- LEFT: In Maze -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">TOP FINISHERS</div>
+        <div class="panel-title">🌟 IN MAZE</div>
+        <div class="panel-count" id="imCount">0</div>
+      </div>
+      <div class="panel-scroll" id="imScroll">
+        <div class="panel-inner" id="imInner">
+          <div class="empty-msg">Nobody in the maze yet…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-divider"></div>
+
+    <!-- RIGHT: Finished leaderboard -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🏁 FINISHERS</div>
         <div class="panel-count" id="lbCount">0</div>
       </div>
       <div class="panel-scroll" id="lbScroll">
@@ -297,15 +295,8 @@ function fmtTime(ms) {
   return `${m}:${String(r).padStart(2,'0')}`;
 }
 
-function calcScore(coins, mazeStartTime, mazeEndTime) {
-  const base = coins || 0;
-  if (!mazeStartTime || !mazeEndTime) return base;
-  const startMs = mazeStartTime.toMillis ? mazeStartTime.toMillis() : mazeStartTime;
-  const endMs   = mazeEndTime.toMillis   ? mazeEndTime.toMillis()   : mazeEndTime;
-  const elapsedSec = Math.max(0, (endMs - startMs) / 1000);
-  const maxTimeSec = 30 * 60;
-  const timeBonus = Math.max(0, Math.floor((maxTimeSec - elapsedSec) / 10));
-  return base + timeBonus;
+function calcScore(coins) {
+  return coins || 0;
 }
 
 function elapsedMs(mazeStartTime) {
@@ -347,8 +338,12 @@ function boot() {
   const lbInner  = document.getElementById('lbInner');
   const lbCount  = document.getElementById('lbCount');
   const lbScroll = document.getElementById('lbScroll');
+  const imInner  = document.getElementById('imInner');
+  const imCount  = document.getElementById('imCount');
+  const imScroll = document.getElementById('imScroll');
 
   const lbScroller = makeScroller(lbScroll, lbInner);
+  const imScroller = makeScroller(imScroll, imInner);
 
   let latestKids = [];
 
@@ -359,50 +354,61 @@ function boot() {
       if (d.revoked) return;
       latestKids.push({ id: doc.id, ...d });
     });
-    renderLeaderboard(latestKids);
+    renderAll(latestKids);
   });
 
-  function renderLeaderboard(kids) {
+  function renderAll(kids) {
+    // Finishers
     const finished = kids
       .filter(k => k.mazeEndTime)
       .map(k => {
         const startMs = k.mazeStartTime?.toMillis?.() ?? null;
         const endMs   = k.mazeEndTime?.toMillis?.()   ?? null;
         const durationMs = (startMs && endMs) ? endMs - startMs : null;
-        const score = calcScore(k.coins, k.mazeStartTime, k.mazeEndTime);
-        return { ...k, durationMs, score };
+        return { ...k, durationMs, score: calcScore(k.coins) };
       })
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score || (a.durationMs ?? Infinity) - (b.durationMs ?? Infinity));
 
     lbCount.textContent = finished.length;
-
     if (!finished.length) {
       lbInner.innerHTML = '<div class="empty-msg">No finishers yet…<br>Be the first!</div>';
-      return;
+    } else {
+      lbInner.innerHTML = finished.map((k, i) => {
+        const rank = i + 1;
+        const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
+        const rowClass  = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+        const rankStr   = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : `#${rank}`;
+        const time      = k.durationMs ? fmtTime(k.durationMs) : '—';
+        return `<div class="lb-row ${rowClass}">
+          <div class="lb-rank ${rankClass}">${rankStr}</div>
+          <div class="lb-name">${escHtml(k.name || '?')}</div>
+          <div class="lb-badges">
+            ${k.savedPeach?`<span class="lb-badge earned"><img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
+            ${k.collectedShell?`<span class="lb-badge earned"><img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
+          </div>
+          <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
+          <div class="lb-time">${time}</div>
+        </div>`;
+      }).join('');
     }
-
-    lbInner.innerHTML = finished.map((k, i) => {
-      const rank = i + 1;
-      const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
-      const rowClass  = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
-      const medals    = ['🥇','🥈','🥉'];
-      const rankStr   = rank <= 3 ? medals[rank-1] : `#${rank}`;
-      const time      = k.durationMs ? fmtTime(k.durationMs) : '—';
-      return `<div class="lb-row ${rowClass}">
-        <div class="lb-rank ${rankClass}">${rankStr}</div>
-        <div class="lb-name">${escHtml(k.name || '?')}</div>
-        <div class="lb-badges">
-          ${k.savedPeach?`<span class="lb-badge earned" title="Saved Peach"><img src="icons/princess_peach.png" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
-          ${k.usedMushroom?`<span class="lb-badge earned" title="Mushroom Power"><img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
-          ${k.usedShell?`<span class="lb-badge earned" title="Red Shell"><img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle"></span>`:''}
-        </div>
-        <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
-        <div class="lb-time">${time}</div>
-      </div>`;
-    }).join('');
-
     lbScroller.reset();
-    applyFollow();
+
+    // In maze
+    const inMaze = kids
+      .filter(k => k.mazeStartTime && !k.mazeEndTime)
+      .sort((a, b) => (b.coins ?? 0) - (a.coins ?? 0) || (a.name||'').localeCompare(b.name||''));
+
+    imCount.textContent = inMaze.length;
+    if (!inMaze.length) {
+      imInner.innerHTML = '<div class="empty-msg">Nobody in the maze yet…</div>';
+    } else {
+      imInner.innerHTML = inMaze.map(k => `
+        <div class="im-row">
+          <div class="lb-name">${escHtml(k.name || '?')}</div>
+          <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins ?? 0}</div>
+        </div>`).join('');
+    }
+    imScroller.reset();
   }
 
 }
@@ -412,13 +418,6 @@ function escHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-function applyFollow() {
-  const q = (document.getElementById('followSearch')?.value || '').trim().toLowerCase();
-  document.querySelectorAll('.lb-row, .im-row').forEach(row => {
-    const name = (row.querySelector('.lb-name, .im-name')?.textContent || '').toLowerCase();
-    row.classList.toggle('follow', !!(q && name.includes(q)));
-  });
-}
 </script>
 </body>
 </html>

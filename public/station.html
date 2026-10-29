@@ -630,6 +630,8 @@
     .hub-btn.hub-rescue:active  { box-shadow:1px 1px 0 #ff80cc; }
     .hub-btn.hub-bowser  { background:#0e2608; border-color:#60c820; box-shadow:4px 4px 0 #60c820; }
     .hub-btn.hub-bowser:active  { box-shadow:1px 1px 0 #60c820; }
+    .hub-btn.hub-wario   { background:#1a0030; border-color:#f5c800; box-shadow:4px 4px 0 #f5c800; }
+    .hub-btn.hub-wario:active   { box-shadow:1px 1px 0 #f5c800; }
     .hub-btn.hub-lands   { background:#0a1a2a; border-color:#66aadd; box-shadow:4px 4px 0 #66aadd; }
     .hub-btn.hub-lands:active   { box-shadow:1px 1px 0 #66aadd; }
     .hub-btn.hub-ice     { background:#0a1e30; border-color:#88d8ff; box-shadow:4px 4px 0 #88d8ff; }
@@ -708,10 +710,14 @@
     body.kiosk.station-mushroom header { background: linear-gradient(to bottom, #5c94fc 48px, #7a3300 48px); }
     body.kiosk.station-rescue   header { background: linear-gradient(to bottom, #5c94fc 48px, #4a1a3a 48px); }
     body.kiosk.station-bowser   header { background: #1a3a10; padding-top: 0; }
+    body.kiosk.station-wario    header { background: linear-gradient(to bottom, #5c94fc 48px, #3a006a 48px); }
     body.station-shell   #view-control .keypad-section { border-color:#e52521 !important; box-shadow:6px 6px 0 #e52521 !important; }
     body.station-mushroom #view-control .keypad-section { border-color:#ff8800 !important; box-shadow:6px 6px 0 #ff8800 !important; }
     body.station-rescue  #view-control .keypad-section { border-color:#ff80cc !important; box-shadow:6px 6px 0 #ff80cc !important; }
     body.station-bowser  #view-control .keypad-section { border-color:#60c820 !important; box-shadow:6px 6px 0 #60c820 !important; }
+    body.station-wario   #view-control .keypad-section { background:#1a0030 !important; border-color:#f5c800 !important; box-shadow:6px 6px 0 #f5c800 !important; }
+    body.station-wario   .kiosk .key-btn { background:#2d0050 !important; border-color:#b800d8 !important; }
+    body.station-wario   .digit-slot.filled { color:#f5c800 !important; text-shadow:0 0 8px rgba(245,200,0,.6) !important; }
 
     /* ── Land station background overlay ── */
     #landBg { position:fixed; inset:0; z-index:1; display:none; pointer-events:none; }
@@ -746,7 +752,8 @@
     body.station-ice    #landIcon,
     body.station-water  #landIcon,
     body.station-fire   #landIcon,
-    body.station-lava   #landIcon { display:block; }
+    body.station-lava   #landIcon,
+    body.station-wario  #landIcon { display:block; }
     @keyframes landPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
 
     /* ── Special result overlay ─────────────────────────── */
@@ -774,6 +781,46 @@
     @keyframes mushroomFlashIn { from{opacity:0} to{opacity:1} }
     .flash-title { font-family:'Press Start 2P',monospace; font-size:clamp(28px,7vw,56px); color:#fff; text-shadow:3px 3px 0 #900; line-height:1.5; }
     .flash-sub   { font-family:'Press Start 2P',monospace; font-size:clamp(16px,4vw,30px); color:#ffd0d0; }
+
+    /* ── Wario Leaderboard Overlay ── */
+    #warioLeaderboard {
+      display:none; position:fixed; inset:0; z-index:600;
+      background:rgba(15,0,30,.97);
+      flex-direction:column; align-items:stretch; overflow:hidden;
+    }
+    #warioLeaderboard.show { display:flex; }
+    .wl-header {
+      background:#3a006a; border-bottom:4px solid #f5c800;
+      padding:clamp(12px,2vh,20px) clamp(16px,3vw,28px);
+      display:flex; align-items:center; gap:16px; flex-shrink:0;
+    }
+    .wl-pig { font-size:clamp(40px,7vw,64px); line-height:1; animation:warioBounce 1.6s ease-in-out infinite; }
+    @keyframes warioBounce { 0%,100%{transform:scale(1) rotate(-3deg)} 50%{transform:scale(1.1) rotate(3deg)} }
+    .wl-title { font-family:'Press Start 2P',monospace; font-size:clamp(13px,2.5vw,20px); color:#f5c800; text-shadow:2px 2px 0 #000; line-height:1.8; }
+    .wl-sub { font-family:'Inter',sans-serif; font-size:clamp(12px,1.8vw,15px); color:#d0a0ff; margin-top:3px; }
+    #wlList { flex:1; overflow-y:auto; padding:10px 0; }
+    .wl-row {
+      display:flex; align-items:center; gap:clamp(10px,2vw,20px);
+      padding:clamp(10px,1.6vh,18px) clamp(16px,3vw,32px);
+      border-bottom:1px solid rgba(74,0,128,.4);
+    }
+    .wl-row-current { background:rgba(245,200,0,.12); border-left:4px solid #f5c800; }
+    .wl-row-target  { background:rgba(180,0,255,.12); border-left:4px solid #c060ff; }
+    .wl-rank { font-family:'Press Start 2P',monospace; font-size:clamp(10px,1.6vw,14px); color:#a070c0; min-width:clamp(32px,4vw,50px); flex-shrink:0; }
+    .wl-name { font-weight:800; font-size:clamp(15px,2.4vw,28px); color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .wl-name-current { color:#f5c800; }
+    .wl-coins { font-family:'Press Start 2P',monospace; font-size:clamp(12px,1.8vw,20px); color:#e8a000; flex-shrink:0; }
+    .wl-badge { font-size:clamp(16px,2.4vw,24px); flex-shrink:0; }
+    #wlActions { background:#1a0030; border-top:3px solid #3a006a; padding:clamp(12px,2vh,20px) clamp(16px,3vw,28px); display:flex; gap:12px; justify-content:center; flex-wrap:wrap; flex-shrink:0; }
+    .wl-btn { font-family:'Press Start 2P',monospace; font-size:clamp(9px,1.4vw,12px); border:3px solid; border-radius:4px; padding:clamp(10px,1.6vh,16px) clamp(14px,2.5vw,24px); cursor:pointer; transition:transform .08s,box-shadow .08s; line-height:1.6; }
+    .wl-btn:active { transform:translate(2px,2px); }
+    .wl-btn-steal { background:#3d0060; color:#ff80ff; border-color:#c060ff; box-shadow:4px 4px 0 #c060ff; }
+    .wl-btn-steal:active { box-shadow:1px 1px 0 #c060ff; }
+    .wl-btn-switch { background:#003060; color:#80d0ff; border-color:#4080cc; box-shadow:4px 4px 0 #4080cc; }
+    .wl-btn-switch:active { box-shadow:1px 1px 0 #4080cc; }
+    .wl-btn-done { background:#1a1a1a; color:#aaa; border-color:#555; box-shadow:4px 4px 0 #333; }
+    .wl-btn-done:active { box-shadow:1px 1px 0 #333; }
+    .wl-result-msg { font-family:'Press Start 2P',monospace; font-size:clamp(10px,1.8vw,14px); color:#4cff50; text-align:center; min-height:1.4em; text-shadow:1px 1px 0 #000; }
   </style>
   <script src="/pw.js"></script>
 </head>
@@ -892,6 +939,11 @@
         <span class="hub-text"><span class="hub-label">FIGHT BOWSER</span><span class="hub-desc">Fire at Bowser!</span></span>
         <span class="hub-arrow">▶</span>
       </button>
+      <button class="hub-btn hub-wario" onclick="pickSpecialStation('wario')">
+        <span class="hub-icon">🐷</span>
+        <span class="hub-text"><span class="hub-label">WARIO'S VAULT</span><span class="hub-desc">Steal &amp; Switch!</span></span>
+        <span class="hub-arrow">▶</span>
+      </button>
       <button class="hub-btn hub-coin" onclick="showCoinList()">
         <span class="hub-icon"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"></span>
         <span class="hub-text"><span class="hub-label">COIN STATIONS</span><span class="hub-desc">Regular earn stations</span></span>
@@ -973,6 +1025,20 @@
     </div>
     <div id="brRank" style="font-family:'Press Start 2P',monospace;font-size:clamp(12px,2.5vw,18px);color:#fff;opacity:0;transition:opacity .6s;margin-top:8px;line-height:1.8"></div>
     <div style="font-family:'Inter',sans-serif;font-size:clamp(12px,1.8vw,16px);color:#c4956a;margin-top:4px">Hunt complete! 🎉</div>
+  </div>
+
+  <!-- Wario leaderboard overlay -->
+  <div id="warioLeaderboard">
+    <div class="wl-header">
+      <div class="wl-pig">🐷</div>
+      <div>
+        <div class="wl-title">WARIO'S VAULT</div>
+        <div class="wl-sub" id="wlSubtitle">Steal coins or switch scores!</div>
+      </div>
+    </div>
+    <div id="wlList"></div>
+    <div id="wlResult" class="wl-result-msg" style="padding:8px 24px;background:#0d0020;flex-shrink:0"></div>
+    <div id="wlActions"></div>
   </div>
 
   <!-- Global mushroom flash overlay -->
@@ -1448,8 +1514,8 @@ async function kioskExit(){
   try{if(document.fullscreenElement){if(document.exitFullscreen)await document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}}catch(_){}
 }
 
-const SPECIAL_NAMES={shell:'RED SHELL',mushroom:'MUSHROOM',rescue_peach:'RESCUE: PRINCESS PEACH',bowser:'FIGHT BOWSER',start:'START LINE'};
-let currentStationMode='coin'; // 'coin'|'shell'|'mushroom'|'rescue_peach'|'bowser'
+const SPECIAL_NAMES={shell:'RED SHELL',mushroom:'MUSHROOM',rescue_peach:'RESCUE: PRINCESS PEACH',bowser:'FIGHT BOWSER',start:'START LINE',wario:"WARIO'S VAULT"};
+let currentStationMode='coin'; // 'coin'|'shell'|'mushroom'|'rescue_peach'|'bowser'|'wario'
 
 function show(which){
   viewList.classList.toggle('hide',which!=='list');
@@ -1459,7 +1525,7 @@ function show(which){
   $('view-lands').classList.toggle('hide',which!=='lands');
   const svEl=$('view-start'); if(svEl) svEl.classList.toggle('show',which==='start');
   document.body.classList.toggle('kiosk',which==='control');
-  ['coin','shell','mushroom','rescue','bowser','ice','water','fire','lava'].forEach(m=>document.body.classList.remove('station-'+m));
+  ['coin','shell','mushroom','rescue','bowser','wario','ice','water','fire','lava'].forEach(m=>document.body.classList.remove('station-'+m));
   if(which==='control'){
     const m=currentStationMode==='rescue_peach'?'rescue':
             currentStationMode.startsWith('land_')?currentStationMode.slice(5):currentStationMode;
@@ -1519,6 +1585,8 @@ async function pickSpecialStation(mode, skipFullscreen=false){
   titleEl.textContent=label;
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
+  const li=$('landIcon');
+  if(li) li.textContent=(mode==='wario')?'🐷':'';
   const beat=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');
@@ -1662,12 +1730,15 @@ function rebuildSlots(len){
 
 // Read code length from Firestore and rebuild slots whenever it changes.
 // Must wait for auth or Firestore rejects with permission-denied.
+let _stationActiveEventId = null;
+
 (function startConfigSnap(){
   waitForAuth().then(()=>{
     db.collection('config').doc('config').onSnapshot(doc=>{
       const d=doc.exists?doc.data():{};
       const newLen=Number.isInteger(d.codeLength)&&d.codeLength>=1?d.codeLength:3;
       if(newLen!==codeLength) rebuildSlots(newLen);
+      _stationActiveEventId = d.activeEventId||null;
     },(err)=>{
       console.warn('config snap err',err.code);
       if(err.code==='permission-denied') setTimeout(startConfigSnap, 2000);
@@ -1746,6 +1817,12 @@ async function submitStationCode(code){
   if(!docRef){codeBuffer='';updateDisplay();shakeDisplay();setStatus('Code not found');setTimeout(()=>setStatus(''),2500);return;}
   const name=kidData.name||kidData.displayName||'Participant';
 
+  // Block kids from a different event
+  if(_stationActiveEventId && kidData.eventId && kidData.eventId !== _stationActiveEventId){
+    showScanMsg('Wrong event — this wristband is for a different night!','#ff8080','#ff8080','rgba(255,128,128,.15)','',4000);
+    codeBuffer='';updateDisplay();return;
+  }
+
   // Block completed players except at the start station (where they can re-run).
   // Multi-scan mode (testing) bypasses this so any station — including Bowser — can be re-tested.
   if((kidData.completed===true||kidData.mazeEndTime) && currentStationMode!=='start'){
@@ -1784,6 +1861,7 @@ async function submitStationCode(code){
   if(currentStationMode==='mushroom')       return handleMushroomStation(docRef,kidData);
   if(currentStationMode==='rescue_peach')   return handleRescueStation(docRef,kidData,'peach','Princess Peach',code);
   if(currentStationMode==='bowser')         return handleBowserStation(docRef,kidData);
+  if(currentStationMode==='wario')          return handleWarioStation(docRef,kidData);
   // land_ modes fall through to coin game below — fire their OSC now
   if(currentStationMode.startsWith('land_')){
     sendConfiguredOsc(currentStationMode).catch(()=>{}); // 'land_ice', 'land_water', etc.
@@ -2180,6 +2258,147 @@ async function handleBowserStation(docRef,kidData){
   await sendConfiguredOsc('bowser_defeated').catch(()=>{});
   fireConfetti();
   showBowserReveal(name, kidData.coins || 0);
+}
+
+// ── Wario Station ──────────────────────────────────────────────
+async function handleWarioStation(docRef, kidData){
+  const name = kidData.name || kidData.displayName || 'Player';
+  const now  = firebase.firestore.Timestamp.now();
+
+  // Mark scan
+  docRef.update({
+    scans: FSV.arrayUnion(currentStationId),
+    ['scanCounts.'+currentStationId]: FSV.increment(1),
+  }).catch(()=>{});
+  db.collection('scans').add({
+    kidId:docRef.id, name, station:'wario', stationLabel:"Wario's Vault",
+    coins:0, gameType:'wario', timestamp:now, newTotal:kidData.coins||0
+  }).catch(()=>{});
+
+  codeBuffer=''; updateDisplay(); setStatus('');
+  showWarioLeaderboard(docRef, kidData);
+}
+
+function _getInMazeKids(){
+  if(!_kidsCache) return [];
+  const seen = new Set();
+  const result = [];
+  Object.values(_kidsCache).forEach(({ref,data})=>{
+    if(seen.has(ref.id)) return;
+    seen.add(ref.id);
+    if(data.mazeStartTime && !data.mazeEndTime && !data.revoked)
+      result.push({ref, data, id:ref.id});
+  });
+  result.sort((a,b)=>(b.data.coins||0)-(a.data.coins||0));
+  return result;
+}
+
+function _ordinalWario(n){
+  const s=['th','st','nd','rd'],v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+
+function showWarioLeaderboard(currentRef, currentData){
+  const overlay  = document.getElementById('warioLeaderboard');
+  const listEl   = document.getElementById('wlList');
+  const actionsEl= document.getElementById('wlActions');
+  const resultEl = document.getElementById('wlResult');
+  const subtitleEl = document.getElementById('wlSubtitle');
+
+  const cfg = window._warioCfg || {stealEnabled:false,stealAmount:30,switchEnabled:false};
+  const kids = _getInMazeKids();
+  const myIdx = kids.findIndex(k=>k.id===currentRef.id);
+  const target = myIdx > 0 ? kids[myIdx-1] : null; // player ranked directly above
+
+  // Build leaderboard rows
+  listEl.innerHTML = kids.length === 0
+    ? '<div style="padding:40px;text-align:center;font-family:\'Press Start 2P\',monospace;font-size:13px;color:#888">No players in maze yet</div>'
+    : kids.map((k,i)=>{
+      const isCurrent = k.id === currentRef.id;
+      const isTarget  = target && k.id === target.id;
+      let rowClass='wl-row';
+      if(isCurrent) rowClass+=' wl-row-current';
+      else if(isTarget) rowClass+=' wl-row-target';
+      const badge = isCurrent ? '👤' : (isTarget ? '🎯' : '');
+      const nameClass = isCurrent ? 'wl-name wl-name-current' : 'wl-name';
+      const label = isCurrent ? (k.data.name||'?')+' ← YOU' : (k.data.name||'?');
+      return `<div class="${rowClass}">
+        <div class="wl-rank">${_ordinalWario(i+1)}</div>
+        <div class="${nameClass}">${escapeHtml(label)}</div>
+        ${badge?`<div class="wl-badge">${badge}</div>`:''}
+        <div class="wl-coins">💰 ${k.data.coins||0}</div>
+      </div>`;
+    }).join('');
+
+  // Build action buttons
+  resultEl.textContent='';
+  actionsEl.innerHTML='';
+
+  const canAct = target !== null;
+
+  if(canAct && cfg.stealEnabled){
+    const stealAmt = Math.min(cfg.stealAmount, target.data.coins||0);
+    const btn=document.createElement('button');
+    btn.className='wl-btn wl-btn-steal';
+    btn.textContent=`STEAL ${stealAmt} COINS`;
+    btn.onclick=()=>doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listEl,actionsEl,resultEl);
+    actionsEl.appendChild(btn);
+  }
+  if(canAct && cfg.switchEnabled){
+    const btn=document.createElement('button');
+    btn.className='wl-btn wl-btn-switch';
+    btn.textContent='SWITCH SCORES';
+    btn.onclick=()=>doWarioSwitch(currentRef,currentData,target,overlay,listEl,actionsEl,resultEl);
+    actionsEl.appendChild(btn);
+  }
+  if(!canAct){
+    subtitleEl.textContent = myIdx===0 ? "WAAAHAHA! You're already #1!" : "No one to target yet!";
+  }
+
+  const doneBtn=document.createElement('button');
+  doneBtn.className='wl-btn wl-btn-done';
+  doneBtn.textContent='NO THANKS';
+  doneBtn.onclick=()=>{ overlay.classList.remove('show'); };
+  actionsEl.appendChild(doneBtn);
+
+  overlay.classList.add('show');
+}
+
+async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listEl,actionsEl,resultEl){
+  actionsEl.querySelectorAll('button').forEach(b=>b.disabled=true);
+  resultEl.textContent='Stealing…';
+  try{
+    const batch=db.batch();
+    batch.update(currentRef,{coins:FSV.increment(stealAmt)});
+    batch.update(target.ref,{coins:FSV.increment(-stealAmt)});
+    await batch.commit();
+    const myNewCoins=(currentData.coins||0)+stealAmt;
+    resultEl.textContent=`WAAAHAHA! +${stealAmt} coins stolen from ${target.data.name||'them'}!`;
+    fireConfetti();
+    setTimeout(()=>overlay.classList.remove('show'),3500);
+  }catch(e){
+    resultEl.textContent='Error: '+e.message;
+    actionsEl.querySelectorAll('button').forEach(b=>b.disabled=false);
+  }
+}
+
+async function doWarioSwitch(currentRef,currentData,target,overlay,listEl,actionsEl,resultEl){
+  actionsEl.querySelectorAll('button').forEach(b=>b.disabled=true);
+  resultEl.textContent='Switching…';
+  try{
+    const myCoins   = currentData.coins||0;
+    const theirCoins= target.data.coins||0;
+    const batch=db.batch();
+    batch.update(currentRef,{coins:theirCoins});
+    batch.update(target.ref,{coins:myCoins});
+    await batch.commit();
+    resultEl.textContent=`WAAAHAHA! Swapped! You now have ${theirCoins} coins!`;
+    fireConfetti();
+    setTimeout(()=>overlay.classList.remove('show'),3500);
+  }catch(e){
+    resultEl.textContent='Error: '+e.message;
+    actionsEl.querySelectorAll('button').forEach(b=>b.disabled=false);
+  }
 }
 
 function sendSwitchCommand(outlet,state){
@@ -2651,6 +2870,11 @@ const SFX = (function(){
     if(d.adminCode)               CFG.adminCode         = String(d.adminCode).replace(/\D/g,'');
     if(d.startCoins!=null)        CFG.startCoins        = Number(d.startCoins);
     window._cfgAdminCode = CFG.adminCode;
+    window._warioCfg = {
+      stealEnabled:  d.warioStealEnabled  === true,
+      stealAmount:   Number(d.warioStealAmount  ?? 30),
+      switchEnabled: d.warioSwitchEnabled === true,
+    };
   }).catch(()=>{});
 
 

@@ -332,14 +332,21 @@
     const ding = document.getElementById('dingSound');
 
     let codeLength = 6;
+    let _activeEventId = null;
 
-    firebase.auth().signInAnonymously().then(()=>{ probe(); openCheckin(); }).catch(()=>{
+    firebase.auth().signInAnonymously().then(()=>{ probe(); openCheckin(); startEventWatch(); }).catch(()=>{
       setChip('err','Auth failed');
     });
 
     function setChip(state, text){
       document.getElementById('dbText').textContent = text || '';
       document.getElementById('dbChip').querySelector('.dot').className = 'dot ' + state;
+    }
+
+    function startEventWatch(){
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _activeEventId=(snap.data()||{}).activeEventId||null;
+      });
     }
 
     async function probe(){
@@ -429,11 +436,13 @@
           document.getElementById('generatedCode').textContent = finalCode;
         }
         const code2use = finalCode;
-        const kidRef = await db.collection('kids').add({
+        const kidPayload = {
           name, code: code2use, barcode: code2use,
           scans: [], startCheckIn: new Date().toISOString(),
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        };
+        if(_activeEventId) kidPayload.eventId = _activeEventId;
+        const kidRef = await db.collection('kids').add(kidPayload);
 
         // Assign ? box powerup stations based on current powerupMode
         try{

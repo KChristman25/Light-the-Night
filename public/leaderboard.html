@@ -141,7 +141,7 @@
   .lb-score {
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(13px, 2.1vw, 26px);
-    color: #e8a000; flex-shrink: 0;
+    color: #000; flex-shrink: 0;
     min-width: clamp(70px,9vw,130px); text-align: center;
   }
 
@@ -162,7 +162,7 @@
     text-align: center;
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(10px,1.6vw,16px);
-    color: #7a5c44;
+    color: #000;
     line-height: 2.2;
   }
 
@@ -350,8 +350,9 @@ function buildRowEl(item, rank) {
   if (item.land_water) bdgs.push('<span style="font-size:2.6em">🌊</span>');
   if (item.land_fire)  bdgs.push('<span style="font-size:2.6em">🔥</span>');
   if (item.land_lava)  bdgs.push('<span style="font-size:2.6em">🌋</span>');
+  if (item.savedPeach)        bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach" style="height:clamp(64px,9.5vh,120px)">');
+  if (item.collectedMushroom) bdgs.push('<img src="icons/mushroom.png" alt="Mushroom" style="height:clamp(42px,6.2vh,76px)">');
   if (item.collectedShell || item.usedShell) bdgs.push('<img src="icons/red_shell.webp" alt="Red Shell" style="height:clamp(42px,6.2vh,76px)">');
-  if (item.savedPeach)     bdgs.push('<img src="icons/princess_peach.png" alt="Saved Peach" style="height:clamp(64px,9.5vh,120px)">');
   const el = document.createElement('div');
   const alt = rank % 2 === 1 ? ' lb-row-alt' : '';
   el.className = `lb-row${cls?' '+cls:''}${alt}`;
@@ -623,9 +624,29 @@ function _testReset() {
 }
 
 // ── Firebase ─────────────────────────────────────────────
+let _lbEventFilter = null; // null = all events
+let _allKidsRaw = []; // cache of all kids for re-filtering
+
+function _kidMatchesFilter(d) {
+  if (!_lbEventFilter) return true;
+  return d.eventId === _lbEventFilter;
+}
+
 firebase.auth().signInAnonymously().catch(() => {});
 firebase.auth().onAuthStateChanged(user => {
   if (!user) return;
+
+  db.collection('config').doc('config').onSnapshot(snap => {
+    const newFilter = (snap.data()||{}).lbEventFilter || null;
+    if (newFilter !== _lbEventFilter) {
+      _lbEventFilter = newFilter;
+      if (_allKidsRaw.length) {
+        committedList = []; pendingQueue = [];
+        stopScroll();
+        initRender(_allKidsRaw.filter(k => _kidMatchesFilter(k)));
+      }
+    }
+  });
 
   let _lbReloadTs = Number(sessionStorage.getItem('ltn_lb_reload_ts') || 0);
   db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap => {
@@ -645,7 +666,8 @@ firebase.auth().onAuthStateChanged(user => {
       const d = doc.data();
       if (!d.revoked) kids.push({ id: doc.id, ...d });
     });
-    initRender(kids);
+    _allKidsRaw = kids;
+    initRender(kids.filter(k => _kidMatchesFilter(k)));
 
     // Watch kids for changes — add new finishers to queue; rebuild on reset/removal
     db.collection('kids').onSnapshot(snap => {
@@ -667,7 +689,13 @@ firebase.auth().onAuthStateChanged(user => {
           return;
         }
 
+        // Update raw cache
+        const rawIdx = _allKidsRaw.findIndex(k => k.id === id);
+        if (rawIdx !== -1) _allKidsRaw[rawIdx] = { id, ...d };
+        else if (!d.revoked) _allKidsRaw.push({ id, ...d });
+
         if (!d.mazeEndTime || d.revoked) return;
+        if (!_kidMatchesFilter(d)) return;
 
         // Already on leaderboard — update coins/badges in-place
         const existingIdx = committedList.findIndex(c => c.id === id);
@@ -706,11 +734,11 @@ firebase.auth().onAuthStateChanged(user => {
       });
 
       if (needsRebuild) {
-        const kids = [];
-        snap.forEach(doc => { const d = doc.data(); if (!d.revoked) kids.push({ id: doc.id, ...d }); });
+        _allKidsRaw = [];
+        snap.forEach(doc => { const d = doc.data(); if (!d.revoked) _allKidsRaw.push({ id: doc.id, ...d }); });
         committedList = []; pendingQueue = [];
         stopScroll();
-        initRender(kids);
+        initRender(_allKidsRaw.filter(k => _kidMatchesFilter(k)));
       }
     });
   });

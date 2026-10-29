@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Light the Night — Split Leaderboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="/pw.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: #5c94fc;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #231207;
+  }
+
+  #bgCanvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    image-rendering: pixelated;
+  }
+
+  #app {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+  }
+
+  /* ── Header ── */
+  .topbar {
+    flex-shrink: 0;
+    background: #e52521;
+    border-bottom: 3px solid #231207;
+    display: flex; align-items: center; justify-content: center;
+    padding: clamp(8px,1.2vh,14px) clamp(16px,2.5vw,32px);
+    gap: 14px;
+    position: relative;
+  }
+  .topbar-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.6vw, 16px);
+    color: #fff;
+    text-shadow: 2px 2px 0 #231207;
+    letter-spacing: .04em;
+  }
+  .topbar-coin {
+    display: inline-block;
+    width: clamp(12px,1.8vw,18px); height: clamp(12px,1.8vw,18px);
+    background: #e8a000; border: 2px solid #fff; border-radius: 50%;
+    animation: coinSpin 1.2s steps(4) infinite; flex-shrink: 0;
+  }
+  @keyframes coinSpin {
+    0%,100% { transform: scaleX(1); background: #e8a000; }
+    25%,75%  { transform: scaleX(0.3); background: #c07800; }
+    50%      { transform: scaleX(0.1); background: #c07800; }
+  }
+  .topbar-counts {
+    position: absolute; right: clamp(12px,2vw,24px);
+    display: flex; gap: 12px;
+  }
+  .topbar-chip {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(7px, 1vw, 10px);
+    color: #fff;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 3px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+
+  /* ── Two-panel layout ── */
+  .panels {
+    flex: 1; min-height: 0;
+    display: flex;
+  }
+
+  .panel-divider {
+    width: 4px;
+    background: rgba(35,18,7,.25);
+    flex-shrink: 0;
+  }
+
+  .panel {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .panel-header {
+    flex-shrink: 0;
+    padding: clamp(8px,1.2vh,14px) clamp(12px,2vw,24px);
+    background: #231207;
+    border-bottom: 3px solid #e8a000;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, 1.3vw, 13px);
+    color: #e8a000;
+    text-shadow: 1px 1px 0 #000;
+    flex: 1;
+    letter-spacing: .04em;
+  }
+  .panel-count {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(7px, 1vw, 10px);
+    color: #fff;
+    background: #3a1f0a;
+    border: 1px solid #e8a000;
+    border-radius: 3px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+
+  .panel-scroll {
+    flex: 1; min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .panel-inner {
+    position: absolute; width: 100%;
+    will-change: transform;
+    padding-bottom: 12px;
+  }
+
+  /* ── Finisher rows ── */
+  .lb-row {
+    display: flex; align-items: center; gap: clamp(8px,1.2vw,16px);
+    padding: clamp(9px,1.4vh,18px) clamp(12px,2vw,28px);
+    border-bottom: 2px solid rgba(35,18,7,.1);
+    background: rgba(255,255,255,.88);
+  }
+  .lb-row:nth-child(even) { background: rgba(255,255,255,.7); }
+  .lb-row.gold   { background: rgba(232,160,0,.52); border-bottom-color: rgba(200,130,0,.35); }
+  .lb-row.silver { background: rgba(192,192,192,.52); border-bottom-color: rgba(160,160,160,.35); }
+  .lb-row.bronze { background: rgba(205,127,50,.44); border-bottom-color: rgba(175,100,30,.3); }
+
+  .lb-rank {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.6vw, 18px);
+    color: #e52521;
+    min-width: clamp(28px,3.5vw,48px);
+    flex-shrink: 0; text-align: center;
+  }
+  .lb-rank.r1 { color: #e8a000; }
+  .lb-rank.r2 { color: #888; }
+  .lb-rank.r3 { color: #cd7f32; }
+
+  .lb-name {
+    font-weight: 800;
+    font-size: clamp(13px, 1.9vw, 24px);
+    color: #231207;
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .lb-badges { display: flex; align-items: center; gap: clamp(3px,0.4vw,6px); flex-shrink: 0; }
+  .lb-badge { line-height: 1; }
+  .lb-badge img { height: clamp(16px,2.4vh,28px); width: auto; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.3)); }
+
+  .lb-coins {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 1.3vw, 15px);
+    color: #e8a000;
+    flex-shrink: 0;
+    min-width: clamp(56px,7vw,96px); text-align: right;
+  }
+  .lb-time {
+    font-size: clamp(11px, 1.3vw, 15px);
+    font-weight: 700;
+    color: #4a3728;
+    flex-shrink: 0;
+    min-width: clamp(48px,6vw,80px); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── In-maze rows ── */
+  .im-row {
+    display: flex; align-items: center; gap: clamp(8px,1.2vw,16px);
+    padding: clamp(9px,1.4vh,18px) clamp(12px,2vw,28px);
+    border-bottom: 2px solid rgba(35,18,7,.1);
+    background: rgba(255,255,255,.88);
+    overflow: hidden; position: relative;
+  }
+  .im-row:nth-child(even) { background: rgba(255,255,255,.7); }
+
+  .im-pos {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 1.3vw, 14px);
+    color: #888;
+    min-width: clamp(22px,3vw,40px);
+    flex-shrink: 0; text-align: center;
+  }
+  .im-dot {
+    width: clamp(8px,1.1vw,12px); height: clamp(8px,1.1vw,12px);
+    border-radius: 50%;
+    background: #4cff50; box-shadow: 0 0 8px #4cff50;
+    flex-shrink: 0; animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .im-name {
+    font-weight: 800;
+    font-size: clamp(13px, 1.9vw, 24px);
+    color: #231207; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .im-powerups {
+    display: flex; align-items: center; gap: clamp(3px,0.4vw,6px);
+    flex-shrink: 0;
+  }
+  .im-powerups img {
+    height: clamp(16px,2.4vh,28px); width: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.3));
+  }
+  .im-powerups span { font-size: clamp(14px,2vh,22px); line-height:1; }
+
+  .im-coins {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 1.3vw, 14px);
+    color: #e8a000; flex-shrink: 0;
+    min-width: clamp(50px,6.5vw,88px); text-align: right;
+  }
+  .im-elapsed {
+    font-size: clamp(11px, 1.3vw, 15px);
+    font-weight: 700;
+    color: #4a3728; flex-shrink: 0;
+    min-width: clamp(44px,5.5vw,72px); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty-msg {
+    padding: clamp(32px,5vh,56px) 24px;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px,1.4vw,13px);
+    color: #7a5c44;
+    line-height: 2.2;
+  }
+
+  /* ── Ground bar ── */
+  .ground {
+    flex-shrink: 0;
+    height: clamp(10px,1.4vh,16px);
+    background: #c8601c;
+    border-top: 3px solid #231207;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-coin"></span>
+    <div class="topbar-title">LIGHT THE NIGHT — LIVE LEADERBOARD</div>
+    <span class="topbar-coin"></span>
+    <div class="topbar-counts">
+      <div class="topbar-chip" id="chipInMaze">0 in maze</div>
+      <div class="topbar-chip" id="chipFinished">0 finished</div>
+    </div>
+  </div>
+
+  <div class="panels">
+    <!-- LEFT: In Maze -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🌟 IN THE MAZE</div>
+        <div class="panel-count" id="imCount">0</div>
+      </div>
+      <div class="panel-scroll" id="imScroll">
+        <div class="panel-inner" id="imInner">
+          <div class="empty-msg">Nobody in the maze yet…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-divider"></div>
+
+    <!-- RIGHT: Finishers -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🏁 FINISHERS</div>
+        <div class="panel-count" id="lbCount">0</div>
+      </div>
+      <div class="panel-scroll" id="lbScroll">
+        <div class="panel-inner" id="lbInner">
+          <div class="empty-msg">No finishers yet…<br>Be the first!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ground"></div>
+</div>
+
+<script>
+// ── Background ────────────────────────────────────────────────
+(function(){
+  const bc = document.getElementById('bgCanvas');
+  const bx = bc.getContext('2d');
+  const img = new Image(); img.src = 'mario-tiles.png';
+  function drawCloud(cx,cy,ts){
+    const L=Math.round(cx-ts*1.5),T=Math.round(cy-ts);
+    [[176,160],[192,160],[208,160],[176,176],[192,176],[208,176]].forEach(([sx,sy],i)=>{
+      bx.drawImage(img,sx,sy,16,16,L+(i%3)*ts,T+Math.floor(i/3)*ts,ts,ts);
+    });
+  }
+  function draw(){
+    const W=bc.width=window.innerWidth, H=bc.height=window.innerHeight;
+    bx.imageSmoothingEnabled=false;
+    bx.fillStyle='#5c94fc'; bx.fillRect(0,0,W,H);
+    const groundH=Math.round(H*0.04), gy=H-groundH;
+    if(img.complete&&img.naturalWidth>0){
+      const cs=Math.round(W*0.055);
+      drawCloud(W*0.12,H*0.1,cs);
+      drawCloud(W*0.48,H*0.08,Math.round(cs*1.2));
+      drawCloud(W*0.80,H*0.12,Math.round(cs*0.85));
+      const gt=Math.round(groundH/2),cols=Math.ceil(W/gt)+1;
+      for(let c=0;c<cols;c++) bx.drawImage(img,16,0,16,16,c*gt,gy,gt,gt);
+      for(let c=0;c<cols;c++) bx.drawImage(img,0,0,16,16,c*gt,gy+gt,gt,gt);
+    }
+  }
+  img.onload=draw; draw(); window.addEventListener('resize',draw);
+})();
+
+// ── Firebase ──────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:    "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+  authDomain:"light-the-night-2025.firebaseapp.com",
+  projectId: "light-the-night-2025"
+});
+const db = firebase.firestore();
+
+// ── Helpers ───────────────────────────────────────────────────
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function fmtTime(ms){
+  if(!ms||ms<0) return '—';
+  const s=Math.floor(ms/1000), m=Math.floor(s/60), r=s%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+}
+
+function ordinal(n){
+  const s=['th','st','nd','rd'],v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+
+// ── Auto-scroll ───────────────────────────────────────────────
+function makeScroller(scrollEl, innerEl){
+  let pos=0, anim=null;
+  function tick(){
+    const ch=innerEl.scrollHeight, vh=scrollEl.clientHeight;
+    if(ch>vh){ pos+=0.5; if(pos>=ch-vh+60) pos=0; }
+    else pos=0;
+    innerEl.style.transform=`translateY(${-pos}px)`;
+    anim=requestAnimationFrame(tick);
+  }
+  anim=requestAnimationFrame(tick);
+  return { reset(){ pos=0; } };
+}
+
+// ── Per-kid local start-time anchor (avoids clock drift) ──────
+const _kidStartMs = {};
+
+// ── Main ──────────────────────────────────────────────────────
+let _slbEventFilter = null;
+
+firebase.auth().signInAnonymously().catch(()=>{});
+firebase.auth().onAuthStateChanged(user=>{
+  if(!user) return;
+
+  const imInner  = document.getElementById('imInner');
+  const imCount  = document.getElementById('imCount');
+  const imScroll = document.getElementById('imScroll');
+  const lbInner  = document.getElementById('lbInner');
+  const lbCount  = document.getElementById('lbCount');
+  const lbScroll = document.getElementById('lbScroll');
+  const chipInMaze   = document.getElementById('chipInMaze');
+  const chipFinished = document.getElementById('chipFinished');
+
+  const imScroller = makeScroller(imScroll, imInner);
+  const lbScroller = makeScroller(lbScroll, lbInner);
+
+  let latestKids = [];
+
+  // Event filter
+  db.collection('config').doc('config').onSnapshot(snap=>{
+    const newFilter=(snap.data()||{}).lbEventFilter||null;
+    if(newFilter!==_slbEventFilter){ _slbEventFilter=newFilter; renderAll(); }
+  });
+
+  // Reload on broadcast
+  let _reloadTs = 0;
+  db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const ts=snap.data().triggeredAt?.toMillis?.()??null;
+    if(!ts||ts===_reloadTs) return;
+    _reloadTs=ts;
+    if(Date.now()-ts>30000) return;
+    setTimeout(()=>location.reload(), 500);
+  });
+
+  db.collection('kids').onSnapshot(snap=>{
+    const snapNow=Date.now();
+    latestKids=[];
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(d.revoked) return;
+      if(d.mazeStartTime&&!d.mazeEndTime){
+        const serverMs=d.mazeStartTime?.toMillis?.()??0;
+        const prev=_kidStartMs[doc.id];
+        if(!prev||prev.serverMs!==serverMs){
+          const localMs=serverMs>0&&serverMs<=snapNow?serverMs:snapNow;
+          _kidStartMs[doc.id]={serverMs,localMs};
+        }
+      } else {
+        delete _kidStartMs[doc.id];
+      }
+      latestKids.push({id:doc.id,...d});
+    });
+    renderAll();
+  });
+
+  // Tick elapsed every second
+  setInterval(()=>{
+    imInner.querySelectorAll('[data-start]').forEach(row=>{
+      const ts=parseInt(row.dataset.start,10);
+      const el=row.querySelector('.im-elapsed');
+      if(el) el.textContent=fmtTime(isNaN(ts)?0:Date.now()-ts);
+    });
+  },1000);
+
+  function renderAll(){
+    const now=Date.now();
+    const visKids = _slbEventFilter ? latestKids.filter(k=>k.eventId===_slbEventFilter) : latestKids;
+
+    // ── In Maze ──────────────────────────────────────────────
+    const inMaze=visKids
+      .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
+      .sort((a,b)=>(b.coins??0)-(a.coins??0)||(a.name||'').localeCompare(b.name||''));
+
+    imCount.textContent=inMaze.length;
+    chipInMaze.textContent=inMaze.length+' in maze';
+
+    if(!inMaze.length){
+      imInner.innerHTML='<div class="empty-msg">Nobody in the maze yet…</div>';
+    } else {
+      const _sc=(k,s)=>Array.isArray(k.scans)&&k.scans.some(x=>x===s||(x&&typeof x==='object'&&x.station===s));
+      imInner.innerHTML=inMaze.map((k,i)=>{
+        const startMs=_kidStartMs[k.id]?.localMs??now;
+        const powerups=[
+          _sc(k,'land_ice')   ?`<span title="Ice Land">🧊</span>`   :'',
+          _sc(k,'land_water') ?`<span title="Water Land">🌊</span>` :'',
+          _sc(k,'land_fire')  ?`<span title="Fire Land">🔥</span>`  :'',
+          _sc(k,'land_lava')  ?`<span title="Lava Land">🌋</span>`  :'',
+          k.savedPeach        ?`<img src="icons/princess_peach.png" alt="Peach">`:'',
+          (k.collectedMushroom||k.usedMushroom)?`<img src="icons/mushroom.png" alt="Mushroom">`:'',
+          (k.collectedShell||k.usedShell)      ?`<img src="icons/red_shell.webp" alt="Shell">`:'',
+        ].filter(Boolean).join('');
+        return `<div class="im-row" data-start="${startMs}">
+          <div class="im-pos">${ordinal(i+1)}</div>
+          <div class="im-dot"></div>
+          <div class="im-name">${escHtml(k.name||'?')}</div>
+          ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
+          <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
+          <div class="im-elapsed">${fmtTime(now-startMs)}</div>
+        </div>`;
+      }).join('');
+    }
+    imScroller.reset();
+
+    // ── Finishers ─────────────────────────────────────────────
+    const finished=visKids
+      .filter(k=>!!k.mazeEndTime)
+      .map(k=>{
+        const startMs=k.mazeStartTime?.toMillis?.()??null;
+        const endMs  =k.mazeEndTime?.toMillis?.()  ??null;
+        const durationMs=(startMs&&endMs)?endMs-startMs:null;
+        return {...k, durationMs};
+      })
+      .sort((a,b)=>(b.coins??0)-(a.coins??0)||((a.durationMs??Infinity)-(b.durationMs??Infinity)));
+
+    lbCount.textContent=finished.length;
+    chipFinished.textContent=finished.length+' finished';
+
+    if(!finished.length){
+      lbInner.innerHTML='<div class="empty-msg">No finishers yet…<br>Be the first!</div>';
+    } else {
+      lbInner.innerHTML=finished.map((k,i)=>{
+        const rank=i+1;
+        const rankClass=rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
+        const rowClass =rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+        const rankStr  =rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':`#${rank}`;
+        const time=k.durationMs?fmtTime(k.durationMs):'—';
+        const badges=[
+          k.savedPeach?`<span class="lb-badge"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
+          (k.collectedShell||k.usedShell)?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
+          (k.collectedMushroom||k.usedMushroom)?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
+        ].filter(Boolean).join('');
+        return `<div class="lb-row ${rowClass}">
+          <div class="lb-rank ${rankClass}">${rankStr}</div>
+          <div class="lb-name">${escHtml(k.name||'?')}</div>
+          ${badges?`<div class="lb-badges">${badges}</div>`:''}
+          <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
+          <div class="lb-time">${time}</div>
+        </div>`;
+      }).join('');
+    }
+    lbScroller.reset();
+  }
+});
+</script>
+</body>
+</html>

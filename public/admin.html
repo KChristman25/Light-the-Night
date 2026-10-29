@@ -457,6 +457,7 @@
     <div class="nav">
       <button onclick="showSection('live')">📋 Dashboard</button>
       <button onclick="showSection('leaderboard')">🏁 Leaderboard</button>
+      <button onclick="showSection('events')">📅 Events</button>
       <button onclick="showSection('stations')">🛠 Stations</button>
       <button onclick="showSection('participants')">🧒 Participants</button>
       <button onclick="showSection('allvisitors')">🧾 All Visitors</button>
@@ -615,6 +616,67 @@
       </div>
     </div>
 
+    <!-- EVENTS -->
+    <div id="events" class="section">
+      <div class="page-title">Events</div>
+
+      <!-- Active event banner -->
+      <div id="activeEventBanner" style="margin-bottom:20px;padding:14px 18px;border-radius:6px;border:2px solid #16a34a;background:#f0fdf4;display:flex;align-items:center;gap:14px">
+        <div style="font-size:22px">📅</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px;color:#15803d" id="activeEventLabel">No active event</div>
+          <div style="font-size:12px;color:#4a3728;margin-top:3px" id="activeEventSub">Create an event below and make it active to start checking in participants.</div>
+        </div>
+      </div>
+
+      <!-- Event list -->
+      <h3 style="margin-top:0;margin-bottom:12px">All Events</h3>
+      <div id="eventListEl" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+        <div style="color:var(--muted-dk);font-size:13px">No events yet.</div>
+      </div>
+
+      <!-- Create event -->
+      <h3 style="margin-bottom:12px">Create New Event</h3>
+      <div class="panel-box" style="max-width:500px;display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Event Name</label>
+            <input type="text" id="newEventName" placeholder="Night 1" style="width:100%"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Date</label>
+            <input type="date" id="newEventDate" style="width:100%"/>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn" onclick="createEvent()">+ Create Event</button>
+          <span id="createEventStatus" style="font-size:12px;color:var(--muted-dk)"></span>
+        </div>
+      </div>
+
+      <!-- Leaderboard display filter -->
+      <h3 style="margin-bottom:12px">📺 Leaderboard Display</h3>
+      <div class="panel-box" style="max-width:560px;margin-bottom:24px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">Controls what appears on <strong>leaderboard.html</strong> and <strong>split-leaderboard.html</strong>.</div>
+        <div id="lbEventFilterBtns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted-dk)" id="lbFilterStatus"></div>
+      </div>
+
+      <!-- Migration -->
+      <h3 style="margin-bottom:12px">🔄 Migrate Existing Participants</h3>
+      <div class="panel-box" style="max-width:560px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">Tag all participants that don't yet have an event assigned. Use this to assign your existing participants to an event.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <select id="migrateEventSelect" style="padding:6px 10px;border:2px solid var(--border);border-radius:4px;background:var(--input-bg);font-size:13px">
+            <option value="">— select event —</option>
+          </select>
+          <button class="btn" onclick="migrateUntaggedKids()">Assign to Event →</button>
+          <span id="migrateStatus" style="font-size:12px;color:var(--muted-dk)"></span>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted-dk)" id="migrateCount"></div>
+      </div>
+    </div>
+
     <!-- STATIONS -->
     <div id="stations" class="section">
       <div class="page-title">Stations</div>
@@ -713,6 +775,9 @@
           <div id="creditStatus" style="font-size:12px;margin-top:8px;min-height:16px;color:var(--muted-dk)"></div>
         </div>
         <div class="tiny muted" style="margin-bottom:8px">Per-row <strong>Delete</strong> removes the Firestore document.</div>
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="participantEventFilter" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
         <div style="margin-bottom:10px">
           <input id="participantSearch" type="text" placeholder="Search by name or code…" oninput="filterParticipants(this.value)" style="width:300px"/>
           <span id="participantFilterCount" class="muted" style="font-size:12px;margin-left:10px"></span>
@@ -803,6 +868,36 @@
           </div>
           <button class="btn" onclick="saveShellSettings()" style="margin-top:10px;width:fit-content">Save Shell &amp; Miss Settings</button>
           <span id="shellSettingsStatus" style="font-size:12px;color:var(--muted-dk);margin-left:10px"></span>
+        </div>
+
+        <div style="border-top:1px solid var(--border)"></div>
+
+        <!-- Wario Station Settings -->
+        <div>
+          <div style="font-weight:600;color:var(--text);font-size:13px;margin-bottom:4px">🐷 Wario's Vault</div>
+          <div style="font-size:11px;color:var(--muted-dk);margin-bottom:12px;max-width:480px">Players can steal coins from or switch scores with the player ranked directly above them.</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px">
+            <div>
+              <div style="font-weight:600;color:var(--text);font-size:13px">Steal Coins</div>
+              <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Allow players to steal a fixed amount from the player above them</div>
+            </div>
+            <button id="warioStealToggleBtn" onclick="toggleWarioSteal()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:380px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted-dk);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Steal Amount (coins)</label>
+              <input type="number" id="warioStealAmount" min="1" style="width:100%;" placeholder="30"/>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px">
+            <div>
+              <div style="font-weight:600;color:var(--text);font-size:13px">Switch Scores</div>
+              <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Allow players to swap their full coin total with the player above them</div>
+            </div>
+            <button id="warioSwitchToggleBtn" onclick="toggleWarioSwitch()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
+          </div>
+          <button class="btn" onclick="saveWarioSettings()" style="width:fit-content">Save Wario Settings</button>
+          <span id="warioSettingsStatus" style="font-size:12px;color:var(--muted-dk);margin-left:10px"></span>
         </div>
 
         <div style="border-top:1px solid var(--border)"></div>
@@ -1480,6 +1575,7 @@
     document.getElementById(id).style.display = 'block';
     if(id==='live')         initLive();
     if(id==='leaderboard')  initLeaderboard();
+    if(id==='events')       initEvents();
     if(id==='stations')     initStations();
     if(id==='participants') initParticipants();
     if(id==='settings')     initPasswords();
@@ -1978,14 +2074,8 @@ if(id==='allvisitors')  initAllVisitors();
         .where("completed","==",true)
         .onSnapshot(snap=>{
           const kids = snap.docs.map(d=>({id:d.id,...d.data()}));
-          kids.forEach(k=>{
-            const base = k.coins||0;
-            const s = k.mazeStartTime?.toMillis?.()??null;
-            const e = k.mazeEndTime?.toMillis?.()??null;
-            const bonus = (s&&e) ? Math.max(0,Math.floor((2700-(e-s)/1000)/10)) : 0;
-            k._score = base+bonus;
-          });
-          kids.sort((a,b)=>b._score-a._score||(a.name||'').localeCompare(b.name||''));
+          kids.forEach(k=>{ k._score = k.coins||0; });
+          kids.sort((a,b)=>b._score-a._score||((a.durationMs??Infinity)-(b.durationMs??Infinity))||(a.name||'').localeCompare(b.name||''));
           _lbAllRows = kids.map((k,i)=>{
             const rankColor=['#ca8a04','#6b7280','#92400e'][i]||'#8b6040';
             return {
@@ -2277,15 +2367,201 @@ if(id==='allvisitors')  initAllVisitors();
     }).catch(e=>{ st.textContent='Error: '+e.message; });
   }
 
+  /* ── Events ──────────────────────────────────────────────────────────── */
+  let _allEvents = [], _adminActiveEventId = null, _adminLbFilter = null, _participantEventFilter = null;
+
+  function initEvents(){
+    listeners.push(
+      db.collection('events').orderBy('date','asc').onSnapshot(snap=>{
+        _allEvents = snap.docs.map(d=>({id:d.id,...d.data()}));
+        renderEventList();
+        renderMigrateSelect();
+        renderLbFilterBtns();
+        renderParticipantEventFilterBtns();
+      })
+    );
+    listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        const d=snap.data()||{};
+        _adminActiveEventId = d.activeEventId||null;
+        _adminLbFilter = d.lbEventFilter||null;
+        renderEventList();
+        renderActiveEventBanner();
+        renderLbFilterBtns();
+        renderParticipantEventFilterBtns();
+        updateUntaggedCount();
+      })
+    );
+    updateUntaggedCount();
+  }
+
+  function fmtEventDate(dateStr){
+    if(!dateStr) return '';
+    const [y,m,d]=dateStr.split('-');
+    const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`;
+  }
+
+  function renderActiveEventBanner(){
+    const banner=document.getElementById('activeEventBanner');
+    const label=document.getElementById('activeEventLabel');
+    const sub=document.getElementById('activeEventSub');
+    if(!banner||!label||!sub) return;
+    const ev=_allEvents.find(e=>e.id===_adminActiveEventId);
+    if(ev){
+      label.textContent=`Active: ${ev.name}${ev.date?' ('+fmtEventDate(ev.date)+')':''}`;
+      sub.textContent='Check-ins and station scans are tagged to this event.';
+      banner.style.borderColor='#16a34a'; banner.style.background='#f0fdf4'; label.style.color='#15803d';
+    } else {
+      label.textContent='No active event';
+      sub.textContent='Create an event below and make it active to start checking in participants.';
+      banner.style.borderColor='#fbbf24'; banner.style.background='#fffbeb'; label.style.color='#92400e';
+    }
+  }
+
+  function renderEventList(){
+    const el=document.getElementById('eventListEl');
+    if(!el) return;
+    if(!_allEvents.length){ el.innerHTML='<div style="color:var(--muted-dk);font-size:13px">No events yet.</div>'; return; }
+    el.innerHTML=_allEvents.map(ev=>{
+      const isActive=ev.id===_adminActiveEventId;
+      const border=isActive?'#16a34a':'var(--border)';
+      const bg=isActive?'#f0fdf4':'var(--card)';
+      return `<div style="background:${bg};border:2px solid ${border};border-radius:6px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <div style="font-weight:700;font-size:14px;color:var(--text)">${escapeHtml(ev.name||'Unnamed')}</div>
+          <div style="font-size:12px;color:var(--muted-dk);margin-top:3px">${ev.date?fmtEventDate(ev.date):'No date set'}</div>
+        </div>
+        ${isActive?'<span style="font-size:11px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;border-radius:3px;padding:3px 8px">✅ ACTIVE</span>':''}
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          ${!isActive?`<button class="btn" onclick="setActiveEvent('${ev.id}')">Make Active</button>`:''}
+          <button class="btn" onclick="renameEvent('${ev.id}','${escapeHtml(ev.name||'')}')">Rename</button>
+          ${!isActive?`<button class="btn btn-danger" onclick="deleteEvent('${ev.id}','${escapeHtml(ev.name||'')}')">Delete</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderMigrateSelect(){
+    const sel=document.getElementById('migrateEventSelect');
+    if(!sel) return;
+    sel.innerHTML='<option value="">— select event —</option>'+_allEvents.map(ev=>`<option value="${ev.id}">${escapeHtml(ev.name||'Unnamed')}${ev.date?' ('+fmtEventDate(ev.date)+')':''}</option>`).join('');
+  }
+
+  function renderLbFilterBtns(){
+    const el=document.getElementById('lbEventFilterBtns');
+    const st=document.getElementById('lbFilterStatus');
+    if(!el) return;
+    const allActive=!_adminLbFilter;
+    let html=`<button class="btn${allActive?' btn-primary':''}" onclick="setLbFilter(null)" style="${allActive?'':'background:var(--panel);color:var(--text);border:2px solid var(--border);'}">All Events</button>`;
+    _allEvents.forEach(ev=>{
+      const active=_adminLbFilter===ev.id;
+      html+=`<button class="btn${active?' btn-primary':''}" onclick="setLbFilter('${ev.id}')" style="${active?'':'background:var(--panel);color:var(--text);border:2px solid var(--border);'}">${escapeHtml(ev.name||'Unnamed')}</button>`;
+    });
+    el.innerHTML=html;
+    if(st){
+      const ev=_allEvents.find(e=>e.id===_adminLbFilter);
+      st.textContent=allActive?'Currently showing all events combined.':`Currently showing: ${ev?ev.name:'Unknown event'}.`;
+    }
+  }
+
+  function renderParticipantEventFilterBtns(){
+    const el=document.getElementById('participantEventFilter');
+    if(!el) return;
+    let html=`<button class="btn" onclick="setParticipantEventFilter(null)" style="${!_participantEventFilter?'':'background:var(--panel);color:var(--text);border:2px solid var(--border);box-shadow:none;'}">All</button>`;
+    _allEvents.forEach(ev=>{
+      const active=_participantEventFilter===ev.id;
+      html+=`<button class="btn" onclick="setParticipantEventFilter('${ev.id}')" style="${active?'':'background:var(--panel);color:var(--text);border:2px solid var(--border);box-shadow:none;'}">${escapeHtml(ev.name||'Unnamed')}</button>`;
+    });
+    el.innerHTML=html;
+  }
+
+  function setParticipantEventFilter(eventId){
+    _participantEventFilter=eventId;
+    renderParticipantEventFilterBtns();
+    renderParticipantRows(_participantDocs);
+  }
+
+  async function updateUntaggedCount(){
+    const el=document.getElementById('migrateCount');
+    if(!el) return;
+    try{
+      const snap=await db.collection('kids').get();
+      let count=0;
+      snap.forEach(doc=>{ if(!doc.data().eventId) count++; });
+      el.textContent=count>0?`${count} participant${count===1?'':'s'} currently have no event assigned.`:'All participants have an event assigned. ✅';
+    }catch(_){}
+  }
+
+  async function createEvent(){
+    const nameEl=document.getElementById('newEventName');
+    const dateEl=document.getElementById('newEventDate');
+    const st=document.getElementById('createEventStatus');
+    const name=(nameEl?.value||'').trim();
+    const date=(dateEl?.value||'').trim();
+    if(!name){if(st)st.textContent='Enter an event name.';return;}
+    try{
+      await db.collection('events').add({name,date,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      if(nameEl) nameEl.value='';
+      if(dateEl) dateEl.value='';
+      if(st){st.textContent='✅ Created!';setTimeout(()=>st.textContent='',2500);}
+    }catch(e){if(st)st.textContent='Error: '+e.message;}
+  }
+
+  async function setActiveEvent(eventId){
+    await db.collection('config').doc('config').set({activeEventId:eventId},{merge:true});
+  }
+
+  async function setLbFilter(eventId){
+    await db.collection('config').doc('config').set({lbEventFilter:eventId||null},{merge:true});
+  }
+
+  async function renameEvent(eventId, currentName){
+    const name=prompt('New name for this event:',currentName);
+    if(!name||!name.trim()) return;
+    await db.collection('events').doc(eventId).update({name:name.trim()});
+  }
+
+  async function deleteEvent(eventId, name){
+    if(!confirm(`Delete "${name}"? This does NOT delete any participants — it only removes the event entry.`)) return;
+    await db.collection('events').doc(eventId).delete();
+    if(_adminActiveEventId===eventId)
+      await db.collection('config').doc('config').set({activeEventId:null},{merge:true});
+    if(_adminLbFilter===eventId)
+      await db.collection('config').doc('config').set({lbEventFilter:null},{merge:true});
+  }
+
+  async function migrateUntaggedKids(){
+    const sel=document.getElementById('migrateEventSelect');
+    const st=document.getElementById('migrateStatus');
+    const eventId=sel?.value||'';
+    if(!eventId){if(st)st.textContent='Select an event first.';return;}
+    if(!confirm('Tag all participants without an event as this event? This cannot be undone easily.')) return;
+    if(st) st.textContent='Working…';
+    try{
+      const snap=await db.collection('kids').get();
+      const batch=db.batch();
+      let count=0;
+      snap.forEach(doc=>{ if(!doc.data().eventId){ batch.update(doc.ref,{eventId}); count++; } });
+      if(count===0){if(st)st.textContent='No untagged participants found.';return;}
+      await batch.commit();
+      if(st){st.textContent=`✅ Tagged ${count} participant${count===1?'':'s'}!`;setTimeout(()=>st.textContent='',3000);}
+      updateUntaggedCount();
+    }catch(e){if(st)st.textContent='Error: '+e.message;}
+  }
+
   /* ── Participants ─────────────────────────────────────────────────────── */
   let _participantDocs = [];
 
   function renderParticipantRows(docs) {
     const q = (document.getElementById('participantSearch')?.value || '').toLowerCase().trim();
-    const filtered = q ? docs.filter(d => {
+    let filtered = _participantEventFilter
+      ? docs.filter(d=>{ const D=d.data(); return D.eventId===_participantEventFilter; })
+      : docs;
+    if(q) filtered = filtered.filter(d => {
       const D = d.data();
       return (D.name||'').toLowerCase().includes(q) || (D.barcode||d.id||'').toLowerCase().includes(q);
-    }) : docs;
+    });
 
     const countEl = document.getElementById('participantFilterCount');
     if (countEl) countEl.textContent = q ? `${filtered.length} of ${docs.length}` : `${docs.length} total`;
@@ -2322,6 +2598,16 @@ if(id==='allvisitors')  initAllVisitors();
 
   function initParticipants(){
     document.getElementById('participantSearch').value = '';
+    renderParticipantEventFilterBtns();
+    listeners.push(
+      db.collection('events').orderBy('date','asc').onSnapshot(()=>renderParticipantEventFilterBtns())
+    );
+    listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        renderParticipantEventFilterBtns();
+      })
+    );
     listeners.push(
       db.collection("kids").orderBy("startCheckIn","desc").onSnapshot(snap=>{
         _participantDocs = snap.docs;
@@ -2465,6 +2751,25 @@ if(id==='allvisitors')  initAllVisitors();
         setVal('gameShellRarity',    passwordCache.gameShellRarity,    10);
         setVal('gameDirectMinPrize', passwordCache.gameDirectMinPrize, 20);
         setVal('startCoins',         passwordCache.startCoins,         10);
+        setVal('warioStealAmount',   passwordCache.warioStealAmount,   30);
+        // Wario steal toggle
+        const wsBtn=document.getElementById('warioStealToggleBtn');
+        if(wsBtn){
+          const on=!!passwordCache.warioStealEnabled;
+          wsBtn.textContent=on?'ON':'OFF';
+          wsBtn.style.background=on?'#7b1fa2':'var(--panel)';
+          wsBtn.style.color=on?'#fff':'var(--muted-dk)';
+          wsBtn.style.borderColor=on?'#6a1b9a':'var(--border)';
+        }
+        // Wario switch toggle
+        const wswBtn=document.getElementById('warioSwitchToggleBtn');
+        if(wswBtn){
+          const on2=!!passwordCache.warioSwitchEnabled;
+          wswBtn.textContent=on2?'ON':'OFF';
+          wswBtn.style.background=on2?'#1565c0':'var(--panel)';
+          wswBtn.style.color=on2?'#fff':'var(--muted-dk)';
+          wswBtn.style.borderColor=on2?'#0d47a1':'var(--border)';
+        }
         // Show masked API key status
         const keyEl=document.getElementById('anthropicKeyStatus');
         if(keyEl) keyEl.textContent=passwordCache.anthropicApiKey ? '✅ Key saved (sk-…'+passwordCache.anthropicApiKey.slice(-4)+')' : 'No key saved yet.';
@@ -2527,6 +2832,28 @@ if(id==='allvisitors')  initAllVisitors();
     const doc=await db.collection('config').doc('config').get();
     const current=doc.exists&&doc.data().gameDirectOnMiss===true;
     await db.collection('config').doc('config').set({gameDirectOnMiss:!current},{merge:true});
+  }
+
+  async function toggleWarioSteal(){
+    const doc=await db.collection('config').doc('config').get();
+    const current=doc.exists&&doc.data().warioStealEnabled===true;
+    await db.collection('config').doc('config').set({warioStealEnabled:!current},{merge:true});
+  }
+
+  async function toggleWarioSwitch(){
+    const doc=await db.collection('config').doc('config').get();
+    const current=doc.exists&&doc.data().warioSwitchEnabled===true;
+    await db.collection('config').doc('config').set({warioSwitchEnabled:!current},{merge:true});
+  }
+
+  async function saveWarioSettings(){
+    const st=document.getElementById('warioSettingsStatus');
+    const amt=parseInt(document.getElementById('warioStealAmount').value,10);
+    if(isNaN(amt)||amt<1){if(st)st.textContent='Enter a valid steal amount.';return;}
+    try{
+      await db.collection('config').doc('config').set({warioStealAmount:amt},{merge:true});
+      if(st){st.textContent='Saved!';setTimeout(()=>st.textContent='',2500);}
+    }catch(e){if(st)st.textContent='Error: '+e.message;}
   }
 
   async function toggleXrayAdmin(){

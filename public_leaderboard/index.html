@@ -269,10 +269,14 @@
               : null);
           finishers.push({ name, coins, durationMs,
             usedShell: !!(d.usedShell || d.collectedShell),
+            usedMushroom: !!(d.usedMushroom || d.collectedMushroom),
             savedPeach: !!d.savedPeach });
         } else if (d.mazeStartTime) {
           const scans = Array.isArray(d.scans) ? d.scans.length : 0;
-          inMaze.push({ name, coins, scans });
+          inMaze.push({ name, coins, scans,
+            usedShell: !!(d.usedShell || d.collectedShell),
+            usedMushroom: !!(d.usedMushroom || d.collectedMushroom),
+            savedPeach: !!d.savedPeach });
         }
       });
 
@@ -296,14 +300,15 @@
           const cls = i === 0 ? ' first' : i === 1 ? ' second' : i === 2 ? ' third' : '';
           const timeStr = f.durationMs ? `<span class="entry-sub">${fmtTime(f.durationMs)}</span>` : '';
           const badges = [
-            f.usedShell  ? `<img src="https://light-the-night.web.app/icons/red_shell.webp" style="height:1.4em;vertical-align:middle">` : '',
-            f.savedPeach ? `<img src="https://light-the-night.web.app/icons/princess_peach.png" style="height:1.8em;vertical-align:middle">` : '',
+            f.savedPeach   ? `<img src="https://light-the-night.web.app/icons/princess_peach.png" style="height:1.8em;vertical-align:middle">` : '',
+            f.usedMushroom ? `<img src="https://light-the-night.web.app/icons/mushroom.png" style="height:1.4em;vertical-align:middle">` : '',
+            f.usedShell    ? `<img src="https://light-the-night.web.app/icons/red_shell.webp" style="height:1.4em;vertical-align:middle">` : '',
           ].join('');
           return `<div class="entry${cls}">
             <span class="entry-rank">${rankStr}</span>
             <span class="entry-name">${escHtml(f.name)}</span>
             ${timeStr}
-            ${badges}
+            <span class="entry-badges">${badges}</span>
             <span class="entry-coins">${COIN_SVG}${f.coins}</span>
           </div>`;
         }).join('');
@@ -314,11 +319,18 @@
       if (inMaze.length === 0) {
         inMazeListEl.innerHTML = '<div class="empty-msg">Nobody in the maze yet...</div>';
       } else {
-        inMazeListEl.innerHTML = inMaze.map(p => `
-          <div class="entry in-maze-entry">
+        inMazeListEl.innerHTML = inMaze.map(p => {
+          const badges = [
+            p.savedPeach   ? `<img src="https://light-the-night.web.app/icons/princess_peach.png" style="height:1.8em;vertical-align:middle">` : '',
+            p.usedMushroom ? `<img src="https://light-the-night.web.app/icons/mushroom.png" style="height:1.4em;vertical-align:middle">` : '',
+            p.usedShell    ? `<img src="https://light-the-night.web.app/icons/red_shell.webp" style="height:1.4em;vertical-align:middle">` : '',
+          ].join('');
+          return `<div class="entry in-maze-entry">
             <span class="entry-name">${escHtml(p.name)}</span>
+            <span class="entry-badges">${badges}</span>
             <span class="entry-coins">${COIN_SVG}${p.coins}</span>
-          </div>`).join('');
+          </div>`;
+        }).join('');
       }
     });
 

@@ -662,6 +662,23 @@
         <button class="btn" id="pwMode_none"     onclick="setPowerupMode('none')">✕ No Powerups</button>
       </div>
       <div id="pwModeStatus" style="font-size:12px;color:var(--muted-dk)"></div>
+      <div id="bothProbRow" style="display:none;margin-top:12px;padding:12px 16px;background:rgba(255,255,255,.07);border-radius:8px;border:1px solid rgba(255,255,255,.15)">
+        <div style="font-size:12px;color:var(--muted-dk);margin-bottom:10px">When <strong>Mushroom + Shell</strong> is active, each player independently gets each powerup at these odds:</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+            🍄 Mushroom chance
+            <input id="bothMushroomPct" type="number" min="0" max="100" value="100" style="width:64px;padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.3);color:#fff;font-size:13px">
+            <span style="font-size:12px;color:var(--muted-dk)">%</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+            🐢 Shell chance
+            <input id="bothShellPct" type="number" min="0" max="100" value="100" style="width:64px;padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.3);color:#fff;font-size:13px">
+            <span style="font-size:12px;color:var(--muted-dk)">%</span>
+          </label>
+          <button class="btn" onclick="saveBothProbabilities()" style="font-size:12px;padding:6px 14px">Save</button>
+          <span id="bothProbStatus" style="font-size:12px;color:var(--muted-dk)"></span>
+        </div>
+      </div>
 
       <h3 style="margin-top:28px">Code Length</h3>
       <p style="color:var(--muted-dk);font-size:13px;margin-bottom:10px">Number of digits in participant wristband codes. Current: <strong id="codeLengthCurrent">6</strong>.</p>
@@ -2070,7 +2087,7 @@ if(id==='allvisitors')  initAllVisitors();
         if(clEl) clEl.textContent=cl;
         const clSel=document.getElementById("codeLengthSelect");
         if(clSel) clSel.value=String(cl);
-        updatePowerupModeUI(cfg.powerupMode||'both');
+        updatePowerupModeUI(cfg.powerupMode||'both', cfg);
       })
     );
     let _prevHbSig = '';
@@ -2225,7 +2242,7 @@ if(id==='allvisitors')  initAllVisitors();
       setTimeout(()=>{st.textContent='';},3000);
     }).catch(e=>{st.textContent='Error: '+e.message;});
   }
-  function updatePowerupModeUI(mode){
+  function updatePowerupModeUI(mode, cfg){
     ['both','mushroom','shell','random','none'].forEach(m=>{
       const b=document.getElementById('pwMode_'+m);
       if(b){b.style.opacity=m===mode?'1':'0.45';b.style.outline=m===mode?'3px solid #fff':'';}
@@ -2233,6 +2250,25 @@ if(id==='allvisitors')  initAllVisitors();
     const labels={'both':'Mushroom + Shell','mushroom':'Mushroom only','shell':'Shell only','random':'Random — each player gets one or the other','none':'No Powerups'};
     const el=document.getElementById('pwModeStatus');
     if(el) el.textContent='Current: '+(labels[mode]||mode);
+    const row=document.getElementById('bothProbRow');
+    if(row) row.style.display = mode==='both' ? '' : 'none';
+    if(mode==='both' && cfg){
+      const mEl=document.getElementById('bothMushroomPct');
+      const sEl=document.getElementById('bothShellPct');
+      if(mEl && cfg.bothMushroomPct!=null) mEl.value=cfg.bothMushroomPct;
+      if(sEl && cfg.bothShellPct!=null)    sEl.value=cfg.bothShellPct;
+    }
+  }
+  function saveBothProbabilities(){
+    const mPct=parseInt(document.getElementById('bothMushroomPct').value,10);
+    const sPct=parseInt(document.getElementById('bothShellPct').value,10);
+    const st=document.getElementById('bothProbStatus');
+    if(isNaN(mPct)||isNaN(sPct)||mPct<0||mPct>100||sPct<0||sPct>100){
+      if(st) st.textContent='Values must be 0–100'; return;
+    }
+    db.collection('config').doc('config').set({bothMushroomPct:mPct,bothShellPct:sPct},{merge:true})
+      .then(()=>{ if(st){st.textContent='✓ Saved';setTimeout(()=>{st.textContent='';},2000);} })
+      .catch(e=>{ if(st) st.textContent='Error: '+e.message; });
   }
   function setPowerupMode(mode){
     db.collection('config').doc('config').set({powerupMode:mode},{merge:true})
@@ -2954,6 +2990,8 @@ if(id==='allvisitors')  initAllVisitors();
         deleteCollectionRecursive('participants'),
         deleteCollectionRecursive('scans'),
         deleteCollectionRecursive('codes'),
+        deleteCollectionRecursive('alerts'),
+        deleteCollectionRecursive('alerts_missing'),
       ]);
       setMassStatus('Full reset complete. Ready for next event.');
     }catch(e){ setMassStatus('Error: '+e.message, false); }

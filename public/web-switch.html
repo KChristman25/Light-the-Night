@@ -1206,17 +1206,17 @@ const STATION_GROUPS_DEF = [
   { id:'peach',      label:'👸 Princess Peach',  color:'#fce7f3', accent:'#db2777',
     events:[ {key:'peach_rescue', label:'Rescued'} ] },
   { id:'land_ice',   label:'🧊 Ice World',        color:'#e0f2fe', accent:'#0284c7',
-    events:[ {key:'land_ice',        label:'Scan (code entered)'}, {key:'land_ice_done',   label:'Done (game finished)'} ] },
+    events:[ {key:'land_ice',        label:'Scan (code entered)'}, {key:'land_ice_done',   label:'Done (game finished)'}, {key:'mushroom_at_land_ice',   label:'Mushroom collected'} ] },
   { id:'land_water', label:'🌊 Water World',      color:'#dbeafe', accent:'#1d4ed8',
-    events:[ {key:'land_water',      label:'Scan (code entered)'}, {key:'land_water_done', label:'Done (game finished)'} ] },
+    events:[ {key:'land_water',      label:'Scan (code entered)'}, {key:'land_water_done', label:'Done (game finished)'}, {key:'mushroom_at_land_water', label:'Mushroom collected'} ] },
   { id:'land_fire',  label:'🔥 Fire World',       color:'#ffedd5', accent:'#ea580c',
-    events:[ {key:'land_fire',       label:'Scan (code entered)'}, {key:'land_fire_done',  label:'Done (game finished)'} ] },
+    events:[ {key:'land_fire',       label:'Scan (code entered)'}, {key:'land_fire_done',  label:'Done (game finished)'}, {key:'mushroom_at_land_fire',  label:'Mushroom collected'} ] },
   { id:'land_lava',  label:'🌋 Lava World',       color:'#fee2e2', accent:'#b91c1c',
-    events:[ {key:'land_lava',       label:'Scan (code entered)'}, {key:'land_lava_done',  label:'Done (game finished)'} ] },
+    events:[ {key:'land_lava',       label:'Scan (code entered)'}, {key:'land_lava_done',  label:'Done (game finished)'}, {key:'mushroom_at_land_lava',  label:'Mushroom collected'} ] },
   { id:'shell',      label:'🐚 Red Shell',        color:'#fce7f3', accent:'#be185d',
     events:[ {key:'shell_fired',   label:'Fired'} ] },
   { id:'mushroom',   label:'🍄 Mushroom',         color:'#fef9c3', accent:'#ca8a04',
-    events:[ {key:'mushroom_used', label:'Used'} ] },
+    events:[ {key:'mushroom_used', label:'Used (dedicated mushroom station)'} ] },
   { id:'jump',       label:'🍄 Mario Jump (Game)', color:'#dcfce7', accent:'#16a34a',
     hasCooldown: true,
     events:[ {key:'jump', label:'Jump'} ] },
@@ -1228,8 +1228,9 @@ function buildStationGroups(){
     label:'🪙 Station '+(i+1),
     color:'#dcfce7', accent:'#16a34a',
     events:[
-      {key:'station_'+(i+1),        label:'Scan (code entered)'},
-      {key:'station_'+(i+1)+'_done', label:'Done (game finished)'}
+      {key:'station_'+(i+1),              label:'Scan (code entered)'},
+      {key:'station_'+(i+1)+'_done',       label:'Done (game finished)'},
+      {key:'mushroom_at_'+(i+1),           label:'Mushroom collected'}
     ]
   }));
   return [STATION_GROUPS_DEF[0], ...coinGroups, ...STATION_GROUPS_DEF.slice(1)];
@@ -1391,6 +1392,24 @@ function renderStationOscEvents(){
     html += `<pre class="grp-ai-pre" data-grp="${aiId}" style="display:none;margin:6px 0 0;padding:8px 10px;font-size:11px;background:#f5ecd5;border:1px solid rgba(35,18,7,.1);border-radius:4px;white-space:pre-wrap"></pre>`;
     html += `<div class="grp-ai-st" data-grp="${aiId}" style="font-size:11px;color:var(--muted);padding-top:4px;min-height:0"></div>`;
     html += `</div>`; // close AI box
+
+    // Mushroom sub-section — only for groups that have a mushroom_at_ event
+    const mushEv = grp.events.find(e=>e.key.startsWith('mushroom_at_'));
+    if(mushEv){
+      const mKey = mushEv.key;
+      const mSaved = escapeHtml(_stationGroupAiText[mKey]||'');
+      const mHasSeq = !!(_parsedGroupSeqs[mKey]&&_parsedGroupSeqs[mKey].length);
+      html += `<div style="border-top:2px solid rgba(35,18,7,.12);padding:10px 14px;background:#fff9ee">`;
+      html += `<div style="font-size:10px;font-weight:700;color:#a05800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">🍄 Mushroom collected at this station</div>`;
+      html += `<textarea class="grp-ai-ta" data-grp="${mKey}" rows="2" placeholder="Describe what should happen when a mushroom is collected here…" style="padding:6px 8px;border:2px solid rgba(35,18,7,.2);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;resize:vertical;line-height:1.5;width:100%;display:block">${mSaved}</textarea>`;
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-top:7px">`;
+      html += `<button onclick="parseGroupAi('${mKey}')" style="padding:5px 10px;font-size:12px;font-weight:700;background:#f5edff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)">✨ Parse</button>`;
+      html += `<button class="grp-ai-run" data-grp="${mKey}" onclick="runGroupAi('${mKey}')" style="padding:5px 9px;font-size:12px;font-weight:700;background:#fff;border:2px solid var(--ink);border-radius:4px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)"${mHasSeq?'':' disabled'}>▶ Run</button>`;
+      html += `</div>`;
+      html += `<div class="grp-ai-st" data-grp="${mKey}" style="font-size:11px;color:var(--muted);padding-top:4px;min-height:0"></div>`;
+      html += `</div>`; // close mushroom section
+    }
+
     html += `</div>`; // close card
   });
   root.innerHTML = html;

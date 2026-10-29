@@ -1179,6 +1179,7 @@ let _aiParsedGroups = {};   // groupId → steps[]
 let _aiGroupComp    = {};   // groupId → computerId
 let _mcComputers    = [];   // qlabComputers array
 let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "http://192.168.8.106:8080"
+let _outlet1KeepalivePaused = false;
 
 // Send a command directly to the Pi over HTTP (sub-millisecond vs 100ms Firestore poll).
 // Falls back to the Firestore queue if the Pi is unreachable.
@@ -1258,6 +1259,8 @@ firebase.auth().onAuthStateChanged(user=>{
     });
   });
   loadQlabCues().catch(()=>{});
+  // Keep outlet 1 on — prevents power switch from getting stuck off
+  setInterval(()=>{ if(_piBaseUrl && !_outlet1KeepalivePaused) sendSwitchCommand(1,'on'); }, 30000);
 
   // Restore station after a broadcast-triggered reload
   const _RESUME_KEY='ltn_resume';
@@ -2004,15 +2007,23 @@ async function showBowserReveal(name, coins){
   // Count up coins over 2 seconds
   await new Promise(r=>setTimeout(r, 400));
   animateCoinCount(document.getElementById('brCoins'), 0, coins, 2000);
-  // After count-up, fetch rank
+  // After count-up, compute rank from live cache
   await new Promise(r=>setTimeout(r, 2500));
   try{
-    const snap = await db.collection('kids').where('completed','==',true).get();
+    function ordSuffix(n){ const m=n%100; if(m>=11&&m<=13)return'TH'; switch(n%10){case 1:return'ST';case 2:return'ND';case 3:return'RD';default:return'TH';} }
     let ahead = 0;
-    snap.forEach(doc=>{ const d=doc.data()||{}; if((d.coins||0) > coins) ahead++; });
+    if(_kidsCache){
+      const seen = new Set();
+      Object.values(_kidsCache).forEach(({data,ref})=>{
+        if(seen.has(ref.id)) return; seen.add(ref.id);
+        if(data.completed===true && (data.coins||0) > coins) ahead++;
+      });
+    } else {
+      const snap = await db.collection('kids').where('completed','==',true).get();
+      snap.forEach(doc=>{ const d=doc.data()||{}; if((d.coins||0) > coins) ahead++; });
+    }
     const rank = ahead + 1;
-    const suffix = rank===1?'ST':rank===2?'ND':rank===3?'RD':'TH';
-    document.getElementById('brRank').textContent = `#${rank}${suffix} PLACE!`;
+    document.getElementById('brRank').textContent = `#${rank}${ordSuffix(rank)} PLACE!`;
     document.getElementById('brRank').style.opacity = '1';
   }catch(e){ console.warn('rank fetch error',e); }
   // Auto-close after 7 more seconds
@@ -2055,21 +2066,42 @@ async function handleShellStation(docRef,kidData){
   try{
     const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedShell:true,collectedShell:true};
     if(finderCoins>0) updates.coins=FSV.increment(finderCoins);
-    await docRef.update(updates);
-    let affected=0,shielded=0;
-    const allKids=await db.collection('kids').get();
+
+    // Build batch from in-memory cache — no network round-trip needed
+    let affected=0, shielded=0;
     const batch=db.batch();
-    allKids.forEach(doc=>{
-      if(doc.id===docRef.id)return;
-      const d=doc.data()||{};
-      if(d.completed||!d.mazeStartTime)return; // skip finished or not-yet-started players
-      if(d.shellShield||d.frozen)return shielded++;
-      batch.update(doc.ref,{coins:FSV.increment(-penalty),frozen:true});
-      affected++;
-    });
-    await batch.commit();
-    await db.collection('scans').add({kidId:docRef.id,name,station:'shell',stationLabel:'Red Shell Station',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now(),newTotal:(kidData.coins||0)+finderCoins});
+    const cache=_kidsCache;
+    if(cache){
+      const seen=new Set();
+      Object.values(cache).forEach(({ref,data:d})=>{
+        if(seen.has(ref.id))return; seen.add(ref.id);
+        if(ref.id===docRef.id)return;
+        if(d.completed||!d.mazeStartTime)return;
+        if(d.shellShield)return shielded++;
+        batch.update(ref,{coins:FSV.increment(-penalty),frozen:true});
+        affected++;
+      });
+    } else {
+      // Cache not ready yet — fall back to fresh fetch
+      const allKids=await db.collection('kids').get();
+      allKids.forEach(doc=>{
+        if(doc.id===docRef.id)return;
+        const d=doc.data()||{};
+        if(d.completed||!d.mazeStartTime)return;
+        if(d.shellShield)return shielded++;
+        batch.update(doc.ref,{coins:FSV.increment(-penalty),frozen:true});
+        affected++;
+      });
+    }
+
+    // All three writes in parallel
+    await Promise.all([
+      docRef.update(updates),
+      batch.commit(),
+      db.collection('scans').add({kidId:docRef.id,name,station:'shell',stationLabel:'Red Shell Station',coins:finderCoins,gameType:'shell_station',timestamp:firebase.firestore.Timestamp.now(),newTotal:(kidData.coins||0)+finderCoins})
+    ]);
     sendConfiguredOsc('shell_fired').catch(()=>{});
+    shellFireEffects().catch(()=>{});
     setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/red_shell.webp" style="height:1em;width:auto;vertical-align:middle">','SHELL FIRED!',name+' launched a Red Shell!',
       (finderCoins>0?`+${finderCoins} coins for finder · `:'')+`${affected} players hit · ${shielded} shielded`);
@@ -2084,14 +2116,15 @@ async function handleMushroomStation(docRef,kidData){
   setStatus('Granting mushroom…');
   try{
     const expiry=new Date(Date.now()+secs*1000);
-    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedMushroom:true,collectedMushroom:true,shellShield:true,shellShieldExpiry:firebase.firestore.Timestamp.fromDate(expiry)};
+    const expiryTs=firebase.firestore.Timestamp.fromDate(expiry);
+    const updates={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),usedMushroom:true,collectedMushroom:true,shellShield:true,shellShieldExpiry:expiryTs,superMarioActive:true,superMarioExpiry:expiryTs};
     if(coins>0) updates.coins=FSV.increment(coins);
     await docRef.update(updates);
     await db.collection('scans').add({kidId:docRef.id,name,station:'mushroom',stationLabel:'Mushroom Station',coins,gameType:'mushroom',timestamp:firebase.firestore.Timestamp.now(),newTotal:(kidData.coins||0)+coins});
     sendConfiguredOsc('mushroom_used').catch(()=>{});
     setStatus(''); fireConfetti();
     showSpecialResult('<img src="icons/mushroom.png" style="height:1em;width:auto;vertical-align:middle">','MUSHROOM!',name+' got a Mushroom!',
-      `Shell immunity for ${secs}s`+(coins>0?` · +${coins} coins`:''));
+      (coins>0?`+${coins} coins · `:'')+'×2 NEXT STATION · Shell immunity for '+secs+'s');
   }catch(e){console.error(e);setStatus('Error — try again');}
 }
 
@@ -2150,8 +2183,10 @@ async function handleBowserStation(docRef,kidData){
 }
 
 function sendSwitchCommand(outlet,state){
-  const p={type:'power',outlet:Number(outlet),state:String(state).toLowerCase(),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')};
-  QUEUE_COL.add(p).catch(()=>{});
+  const payload={type:'power',outlet:Number(outlet),state:String(state).toLowerCase()};
+  _sendViaPi(payload).catch(()=>{
+    QUEUE_COL.add({...payload,processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')}).catch(()=>{});
+  });
 }
 function sendOscQueueCommand(address){
   const payload={type:'osc',address:String(address),processed:false,ts:FSV.serverTimestamp(),uid:'station:'+(currentStationId||'?')};
@@ -2186,16 +2221,41 @@ function sendConfiguredOsc(key){
   const writes = [];
   if(cfg){
     if(cfg.cue){
-      const qp={...qBase,type:'osc',address:cfg.cue};
-      if(cfg.qlabIp){qp.qlabIp=cfg.qlabIp;qp.qlabPort=cfg.qlabPort||53000;}
-      writes.push(QUEUE_COL.add(qp).catch(()=>{}));
+      const payload={type:'osc',address:cfg.cue};
+      if(cfg.qlabIp){payload.qlabIp=cfg.qlabIp;payload.qlabPort=cfg.qlabPort||53000;}
+      writes.push(_sendViaPi(payload).catch(()=>QUEUE_COL.add({...qBase,...payload}).catch(()=>{})));
     }
     if(cfg.gpioPin && cfg.gpioState && cfg.gpioState!=='none'){
-      writes.push(QUEUE_COL.add({...qBase,type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500}).catch(()=>{}));
+      const payload={type:'gpio',pin:cfg.gpioPin,state:cfg.gpioState,pulseMs:cfg.gpioPulseMs||500};
+      writes.push(_sendViaPi(payload).catch(()=>QUEUE_COL.add({...qBase,...payload}).catch(()=>{})));
     }
   }
   runAiGroup(key).catch(()=>{});
   return writes.length ? Promise.all(writes) : Promise.resolve();
+}
+async function shellFireEffects(){
+  _outlet1KeepalivePaused = true;
+  try{
+    // Fire QLab cue 200 on the primary Mac
+    const comp=_mcComputers[0];
+    if(comp&&comp.ip){
+      const p={type:'osc',address:'/cue/200/start',qlabIp:comp.ip,qlabPort:comp.port||53000};
+      _sendViaPi(p).catch(()=>QUEUE_COL.add({...p,processed:false,ts:FSV.serverTimestamp(),uid:'shell_effects'}).catch(()=>{}));
+    }
+    // Flash outlets 1-8 three times with 0.5s on/off, leave on at end
+    const OUTLETS=[1,2,3,4,5,6,7,8];
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const flashAll=state=>{
+      OUTLETS.forEach(o=>{
+        const p={type:'power',outlet:o,state};
+        _sendViaPi(p).catch(()=>QUEUE_COL.add({...p,processed:false,ts:FSV.serverTimestamp(),uid:'shell_flash'}).catch(()=>{}));
+      });
+    };
+    for(let i=0;i<3;i++){flashAll('on');await wait(500);flashAll('off');await wait(500);}
+    flashAll('on');
+  }finally{
+    _outlet1KeepalivePaused = false;
+  }
 }
 async function runPhoneRuleForStation(stationNum,timing){
   const matchingRules=PHONE_RULES.filter(r=>
@@ -2572,7 +2632,7 @@ const SFX = (function(){
 /* ===== MARIO MINI-GAME ENGINE ===== */
 (function(){
   // ── Config (overridden by Firestore) ──
-  const CFG = { coinsMin:10, coinsMax:40, coinStep:10, shellPenalty:10, powerupSeconds:90, rareChance:0.10, shellRarity:20, directOnMiss:false, directMinPrize:20, shellStationCoins:0, mushroomCoins:0, mushroomSeconds:60, adminCode:'828942', startCoins:10 };
+  const CFG = { coinsMin:10, coinsMax:40, coinStep:10, shellPenalty:10, powerupSeconds:90, rareChance:0.10, shellRarity:20, directOnMiss:false, directMinPrize:20, shellStationCoins:0, mushroomCoins:20, mushroomSeconds:60, adminCode:'828942', startCoins:10 };
   window.CFG = CFG; // expose to handleStartStation / handleShellStation / handleMushroomStation (defined outside this IIFE)
   window._cfgAdminCode = CFG.adminCode;
   db.collection('config').doc('config').get().then(s=>{
@@ -3106,37 +3166,46 @@ const SFX = (function(){
     try{
       const shellUpd={scans:FSV.arrayUnion(currentStationId),['scanCounts.'+currentStationId]:FSV.increment(1),coins:FSV.increment(CFG.coinsMin),collectedShell:true};
       if(G.powerupType==='shell') shellUpd.usedShell=true;
-      await G.kidRef.update(shellUpd);
-      await db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
-        station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:CFG.coinsMin,gameType:'shell',timestamp:firebase.firestore.Timestamp.now(),newTotal:(G.kidData.coins||0)+CFG.coinsMin});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
-      await maybeTriggerWebSwitch();
 
-      // Deduct from all other kids + freeze (skip shielded, finished, or not-yet-started players)
-      const allKids=await db.collection('kids').get();
+      // Build batch from in-memory cache — no network round-trip needed
       const batch=db.batch(); let n=0, shielded=0;
-      allKids.forEach(doc=>{
-        if(doc.id===G.kidRef.id)return;
-        const dd=doc.data();
-        if(dd.completed||!dd.mazeStartTime)return; // skip finished or not-yet-started
-        if(dd.shellShield){
-          batch.update(doc.ref,{shellShield:FSV.delete()});
-          shielded++;
-        } else {
-          batch.update(doc.ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});
-          n++;
-        }
-      });
-      if(n+shielded>0) await batch.commit();
+      const cache=_kidsCache;
+      if(cache){
+        const seen=new Set();
+        Object.values(cache).forEach(({ref,data:dd})=>{
+          if(seen.has(ref.id))return; seen.add(ref.id);
+          if(ref.id===G.kidRef.id)return;
+          if(dd.completed||!dd.mazeStartTime)return;
+          if(dd.shellShield){batch.update(ref,{shellShield:FSV.delete()});shielded++;}
+          else{batch.update(ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});n++;}
+        });
+      } else {
+        const allKids=await db.collection('kids').get();
+        allKids.forEach(doc=>{
+          if(doc.id===G.kidRef.id)return;
+          const dd=doc.data();
+          if(dd.completed||!dd.mazeStartTime)return;
+          if(dd.shellShield){batch.update(doc.ref,{shellShield:FSV.delete()});shielded++;}
+          else{batch.update(doc.ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});n++;}
+        });
+      }
 
-      // Broadcast flash to all tablets — pre-set _lastShellTs so this tablet skips its own flash
+      // Shooter update, scan log, webswitch, and batch all in parallel
       const _shellNow = firebase.firestore.Timestamp.now();
       _lastShellTs = _shellNow.toMillis();
-      await db.collection('config').doc('shellBroadcast').set({
-        triggeredAt:_shellNow,
-        by:G.kidRef.id,byName:G.kidData.name||'Participant',
-        penalty:CFG.shellPenalty,affectedCount:n,shieldedCount:shielded
-      });
+      await Promise.all([
+        G.kidRef.update(shellUpd),
+        db.collection('scans').add({kidId:G.kidRef.id,name:G.kidData.name||'Participant',
+          station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:CFG.coinsMin,gameType:'shell',timestamp:firebase.firestore.Timestamp.now(),newTotal:(G.kidData.coins||0)+CFG.coinsMin}),
+        maybeTriggerWebSwitch(),
+        n+shielded>0 ? batch.commit() : Promise.resolve(),
+        db.collection('config').doc('shellBroadcast').set({
+          triggeredAt:_shellNow,
+          by:G.kidRef.id,byName:G.kidData.name||'Participant',
+          penalty:CFG.shellPenalty,affectedCount:n,shieldedCount:shielded
+        })
+      ]);
 
       // Fire OSC/DMX cue with 10s cooldown so QLab cues don't overlap
       const now2=Date.now();
@@ -3144,10 +3213,11 @@ const SFX = (function(){
       if(since>=10000){
         _lastShellOscAt=now2;
         sendConfiguredOsc('shell_fired').catch(()=>{});
+        shellFireEffects().catch(()=>{});
       } else {
         const delay=10000-since;
         _lastShellOscAt=now2+delay;
-        setTimeout(()=>{ sendConfiguredOsc('shell_fired').catch(()=>{}); },delay);
+        setTimeout(()=>{sendConfiguredOsc('shell_fired').catch(()=>{});shellFireEffects().catch(()=>{});},delay);
       }
 
     }catch(e){console.error('applyShell',e);}
@@ -3169,6 +3239,8 @@ const SFX = (function(){
         station:currentStationId,stationLabel:titleEl.textContent||('Station '+currentStationId),coins:0,gameType:'powerup',timestamp:firebase.firestore.Timestamp.now(),newTotal:G.kidData.coins||0});
       lastNewScanKidId=G.kidRef.id; lastNewScanName=G.kidData.name||'Participant';
       await maybeTriggerWebSwitch();
+      // Fire station-specific mushroom cue (light at this station position)
+      sendConfiguredOsc('mushroom_at_'+currentStationId).catch(()=>{});
       // Expiry is tracked in Firestore only — no on-screen countdown shown
     }catch(e){console.error('applyPowerup',e);}
   }

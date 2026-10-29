@@ -449,18 +449,11 @@
             if(ids.length > 0){
               const shuffled = ids.sort(()=>Math.random()-0.5);
               const upd = {};
-              if(mode==='both'){
-                const mPct = cfgData.bothMushroomPct != null ? cfgData.bothMushroomPct : 100;
-                const sPct = cfgData.bothShellPct    != null ? cfgData.bothShellPct    : 100;
+              if(mode==='both'||mode==='mushroom') upd.mushroomStation = shuffled[0];
+              if(mode==='both'||mode==='shell') upd.shellStation = (mode==='both'&&shuffled.length>1) ? shuffled[1] : shuffled[0];
+              if(mode==='random'){
+                const mPct = cfgData.bothMushroomPct != null ? cfgData.bothMushroomPct : 50;
                 if(Math.random() * 100 < mPct) upd.mushroomStation = shuffled[0];
-                if(Math.random() * 100 < sPct) upd.shellStation = shuffled.length > 1 ? shuffled[1] : shuffled[0];
-              } else if(mode==='mushroom'){
-                upd.mushroomStation = shuffled[0];
-              } else if(mode==='shell'){
-                upd.shellStation = shuffled[0];
-              } else if(mode==='random'){
-                // Each player randomly gets either a mushroom OR a shell, not both
-                if(Math.random() < 0.5) upd.mushroomStation = shuffled[0];
                 else upd.shellStation = shuffled[0];
               }
               if(Object.keys(upd).length > 0) await kidRef.update(upd);

@@ -3207,17 +3207,12 @@ const SFX = (function(){
         })
       ]);
 
-      // Fire OSC/DMX cue with 10s cooldown so QLab cues don't overlap
+      // Fire OSC/DMX cue — skip if one fired in the last 10s (QLab cue already running)
       const now2=Date.now();
-      const since=now2-_lastShellOscAt;
-      if(since>=10000){
+      if(now2-_lastShellOscAt>=10000){
         _lastShellOscAt=now2;
         sendConfiguredOsc('shell_fired').catch(()=>{});
         shellFireEffects().catch(()=>{});
-      } else {
-        const delay=10000-since;
-        _lastShellOscAt=now2+delay;
-        setTimeout(()=>{sendConfiguredOsc('shell_fired').catch(()=>{});shellFireEffects().catch(()=>{});},delay);
       }
 
     }catch(e){console.error('applyShell',e);}

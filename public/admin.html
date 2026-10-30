@@ -3290,9 +3290,11 @@ if(id==='allvisitors')  initAllVisitors();
     // Look up last station from scan activity log
     let lastStation='unknown';
     try{
-      const scanSnap=await db.collection('scans').where('kidId','==',id).orderBy('timestamp','desc').limit(1).get();
+      const scanSnap=await db.collection('scans').where('kidId','==',id).get();
       if(!scanSnap.empty){
-        const sd=scanSnap.docs[0].data();
+        const docs=scanSnap.docs.map(d=>d.data());
+        docs.sort((a,b)=>(b.timestamp?.seconds||0)-(a.timestamp?.seconds||0));
+        const sd=docs[0];
         lastStation=sd.stationLabel||(sd.station?'Station '+sd.station:lastStation);
       }
     }catch(_){}

@@ -6,6 +6,12 @@
  *
  * Wiring:
  *   Reed switch  → GPIO 4  (and GND)  — INPUT_PULLUP, LOW = door closed
+ *   Button       → onboard BOOT button (GPIO 0) — press to disarm
+ *
+ * LED behaviour (built-in LED, GPIO 2):
+ *   Solid ON    = armed / door closed
+ *   Fast blink  = door open / alert active
+ *   Slow blink  = disarmed — waiting for door to close to re-arm
  *
  * Libraries required (install via Arduino Library Manager):
  *   - ArduinoJson  (by Benoit Blanchon)
@@ -27,20 +33,29 @@ const char* FIREBASE_API_KEY = "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10";
 const char* PROJECT_ID      = "light-the-night-2025";
 
 const int PIN_REED   = 4;
+const int PIN_LED    = 2;   // built-in LED on most ESP32 boards
+const int PIN_BTN    = 0;   // onboard BOOT button
 
 const unsigned long POLL_MS       = 10000;   // check Firestore for remote clear every 10s
 const unsigned long DEBOUNCE_MS   = 80;
 const unsigned long TOKEN_MARGIN  = 300000;  // refresh token 5 min before expiry
+const unsigned long BLINK_FAST_MS = 300;     // half-period when alert active
+const unsigned long BLINK_SLOW_MS = 900;     // half-period when disarmed
 
 String   idToken     = "";
 unsigned long tokenExpiry = 0;
 bool     doorOpen    = false;
-unsigned long lastPoll = 0;
+bool     disarmed    = false;   // button pressed — waiting for door to close
+unsigned long lastPoll  = 0;
+unsigned long lastBlink = 0;
+bool     ledState    = false;
 
 // ─── Setup ─────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_REED, INPUT_PULLUP);
+  pinMode(PIN_BTN,  INPUT_PULLUP);
+  pinMode(PIN_LED, OUTPUT);
 
   connectWiFi();
   configTime(0, 0, "pool.ntp.org");
@@ -51,6 +66,7 @@ void setup() {
   // Sync state from Firestore on boot
   doorOpen = readDoorState();
   Serial.println(doorOpen ? "Boot: door is OPEN" : "Boot: door is secure");
+  updateLed();
 }
 
 // ─── Loop ──────────────────────────────────────────────────────────────────
@@ -64,14 +80,36 @@ void loop() {
     signInAnonymously();
   }
 
-  // Reed switch: HIGH = door open (magnet pulled away)
-  bool physical = (digitalRead(PIN_REED) == HIGH);
-  if (physical && !doorOpen) {
+  bool physical = (digitalRead(PIN_REED) == HIGH);  // HIGH = door open
+
+  // Door physically closed while disarmed → re-arm
+  if (disarmed && !physical) {
+    disarmed = false;
+    Serial.println("Door closed — re-armed");
+    updateLed();
+  }
+
+  // Door opened while armed → trigger alert
+  if (physical && !doorOpen && !disarmed) {
     delay(DEBOUNCE_MS);
     if (digitalRead(PIN_REED) == HIGH) {
       doorOpen = true;
       writeDoorState(true);
       Serial.println("Door OPENED");
+      updateLed();
+    }
+  }
+
+  // BOOT button pressed while alert is active → disarm
+  if (digitalRead(PIN_BTN) == LOW && doorOpen && !disarmed) {
+    delay(50);
+    if (digitalRead(PIN_BTN) == LOW) {
+      doorOpen = false;
+      disarmed  = true;
+      writeDoorState(false);
+      Serial.println("Disarmed via button");
+      updateLed();
+      while (digitalRead(PIN_BTN) == LOW) delay(10);  // wait for release
     }
   }
 
@@ -82,10 +120,29 @@ void loop() {
     if (!remote && doorOpen) {
       doorOpen = false;
       Serial.println("Cleared remotely");
+      updateLed();
     }
   }
 
+  updateLed();
   delay(100);
+}
+
+// ─── LED ───────────────────────────────────────────────────────────────────
+void updateLed() {
+  if (!doorOpen && !disarmed) {
+    // Solid ON — armed, door closed
+    digitalWrite(PIN_LED, HIGH);
+    ledState = true;
+  } else {
+    // Blink — fast for active alert, slow for disarmed
+    unsigned long period = doorOpen ? BLINK_FAST_MS : BLINK_SLOW_MS;
+    if (millis() - lastBlink >= period) {
+      lastBlink = millis();
+      ledState = !ledState;
+      digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+    }
+  }
 }
 
 // ─── WiFi ──────────────────────────────────────────────────────────────────

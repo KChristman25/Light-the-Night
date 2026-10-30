@@ -1501,13 +1501,18 @@
   }
 
   function checkAdminPassword(){
-    db.collection("config").doc("config").get().then(doc=>{
-      if(doc.exists && (doc.data().adminPassword||'').toLowerCase() === (document.getElementById("adminPasswordInput").value||'').toLowerCase()){
-        grantDashboardAccess();
-      } else {
-        document.getElementById("loginStatus").innerText = "Incorrect password.";
-      }
-    });
+    const statusEl = document.getElementById("loginStatus");
+    statusEl.innerText = "Checking…";
+    firebase.auth().signInAnonymously()
+      .then(() => db.collection("config").doc("config").get())
+      .then(doc => {
+        if(doc.exists && (doc.data().adminPassword||'').toLowerCase() === (document.getElementById("adminPasswordInput").value||'').toLowerCase()){
+          grantDashboardAccess();
+        } else {
+          statusEl.innerText = "Incorrect password.";
+        }
+      })
+      .catch(e => { statusEl.innerText = "Error: " + e.message; });
   }
   document.getElementById("adminPasswordInput").addEventListener("keydown", e=>{
     if (e.key === "Enter") checkAdminPassword();

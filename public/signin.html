@@ -378,6 +378,8 @@
 
     let codeLength = 6;
     let _activeEventId = null;
+    let _activeEventName = null;
+    let _liveListSnap = null;
 
     firebase.auth().signInAnonymously().then(()=>{ probe(); openCheckin(); startEventWatch(); }).catch(()=>{
       setChip('err','Auth failed');
@@ -389,9 +391,34 @@
     }
 
     function startEventWatch(){
-      db.collection('config').doc('config').onSnapshot(snap=>{
+      db.collection('config').doc('config').onSnapshot(async snap=>{
         _activeEventId=(snap.data()||{}).activeEventId||null;
+        if(_activeEventId){
+          const evSnap = await db.collection('events').doc(_activeEventId).get();
+          _activeEventName = evSnap.exists ? (evSnap.data().name||null) : null;
+        } else {
+          _activeEventName = null;
+        }
+        const h2 = document.querySelector('#checkinView .checkin-titlebar h2');
+        if(h2) h2.textContent = _activeEventName || 'Check-In';
+        renderLiveList();
       });
+    }
+
+    function renderLiveList(){
+      if(!_liveListSnap) return;
+      const list  = document.getElementById('liveList');
+      const count = document.getElementById('totalCount');
+      const chip  = document.getElementById('checkedInCountChip');
+      const docs = _activeEventId
+        ? _liveListSnap.docs.filter(d=>d.data().eventId===_activeEventId)
+        : _liveListSnap.docs;
+      if(count) count.textContent = 'Total checked in: ' + docs.length;
+      if(chip)  chip.textContent  = docs.length + ' in';
+      if(list)  list.innerHTML = docs.map(doc=>{
+        const d=doc.data(), name=d.name||'(no name)', code=d.code||d.barcode||'';
+        return `<li data-id="${doc.id}"><span>${name}</span>${code?`<small>${code}</small>`:''}</li>`;
+      }).join('');
     }
 
     async function probe(){
@@ -549,34 +576,9 @@
     });
 
     function loadLiveList(){
-      let _init = false;
       db.collection('kids').orderBy('timestamp','desc').onSnapshot(snap => {
-        const list  = document.getElementById('liveList');
-        const count = document.getElementById('totalCount');
-        const chip  = document.getElementById('checkedInCountChip');
-        count.textContent = 'Total checked in: ' + snap.size;
-        if (chip) chip.textContent = snap.size + ' in';
-        if (!_init) {
-          _init = true;
-          list.innerHTML = '';
-          snap.forEach(doc => {
-            const d = doc.data();
-            const name = d.name || '(no name)';
-            const code = d.code || d.barcode || '';
-            list.insertAdjacentHTML('beforeend',
-              `<li data-id="${doc.id}"><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
-          });
-        } else {
-          snap.docChanges().forEach(change => {
-            if (change.type === 'added') {
-              const d = change.doc.data();
-              const name = d.name || '(no name)';
-              const code = d.code || d.barcode || '';
-              list.insertAdjacentHTML('afterbegin',
-                `<li data-id="${change.doc.id}"><span>${name}</span>${code ? `<small>${code}</small>` : ''}</li>`);
-            }
-          });
-        }
+        _liveListSnap = snap;
+        renderLiveList();
       }, () => setChip('err','Live list blocked'));
     }
 

@@ -803,14 +803,17 @@
       display:flex; align-items:center; gap:clamp(10px,2vw,20px);
       padding:clamp(10px,1.6vh,18px) clamp(16px,3vw,32px);
       border-bottom:1px solid rgba(74,0,128,.4);
+      border-left:4px solid transparent;
+      transition:background .12s;
     }
-    .wl-row-current { background:rgba(245,200,0,.12); border-left:4px solid #f5c800; }
-    .wl-row-target  { background:rgba(180,0,255,.12); border-left:4px solid #c060ff; }
+    .wl-row-current { background:rgba(245,200,0,.12); border-left-color:#f5c800; }
+    .wl-row-target  { background:rgba(180,0,255,.2);  border-left-color:#c060ff; }
+    .wl-row-selectable { cursor:pointer; }
+    .wl-row-selectable:hover { background:rgba(180,0,255,.12); }
     .wl-rank { font-family:'Press Start 2P',monospace; font-size:clamp(10px,1.6vw,14px); color:#a070c0; min-width:clamp(32px,4vw,50px); flex-shrink:0; }
     .wl-name { font-weight:800; font-size:clamp(15px,2.4vw,28px); color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .wl-name-current { color:#f5c800; }
     .wl-coins { font-family:'Press Start 2P',monospace; font-size:clamp(12px,1.8vw,20px); color:#e8a000; flex-shrink:0; }
-    .wl-badge { font-size:clamp(16px,2.4vw,24px); flex-shrink:0; }
     #wlActions { background:#1a0030; border-top:3px solid #3a006a; padding:clamp(12px,2vh,20px) clamp(16px,3vw,28px); display:flex; gap:12px; justify-content:center; flex-wrap:wrap; flex-shrink:0; }
     .wl-btn { font-family:'Press Start 2P',monospace; font-size:clamp(9px,1.4vw,12px); border:3px solid; border-radius:4px; padding:clamp(10px,1.6vh,16px) clamp(14px,2.5vw,24px); cursor:pointer; transition:transform .08s,box-shadow .08s; line-height:1.6; }
     .wl-btn:active { transform:translate(2px,2px); }
@@ -2301,68 +2304,80 @@ function _ordinalWario(n){
 }
 
 function showWarioLeaderboard(currentRef, currentData){
-  const overlay  = document.getElementById('warioLeaderboard');
-  const listEl   = document.getElementById('wlList');
-  const actionsEl= document.getElementById('wlActions');
-  const resultEl = document.getElementById('wlResult');
-  const subtitleEl = document.getElementById('wlSubtitle');
+  const overlay   = document.getElementById('warioLeaderboard');
+  const listEl    = document.getElementById('wlList');
+  const actionsEl = document.getElementById('wlActions');
+  const resultEl  = document.getElementById('wlResult');
+  const subtitleEl= document.getElementById('wlSubtitle');
 
-  const cfg = window._warioCfg || {stealEnabled:false,stealAmount:30,switchEnabled:false};
+  const cfg  = window._warioCfg || {stealEnabled:false,stealAmount:30,switchEnabled:false};
   const kids = _getInMazeKids();
   const myIdx = kids.findIndex(k=>k.id===currentRef.id);
-  const target = myIdx > 0 ? kids[myIdx-1] : null; // player ranked directly above
 
-  // Build leaderboard rows
-  listEl.innerHTML = kids.length === 0
-    ? '<div style="padding:40px;text-align:center;font-family:\'Press Start 2P\',monospace;font-size:13px;color:#888">No players in maze yet</div>'
-    : kids.map((k,i)=>{
-      const isCurrent = k.id === currentRef.id;
-      const isTarget  = target && k.id === target.id;
-      let rowClass='wl-row';
-      if(isCurrent) rowClass+=' wl-row-current';
-      else if(isTarget) rowClass+=' wl-row-target';
-      const badge = isCurrent ? '👤' : (isTarget ? '🎯' : '');
-      const nameClass = isCurrent ? 'wl-name wl-name-current' : 'wl-name';
-      const label = isCurrent ? (k.data.name||'?')+' ← YOU' : (k.data.name||'?');
-      return `<div class="${rowClass}">
-        <div class="wl-rank">${_ordinalWario(i+1)}</div>
-        <div class="${nameClass}">${escapeHtml(label)}</div>
-        ${badge?`<div class="wl-badge">${badge}</div>`:''}
-        <div class="wl-coins">💰 ${k.data.coins||0}</div>
-      </div>`;
-    }).join('');
+  let selectedTarget = null;
 
-  // Build action buttons
-  resultEl.textContent='';
-  actionsEl.innerHTML='';
+  function renderList(){
+    listEl.innerHTML = kids.length === 0
+      ? '<div style="padding:40px;text-align:center;font-family:\'Press Start 2P\',monospace;font-size:13px;color:#888">No players in maze yet</div>'
+      : kids.map((k,i)=>{
+        const isCurrent = k.id === currentRef.id;
+        const isTarget  = selectedTarget && k.id === selectedTarget.id;
+        let rowClass = 'wl-row';
+        if(isCurrent) rowClass += ' wl-row-current';
+        else { rowClass += ' wl-row-selectable'; if(isTarget) rowClass += ' wl-row-target'; }
+        const nameClass = isCurrent ? 'wl-name wl-name-current' : 'wl-name';
+        return `<div class="${rowClass}" data-kid-id="${k.id}">
+          <div class="wl-rank">${_ordinalWario(i+1)}</div>
+          <div class="${nameClass}">${escapeHtml(k.data.name||'?')}</div>
+          <div class="wl-coins">🪙 ${k.data.coins||0}</div>
+        </div>`;
+      }).join('');
 
-  const canAct = target !== null;
-
-  if(canAct && cfg.stealEnabled){
-    const stealAmt = Math.min(cfg.stealAmount, target.data.coins||0);
-    const btn=document.createElement('button');
-    btn.className='wl-btn wl-btn-steal';
-    btn.textContent=`STEAL ${stealAmt} COINS`;
-    btn.onclick=()=>doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listEl,actionsEl,resultEl);
-    actionsEl.appendChild(btn);
-  }
-  if(canAct && cfg.switchEnabled){
-    const btn=document.createElement('button');
-    btn.className='wl-btn wl-btn-switch';
-    btn.textContent='SWITCH SCORES';
-    btn.onclick=()=>doWarioSwitch(currentRef,currentData,target,overlay,listEl,actionsEl,resultEl);
-    actionsEl.appendChild(btn);
-  }
-  if(!canAct){
-    subtitleEl.textContent = myIdx===0 ? "WAAAHAHA! You're already #1!" : "No one to target yet!";
+    listEl.querySelectorAll('.wl-row-selectable').forEach(row=>{
+      row.onclick=()=>{
+        const kid = kids.find(k=>k.id===row.dataset.kidId);
+        if(!kid) return;
+        selectedTarget = (selectedTarget && selectedTarget.id===kid.id) ? null : kid;
+        renderList();
+        renderActions();
+      };
+    });
   }
 
-  const doneBtn=document.createElement('button');
-  doneBtn.className='wl-btn wl-btn-done';
-  doneBtn.textContent='NO THANKS';
-  doneBtn.onclick=()=>{ overlay.classList.remove('show'); };
-  actionsEl.appendChild(doneBtn);
+  function renderActions(){
+    resultEl.textContent='';
+    actionsEl.innerHTML='';
 
+    if(!selectedTarget){
+      subtitleEl.textContent = myIdx===0 ? "WAAAHAHA! You're already #1!" : 'TAP A PLAYER TO TARGET';
+    } else {
+      subtitleEl.textContent = `Targeting: ${selectedTarget.data.name||'?'}`;
+      if(cfg.stealEnabled){
+        const stealAmt = Math.min(cfg.stealAmount, selectedTarget.data.coins||0);
+        const btn=document.createElement('button');
+        btn.className='wl-btn wl-btn-steal';
+        btn.textContent=`STEAL ${stealAmt} 🪙 FROM ${(selectedTarget.data.name||'?').toUpperCase()}`;
+        btn.onclick=()=>doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl);
+        actionsEl.appendChild(btn);
+      }
+      if(cfg.switchEnabled){
+        const btn=document.createElement('button');
+        btn.className='wl-btn wl-btn-switch';
+        btn.textContent=`SWITCH WITH ${(selectedTarget.data.name||'?').toUpperCase()}`;
+        btn.onclick=()=>doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl);
+        actionsEl.appendChild(btn);
+      }
+    }
+
+    const doneBtn=document.createElement('button');
+    doneBtn.className='wl-btn wl-btn-done';
+    doneBtn.textContent='NO THANKS';
+    doneBtn.onclick=()=>{ overlay.classList.remove('show'); };
+    actionsEl.appendChild(doneBtn);
+  }
+
+  renderList();
+  renderActions();
   overlay.classList.add('show');
 }
 
@@ -2375,7 +2390,7 @@ async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listE
     batch.update(target.ref,{coins:FSV.increment(-stealAmt)});
     await batch.commit();
     const myNewCoins=(currentData.coins||0)+stealAmt;
-    resultEl.textContent=`WAAAHAHA! +${stealAmt} coins stolen from ${target.data.name||'them'}!`;
+    resultEl.textContent=`WAAAHAHA! +${stealAmt} 🪙 stolen from ${target.data.name||'them'}!`;
     fireConfetti();
     setTimeout(()=>overlay.classList.remove('show'),3500);
   }catch(e){
@@ -2394,7 +2409,7 @@ async function doWarioSwitch(currentRef,currentData,target,overlay,listEl,action
     batch.update(currentRef,{coins:theirCoins});
     batch.update(target.ref,{coins:myCoins});
     await batch.commit();
-    resultEl.textContent=`WAAAHAHA! Swapped! You now have ${theirCoins} coins!`;
+    resultEl.textContent=`WAAAHAHA! Swapped! You now have ${theirCoins} 🪙!`;
     fireConfetti();
     setTimeout(()=>overlay.classList.remove('show'),3500);
   }catch(e){

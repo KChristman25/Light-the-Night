@@ -1,7 +1,8 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {initializeApp} = require("firebase-admin/app");
-const {getFirestore} = require("firebase-admin/firestore");
+const {getFirestore, FieldValue, Timestamp} = require("firebase-admin/firestore");
 
 setGlobalOptions({ maxInstances: 10 });
 
@@ -91,6 +92,66 @@ exports.noStartAlert = onDocumentWritten({ document: "alerts/{alertId}" }, async
   await Promise.all(
     phoneNumbers.map(num =>
       sendSms(num, "Participant Not Started", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+    )
+  );
+});
+
+exports.stationOfflineCheck = onSchedule("every 5 minutes", async () => {
+  const db = getFirestore();
+
+  const settingsSnap = await db.collection("config").doc("stationOfflineAlertSettings").get();
+  const settings = settingsSnap.data() || {};
+  if (!settings.enabled) return;
+
+  const phoneNumbers = settings.phoneNumbers || [];
+  if (phoneNumbers.length === 0) return;
+
+  const THRESHOLD_MS = 240000;  // 4 min — matches admin offline flag
+  const COOLDOWN_MS  = 600000;  // 10 min between repeat alerts per station
+
+  const [stationsSnap, alertsSnap] = await Promise.all([
+    db.collection("stations").get(),
+    db.collection("config").doc("stationOfflineAlerts").get(),
+  ]);
+
+  const now = Date.now();
+  const lastAlerts = alertsSnap.data() || {};
+  const offlineLabels = [];
+  const updates = {};
+
+  stationsSnap.forEach(doc => {
+    const d = doc.data() || {};
+    if (d.active === false) return;  // intentionally disabled
+
+    const hb = d.heartbeat?.toMillis?.() || (d.heartbeat?.seconds ? d.heartbeat.seconds * 1000 : 0);
+    if (!hb) return;  // never sent a heartbeat yet
+
+    const age = now - hb;
+
+    if (age < THRESHOLD_MS) {
+      // Back online — clear cooldown so next outage alerts immediately
+      if (lastAlerts[doc.id]) updates[doc.id] = FieldValue.delete();
+      return;
+    }
+
+    // Offline — check cooldown to avoid spam
+    const lastAlertMs = lastAlerts[doc.id]?.toMillis?.() || (lastAlerts[doc.id]?.seconds ? lastAlerts[doc.id].seconds * 1000 : 0);
+    if (lastAlertMs && (now - lastAlertMs) < COOLDOWN_MS) return;
+
+    offlineLabels.push(d.label || "Station " + doc.id);
+    updates[doc.id] = Timestamp.now();
+  });
+
+  if (Object.keys(updates).length) {
+    await db.collection("config").doc("stationOfflineAlerts").set(updates, { merge: true });
+  }
+
+  if (offlineLabels.length === 0) return;
+
+  const message = `STATION OFFLINE: ${offlineLabels.join(", ")}. Check the maze immediately.`;
+  await Promise.all(
+    phoneNumbers.map(num =>
+      sendSms(num, "Station Offline Alert", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
     )
   );
 });

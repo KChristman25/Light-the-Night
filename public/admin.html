@@ -1360,7 +1360,7 @@
       </div>
 
       <h3>SMS: Participant Not Started</h3>
-      <div class="panel-box" style="max-width:480px">
+      <div class="panel-box" style="max-width:480px;margin-bottom:24px">
         <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">These numbers get a text when a participant scans a station without starting at the start line.</div>
         <div id="noStartAlertNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1368,6 +1368,24 @@
           <button class="btn" onclick="addAlertNumber('noStartAlertSettings','noStartAlertNewNumber','noStartAlertStatus')">+ Add Number</button>
         </div>
         <div id="noStartAlertStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+      </div>
+
+      <h3>SMS: Station Offline</h3>
+      <div class="panel-box" style="max-width:480px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Get a text when a station stops responding. Checks every 5 minutes — flags a station after 4 minutes with no heartbeat.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px">
+          <div>
+            <div style="font-weight:600;color:var(--text);font-size:13px">Heartbeat Alerts</div>
+            <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Enable to receive SMS when a station goes offline</div>
+          </div>
+          <button id="stationOfflineSmsBtn" onclick="toggleStationOfflineSms()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
+        </div>
+        <div id="stationOfflineNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="stationOfflineNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+          <button class="btn" onclick="addAlertNumber('stationOfflineAlertSettings','stationOfflineNewNumber','stationOfflineStatus')">+ Add Number</button>
+        </div>
+        <div id="stationOfflineStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
       </div>
     </div>
 
@@ -2984,6 +3002,12 @@ if(id==='allvisitors')  initAllVisitors();
     await db.collection('config').doc('config').set({gameDirectOnMiss:!current},{merge:true});
   }
 
+  async function toggleStationOfflineSms(){
+    const doc=await db.collection('config').doc('stationOfflineAlertSettings').get();
+    const current=doc.exists&&doc.data().enabled===true;
+    await db.collection('config').doc('stationOfflineAlertSettings').set({enabled:!current},{merge:true});
+  }
+
   async function toggleWarioSteal(){
     const doc=await db.collection('config').doc('config').get();
     const current=doc.exists&&doc.data().warioStealEnabled===true;
@@ -4242,6 +4266,20 @@ Return ONLY a JSON array, no prose.`;
     listeners.push(
       db.collection('config').doc('noStartAlertSettings').onSnapshot(snap => {
         renderAlertNumberList('noStartAlertNumberList', (snap.data() || {}).phoneNumbers || [], 'noStartAlertSettings');
+      })
+    );
+    listeners.push(
+      db.collection('config').doc('stationOfflineAlertSettings').onSnapshot(snap => {
+        const d = snap.data() || {};
+        renderAlertNumberList('stationOfflineNumberList', d.phoneNumbers || [], 'stationOfflineAlertSettings');
+        const btn = document.getElementById('stationOfflineSmsBtn');
+        if(btn){
+          const on = d.enabled === true;
+          btn.textContent = on ? 'ON' : 'OFF';
+          btn.style.background    = on ? '#16a34a' : 'var(--panel)';
+          btn.style.color         = on ? '#fff'    : 'var(--muted-dk)';
+          btn.style.borderColor   = on ? '#16a34a' : 'var(--border)';
+        }
       })
     );
   }

@@ -9,13 +9,13 @@
  *   Button       → onboard BOOT button (GPIO 0) — press to disarm
  *
  * LED behaviour (built-in LED, GPIO 2):
- *   Solid ON    = armed / door closed
- *   Fast blink  = door open / alert active
- *   Slow blink  = disarmed — staff mode, open/close freely, no alerts
+ *   Solid ON   = armed / door closed
+ *   Fast blink = alert active (door opened while armed)
+ *   Slow blink = disarmed — staff mode, open/close freely, no alerts
  *
  * Button behaviour:
- *   Press once  = disarm (staff can open/close door without triggering alert)
- *   Press again = re-arm
+ *   Press = disarm (clears any active alert silently)
+ *   Door physically closes = auto re-arm
  *
  * Libraries required (install via Arduino Library Manager):
  *   - ArduinoJson  (by Benoit Blanchon)
@@ -49,7 +49,7 @@ const unsigned long BLINK_SLOW_MS = 900;     // half-period when disarmed
 String   idToken     = "";
 unsigned long tokenExpiry = 0;
 bool     doorOpen    = false;
-bool     disarmed    = false;   // button pressed — waiting for door to close
+bool     disarmed    = false;
 unsigned long lastPoll  = 0;
 unsigned long lastBlink = 0;
 bool     ledState    = false;
@@ -86,27 +86,26 @@ void loop() {
 
   bool physical = (digitalRead(PIN_REED) == HIGH);  // HIGH = door open
 
-  // BOOT button: toggle armed ↔ disarmed
+  // Door closed while disarmed or alert active → re-arm
+  if ((disarmed || doorOpen) && !physical) {
+    disarmed = false;
+    doorOpen = false;
+    writeDoorState(false);
+    writeDisarmedState(false);
+    Serial.println("Door closed — re-armed");
+    updateLed();
+  }
+
+  // BOOT button: disarm (clears any active alert silently)
   if (digitalRead(PIN_BTN) == LOW) {
     delay(50);
     if (digitalRead(PIN_BTN) == LOW) {
-      if (disarmed) {
-        // Re-arm
-        disarmed = false;
-        writeDisarmedState(false);
-        Serial.println("Re-armed via button");
-      } else {
-        // Disarm — clear any active alert silently
-        disarmed = true;
-        if (doorOpen) {
-          doorOpen = false;
-          writeDoorState(false);
-        }
-        writeDisarmedState(true);
-        Serial.println("Disarmed via button");
-      }
+      disarmed = true;
+      if (doorOpen) { doorOpen = false; writeDoorState(false); }
+      writeDisarmedState(true);
+      Serial.println("Disarmed via button");
       updateLed();
-      while (digitalRead(PIN_BTN) == LOW) delay(10);  // wait for release
+      while (digitalRead(PIN_BTN) == LOW) delay(10);
     }
   }
 
@@ -143,7 +142,7 @@ void updateLed() {
     digitalWrite(PIN_LED, HIGH);
     ledState = true;
   } else {
-    // Blink — fast for active alert, slow for disarmed
+    // Fast blink = alert active, slow blink = disarmed
     unsigned long period = doorOpen ? BLINK_FAST_MS : BLINK_SLOW_MS;
     if (millis() - lastBlink >= period) {
       lastBlink = millis();

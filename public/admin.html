@@ -2377,6 +2377,7 @@ if(id==='allvisitors')  initAllVisitors();
   let _allEvents = [], _adminActiveEventId = null, _adminLbFilter = null, _participantEventFilter = null;
 
   function initEvents(){
+    const createSt = document.getElementById('createEventStatus');
     listeners.push(
       db.collection('events').orderBy('date','asc').onSnapshot(snap=>{
         _allEvents = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -2384,6 +2385,8 @@ if(id==='allvisitors')  initAllVisitors();
         renderMigrateSelect();
         renderLbFilterBtns();
         renderParticipantEventFilterBtns();
+      }, err=>{
+        if(createSt) createSt.textContent = 'Error loading events: '+err.message;
       })
     );
     listeners.push(
@@ -2505,13 +2508,16 @@ if(id==='allvisitors')  initAllVisitors();
     const st=document.getElementById('createEventStatus');
     const name=(nameEl?.value||'').trim();
     const date=(dateEl?.value||'').trim();
-    if(!name){if(st)st.textContent='Enter an event name.';return;}
+    if(!name){if(st){st.style.color='#e52521';st.textContent='Enter an event name.';}return;}
+    if(st){st.style.color='var(--muted-dk)';st.textContent='Saving…';}
     try{
       await db.collection('events').add({name,date,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
       if(nameEl) nameEl.value='';
       if(dateEl) dateEl.value='';
-      if(st){st.textContent='✅ Created!';setTimeout(()=>st.textContent='',2500);}
-    }catch(e){if(st)st.textContent='Error: '+e.message;}
+      if(st){st.style.color='#16a34a';st.textContent='✅ Created!';setTimeout(()=>{st.textContent='';st.style.color='var(--muted-dk)';},2500);}
+    }catch(e){
+      if(st){st.style.color='#e52521';st.textContent='Error: '+e.message;}
+    }
   }
 
   async function setActiveEvent(eventId){

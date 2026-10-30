@@ -2606,7 +2606,7 @@ if(id==='allvisitors')  initAllVisitors();
     });
 
     const countEl = document.getElementById('participantFilterCount');
-    if (countEl) countEl.textContent = q ? `${filtered.length} of ${docs.length}` : `${docs.length} total`;
+    if (countEl) countEl.textContent = (q || _participantEventFilter) ? `${filtered.length} of ${docs.length}` : `${docs.length} total`;
 
     document.getElementById("participantsList").innerHTML =
       filtered.map(d=>{
@@ -2640,6 +2640,7 @@ if(id==='allvisitors')  initAllVisitors();
 
   function initParticipants(){
     document.getElementById('participantSearch').value = '';
+    _participantEventFilter = _adminActiveEventId;
     renderParticipantEventFilterBtns();
     listeners.push(
       db.collection('events').orderBy('date','asc').onSnapshot(()=>renderParticipantEventFilterBtns())
@@ -2647,7 +2648,9 @@ if(id==='allvisitors')  initAllVisitors();
     listeners.push(
       db.collection('config').doc('config').onSnapshot(snap=>{
         _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        _participantEventFilter=_adminActiveEventId;
         renderParticipantEventFilterBtns();
+        renderParticipantRows(_participantDocs);
       })
     );
     listeners.push(

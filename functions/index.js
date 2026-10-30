@@ -9,7 +9,7 @@ initializeApp();
 
 const SMTP2GO_API_KEY = "api-E4A974165ED641AF9C41CCF78B42E62C";
 
-async function sendSms(phoneNumber, message) {
+async function sendSms(phoneNumber, subject, body) {
   const res = await fetch("https://api.smtp2go.com/v3/email/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17,8 +17,8 @@ async function sendSms(phoneNumber, message) {
       api_key: SMTP2GO_API_KEY,
       to: [`${phoneNumber}@sms.smtp2go.com`],
       sender: "noreply@scfbc.org",
-      subject: "Emergency Exit Alert",
-      text_body: message
+      subject,
+      text_body: body
     })
   });
   const json = await res.json();
@@ -30,7 +30,6 @@ exports.emergencyExitAlert = onDocumentWritten({ document: "emergencyExits/{exit
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after  = event.data.after.exists  ? event.data.after.data()  : null;
 
-  // Only fire when isOpen flips to true
   if (!after || !after.isOpen || (before && before.isOpen)) return;
 
   const exitName = after.name || `Exit ${event.params.exitId}`;
@@ -44,7 +43,53 @@ exports.emergencyExitAlert = onDocumentWritten({ document: "emergencyExits/{exit
 
   await Promise.all(
     phoneNumbers.map(num =>
-      sendSms(num, message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+      sendSms(num, "Emergency Exit Alert", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+    )
+  );
+});
+
+exports.missingPersonAlert = onDocumentWritten({ document: "alerts_missing/{kidId}", minInstances: 1 }, async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+
+  // Only fire when active flips to true
+  if (!after || !after.active || (before && before.active)) return;
+
+  const db = getFirestore();
+  const smsSnap = await db.collection("config").doc("missingAlertSettings").get();
+  const phoneNumbers = (smsSnap.data() || {}).phoneNumbers || [];
+  if (phoneNumbers.length === 0) return;
+
+  const name = after.name || "Unknown";
+  const extra = after.message ? ` Note: ${after.message}` : "";
+  const message = `MISSING CHILD: ${name}.${extra} All staff please search immediately.`;
+
+  await Promise.all(
+    phoneNumbers.map(num =>
+      sendSms(num, "Missing Child Alert", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+    )
+  );
+});
+
+exports.noStartAlert = onDocumentWritten({ document: "alerts/{alertId}" }, async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+
+  // Only fire on new no_start alerts (not updates or deletes)
+  if (!after || after.type !== "no_start" || before) return;
+
+  const db = getFirestore();
+  const smsSnap = await db.collection("config").doc("noStartAlertSettings").get();
+  const phoneNumbers = (smsSnap.data() || {}).phoneNumbers || [];
+  if (phoneNumbers.length === 0) return;
+
+  const name = after.name || "Unknown";
+  const station = after.stationLabel || after.stationId || "a station";
+  const message = `${name} scanned ${station} without starting. Go to entrance to start them.`;
+
+  await Promise.all(
+    phoneNumbers.map(num =>
+      sendSms(num, "Participant Not Started", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
     )
   );
 });

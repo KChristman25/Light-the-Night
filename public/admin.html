@@ -1325,8 +1325,8 @@
         <div id="exitRenameStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
       </div>
 
-      <h3>SMS Alert Numbers</h3>
-      <div class="panel-box" style="max-width:480px">
+      <h3>SMS: Emergency Exit</h3>
+      <div class="panel-box" style="max-width:480px;margin-bottom:24px">
         <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">These numbers get a text when any emergency exit opens.</div>
         <div id="smsNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1334,6 +1334,28 @@
           <button class="btn" onclick="addSmsNumber()">+ Add Number</button>
         </div>
         <div id="smsStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+      </div>
+
+      <h3>SMS: Missing Child</h3>
+      <div class="panel-box" style="max-width:480px;margin-bottom:24px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">These numbers get a text when a child is marked missing in admin.</div>
+        <div id="missingAlertNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="missingAlertNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+          <button class="btn" onclick="addAlertNumber('missingAlertSettings','missingAlertNewNumber','missingAlertStatus')">+ Add Number</button>
+        </div>
+        <div id="missingAlertStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+      </div>
+
+      <h3>SMS: Participant Not Started</h3>
+      <div class="panel-box" style="max-width:480px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">These numbers get a text when a participant scans a station without starting at the start line.</div>
+        <div id="noStartAlertNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="noStartAlertNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+          <button class="btn" onclick="addAlertNumber('noStartAlertSettings','noStartAlertNewNumber','noStartAlertStatus')">+ Add Number</button>
+        </div>
+        <div id="noStartAlertStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
       </div>
     </div>
 
@@ -4099,6 +4121,16 @@ Return ONLY a JSON array, no prose.`;
         renderSmsNumbers((snap.data() || {}).phoneNumbers || []);
       })
     );
+    listeners.push(
+      db.collection('config').doc('missingAlertSettings').onSnapshot(snap => {
+        renderAlertNumberList('missingAlertNumberList', (snap.data() || {}).phoneNumbers || [], 'missingAlertSettings');
+      })
+    );
+    listeners.push(
+      db.collection('config').doc('noStartAlertSettings').onSnapshot(snap => {
+        renderAlertNumberList('noStartAlertNumberList', (snap.data() || {}).phoneNumbers || [], 'noStartAlertSettings');
+      })
+    );
   }
 
   function renderExitCards() {
@@ -4213,6 +4245,43 @@ Return ONLY a JSON array, no prose.`;
       const phones = (snap.data() || {}).phoneNumbers || [];
       phones.splice(index, 1);
       await db.collection('config').doc('smsSettings').set({ phoneNumbers: phones }, { merge: true });
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  function renderAlertNumberList(listId, phones, settingsDoc) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    if (!phones.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted-dk)">No numbers added yet.</div>'; return; }
+    list.innerHTML = phones.map((num, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid #b0c8e8;border-radius:4px">
+        <span style="font-size:13px;font-family:ui-monospace,monospace;flex:1">${num}</span>
+        <button class="btn btn-sm btn-danger" onclick="removeAlertNumber('${settingsDoc}',${i})">✕</button>
+      </div>`).join('');
+  }
+
+  async function addAlertNumber(settingsDoc, inputId, statusId) {
+    const input = document.getElementById(inputId);
+    const status = document.getElementById(statusId);
+    let num = (input?.value || '').trim().replace(/\D/g, '');
+    if (num.length === 10) num = '1' + num;
+    if (num.length !== 11) { if (status) status.textContent = 'Enter a valid 10-digit number.'; return; }
+    try {
+      const snap = await db.collection('config').doc(settingsDoc).get();
+      const phones = (snap.data() || {}).phoneNumbers || [];
+      if (phones.includes(num)) { if (status) status.textContent = 'Already added.'; return; }
+      phones.push(num);
+      await db.collection('config').doc(settingsDoc).set({ phoneNumbers: phones }, { merge: true });
+      if (input) input.value = '';
+      if (status) { status.textContent = 'Added!'; setTimeout(() => status.textContent = '', 2000); }
+    } catch(e) { if (status) status.textContent = 'Error: ' + e.message; }
+  }
+
+  async function removeAlertNumber(settingsDoc, index) {
+    try {
+      const snap = await db.collection('config').doc(settingsDoc).get();
+      const phones = (snap.data() || {}).phoneNumbers || [];
+      phones.splice(index, 1);
+      await db.collection('config').doc(settingsDoc).set({ phoneNumbers: phones }, { merge: true });
     } catch(e) { alert('Error: ' + e.message); }
   }
 </script>

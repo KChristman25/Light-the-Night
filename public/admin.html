@@ -467,6 +467,7 @@
       <button onclick="showSection('showcontrol')">🎬 Show Control</button>
       <button onclick="showSection('dayofops')" style="color:#f87171;font-weight:700">🚨 Day-of Ops</button>
       <button onclick="showSection('emergencyexits')" style="color:#fb923c;font-weight:700">🚪 Emergency Exits</button>
+      <button onclick="showSection('stationsms')" style="color:#60a5fa;font-weight:700">📡 Station SMS</button>
       <a href="/check.html" target="_blank" style="display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;background:none;border:none;border-radius:4px;color:rgba(255,255,255,.55);font-size:12px;font-weight:500;text-decoration:none;transition:background .12s,color .12s;margin-bottom:2px" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.9)'" onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,.55)'">✅ Checklist ↗</a>
       <a href="/cameras.html" target="_blank" style="display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;background:none;border:none;border-radius:4px;color:rgba(255,255,255,.55);font-size:12px;font-weight:500;text-decoration:none;transition:background .12s,color .12s;margin-bottom:2px" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.9)'" onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,.55)'">📷 Cameras ↗</a>
     </div>
@@ -1370,24 +1371,30 @@
         <div id="noStartAlertStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
       </div>
 
-      <h3>SMS: Station Offline</h3>
-      <div class="panel-box" style="max-width:480px">
-        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Get a text when a station stops responding. Checks every 5 minutes — flags a station after 4 minutes with no heartbeat.</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px">
-          <div>
-            <div style="font-weight:600;color:var(--text);font-size:13px">Heartbeat Alerts</div>
-            <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Enable to receive SMS when a station goes offline</div>
-          </div>
-          <button id="stationOfflineSmsBtn" onclick="toggleStationOfflineSms()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
-        </div>
-        <div id="stationOfflineNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="stationOfflineNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
-          <button class="btn" onclick="addAlertNumber('stationOfflineAlertSettings','stationOfflineNewNumber','stationOfflineStatus')">+ Add Number</button>
-        </div>
-        <div id="stationOfflineStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
-      </div>
     </div>
+
+  <!-- Station SMS Section -->
+  <div id="stationsms" class="section" style="display:none">
+    <div class="page-title">📡 Station SMS</div>
+
+    <h3>Station Offline Alerts</h3>
+    <div class="panel-box" style="max-width:480px;margin-bottom:24px">
+      <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Get a text when a station stops responding. Checks every 5 minutes — flags a station after 4 minutes with no heartbeat. Won't repeat for the same station within 10 minutes.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px">
+        <div>
+          <div style="font-weight:600;color:var(--text);font-size:13px">Heartbeat Alerts</div>
+          <div style="color:var(--muted-dk);font-size:12px;margin-top:3px">Enable to receive SMS when a station goes offline</div>
+        </div>
+        <button id="stationOfflineSmsBtn" onclick="toggleStationOfflineSms()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
+      </div>
+      <div id="stationOfflineNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="stationOfflineNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+        <button class="btn" onclick="addAlertNumber('stationOfflineAlertSettings','stationOfflineNewNumber','stationOfflineStatus')">+ Add Number</button>
+      </div>
+      <div id="stationOfflineStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+    </div>
+  </div>
 
   </div><!-- /.main -->
 
@@ -1670,6 +1677,7 @@ if(id==='allvisitors')  initAllVisitors();
     if(id==='progress')     initProgress();
     if(id==='dayofops')       initDayOfOps();
     if(id==='emergencyexits') initEmergencyExits();
+    if(id==='stationsms')     initStationSms();
   }
 
   /* ── Progress Grid ────────────────────────────────────────────────────── */
@@ -4268,6 +4276,9 @@ Return ONLY a JSON array, no prose.`;
         renderAlertNumberList('noStartAlertNumberList', (snap.data() || {}).phoneNumbers || [], 'noStartAlertSettings');
       })
     );
+  }
+
+  function initStationSms(){
     listeners.push(
       db.collection('config').doc('stationOfflineAlertSettings').onSnapshot(snap => {
         const d = snap.data() || {};
@@ -4276,9 +4287,9 @@ Return ONLY a JSON array, no prose.`;
         if(btn){
           const on = d.enabled === true;
           btn.textContent = on ? 'ON' : 'OFF';
-          btn.style.background    = on ? '#16a34a' : 'var(--panel)';
-          btn.style.color         = on ? '#fff'    : 'var(--muted-dk)';
-          btn.style.borderColor   = on ? '#16a34a' : 'var(--border)';
+          btn.style.background  = on ? '#16a34a' : 'var(--panel)';
+          btn.style.color       = on ? '#fff'    : 'var(--muted-dk)';
+          btn.style.borderColor = on ? '#16a34a' : 'var(--border)';
         }
       })
     );

@@ -1816,7 +1816,7 @@ if(id==='allvisitors')  initAllVisitors();
         : `<td style="text-align:center"><span class="pg-add" title="Click to add Peach rescue" onclick="pgCheckField('${kid.id}','savedPeach','${escapeHtml(kid.name)}')">+</span></td>`;
       body+=kid.castle
         ? `<td style="text-align:center"><span title="Click to un-finish (send back to maze)" style="cursor:pointer;font-size:15px" onclick="pgUncheckCastle('${kid.id}','${escapeHtml(kid.name)}')">🏰</span></td>`
-        : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
+        : `<td style="text-align:center"><span class="pg-add" title="Click to mark as finished" onclick="pgCheckCastle('${kid.id}','${escapeHtml(kid.name)}')">+</span></td>`;
       body+=`<td style="text-align:center;font-weight:700;color:${allDone?'#16a34a':'#8b6040'}">${stationsDone}/${total}</td>`;
       body+=`<td style="text-align:center;font-weight:700;color:#e8a000"><img src="coin.svg" style="height:12px;width:auto;vertical-align:middle;image-rendering:pixelated;margin-right:2px">${kid.coins}</td>`;
       body+='</tr>';
@@ -1901,6 +1901,23 @@ if(id==='allvisitors')  initAllVisitors();
         scans: FSV.arrayUnion('wario'),
         'scanCounts.wario': FSV.increment(1)
       });
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckCastle(docId, name){
+    if(!confirm(`Mark ${name} as finished?`)) return;
+    try{
+      const snap=await db.collection('kids').doc(docId).get();
+      const d=snap.data()||{};
+      const FSV=firebase.firestore.FieldValue;
+      const now=firebase.firestore.Timestamp.now();
+      const start=d.mazeStartTime||null;
+      const durationMs=start?Math.max(0,now.toMillis()-start.toMillis()):0;
+      await db.collection('kids').doc(docId).set({
+        completed:true, completionTime:now, mazeEndTime:now,
+        durationMs, completedBy:'manual'
+      },{merge:true});
+      db.collection('leaderboard').doc('control').set({lastCompletedId:docId,ping:Date.now()},{merge:true});
     }catch(e){ alert('Error: '+e.message); }
   }
 

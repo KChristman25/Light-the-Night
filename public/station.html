@@ -794,7 +794,7 @@
       padding:clamp(12px,2vh,20px) clamp(16px,3vw,28px);
       display:flex; align-items:center; gap:16px; flex-shrink:0;
     }
-    .wl-pig { font-size:clamp(40px,7vw,64px); line-height:1; animation:warioBounce 1.6s ease-in-out infinite; }
+    .wl-pig { height:clamp(48px,8vw,80px); width:auto; image-rendering:pixelated; animation:warioBounce 1.6s ease-in-out infinite; }
     @keyframes warioBounce { 0%,100%{transform:scale(1) rotate(-3deg)} 50%{transform:scale(1.1) rotate(3deg)} }
     .wl-title { font-family:'Press Start 2P',monospace; font-size:clamp(13px,2.5vw,20px); color:#f5c800; text-shadow:2px 2px 0 #000; line-height:1.8; }
     .wl-sub { font-family:'Inter',sans-serif; font-size:clamp(12px,1.8vw,15px); color:#d0a0ff; margin-top:3px; }
@@ -940,7 +940,7 @@
         <span class="hub-arrow">▶</span>
       </button>
       <button class="hub-btn hub-wario" onclick="pickSpecialStation('wario')">
-        <span class="hub-icon">🐷</span>
+        <span class="hub-icon"><img src="icons/wario.png" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"></span>
         <span class="hub-text"><span class="hub-label">WARIO'S VAULT</span><span class="hub-desc">Steal &amp; Switch!</span></span>
         <span class="hub-arrow">▶</span>
       </button>
@@ -1030,7 +1030,7 @@
   <!-- Wario leaderboard overlay -->
   <div id="warioLeaderboard">
     <div class="wl-header">
-      <div class="wl-pig">🐷</div>
+      <img class="wl-pig" src="icons/wario.png" alt="Wario">
       <div>
         <div class="wl-title">WARIO'S VAULT</div>
         <div class="wl-sub" id="wlSubtitle">Steal coins or switch scores!</div>
@@ -1586,7 +1586,7 @@ async function pickSpecialStation(mode, skipFullscreen=false){
   const pn=document.getElementById('portraitStationName');
   if(pn) pn.textContent=label;
   const li=$('landIcon');
-  if(li) li.textContent=(mode==='wario')?'🐷':'';
+  if(li){ if(mode==='wario'){ li.innerHTML='<img src="icons/wario.png" alt="Wario" style="height:clamp(48px,8vh,96px);width:auto;image-rendering:pixelated">'; } else { li.innerHTML=''; } }
   const beat=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
   _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
   codeBuffer='';updateDisplay();setStatus('');

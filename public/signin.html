@@ -250,10 +250,55 @@
       justify-content: space-between;
     }
     ul#liveList li small { color: #666; font-size: 11px; font-family: monospace; }
+
+    /* ── Emergency exit banner ── */
+    #exitBanner {
+      display: none;
+      position: fixed;
+      top: 52px; left: 0; right: 0;
+      background: #e52521;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 0;
+      z-index: 99;
+    }
+    #exitBanner.active { display: block; }
+    .exit-banner-header {
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      animation: exitPulse 1s ease-in-out infinite alternate;
+    }
+    @keyframes exitPulse { from { opacity: 1; } to { opacity: .8; } }
+    .exit-banner-rows { background: #c41e1b; padding: 0 20px 8px; display: flex; flex-direction: column; gap: 4px; }
+    .exit-banner-row {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+    .exit-banner-row:last-child { border-bottom: none; }
+    .exit-clear-btn {
+      padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,.5);
+      background: rgba(255,255,255,.2); color: #fff; font-size: 11px; font-weight: 700;
+      cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
+    }
+    .exit-clear-btn:active { background: rgba(255,255,255,.4); }
+    body.exit-alert { padding-top: 68px; }
   </style>
   <script src="/pw.js"></script>
 </head>
 <body>
+
+  <!-- Emergency exit banner -->
+  <div id="exitBanner">
+    <div class="exit-banner-header">
+      <span>🚨 EMERGENCY EXIT OPEN</span>
+      <a href="exitmonitor.html" style="color:#fff;font-size:11px;text-decoration:underline">View Monitor →</a>
+    </div>
+    <div class="exit-banner-rows" id="exitBannerRows"></div>
+  </div>
 
   <!-- Top bar -->
   <div class="topbar">
@@ -538,6 +583,50 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(()=>{});
     }
+
+    // Emergency exit live monitor
+    (function() {
+      const EXIT_IDS = ['1','2','3','4'];
+      const exitData = {};
+      EXIT_IDS.forEach(id => {
+        db.collection('emergencyExits').doc(id).onSnapshot(snap => {
+          exitData[id] = snap.exists ? snap.data() : {};
+          renderExitBanner();
+        }, () => {});
+      });
+
+      function renderExitBanner() {
+        const banner = document.getElementById('exitBanner');
+        const rows = document.getElementById('exitBannerRows');
+        const openExits = EXIT_IDS.filter(id => (exitData[id] || {}).isOpen === true);
+        if (openExits.length === 0) {
+          banner.classList.remove('active');
+          document.body.style.paddingTop = '';
+          return;
+        }
+        banner.classList.add('active');
+        document.body.style.paddingTop = '68px';
+        rows.innerHTML = openExits.map(id => {
+          const d = exitData[id] || {};
+          const name = d.name || `Exit ${id}`;
+          const when = d.openedAt ? new Date(d.openedAt.toDate()).toLocaleTimeString() : '';
+          return `<div class="exit-banner-row">
+            <span>Exit ${id} — ${name}${when ? ` (${when})` : ''}</span>
+            <button class="exit-clear-btn" onclick="signinClearExit('${id}')">Clear</button>
+          </div>`;
+        }).join('');
+      }
+
+      window.signinClearExit = async function(id) {
+        try {
+          await db.collection('emergencyExits').doc(id).update({
+            isOpen: false,
+            clearedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            clearedBy: 'signin'
+          });
+        } catch(e) {}
+      };
+    })();
   </script>
 </body>
 </html>

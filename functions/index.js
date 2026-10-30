@@ -1,32 +1,50 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
 const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
-const logger = require("firebase-functions/logger");
+const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {initializeApp} = require("firebase-admin/app");
+const {getFirestore} = require("firebase-admin/firestore");
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+initializeApp();
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+const SMTP2GO_API_KEY = "api-E4A974165ED641AF9C41CCF78B42E62C";
+
+async function sendSms(phoneNumber, message) {
+  const res = await fetch("https://api.smtp2go.com/v3/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: SMTP2GO_API_KEY,
+      to: [`${phoneNumber}@sms.smtp2go.com`],
+      sender: "noreply@scfbc.org",
+      subject: "Emergency Exit Alert",
+      text_body: message
+    })
+  });
+  const json = await res.json();
+  if (!res.ok || json.data?.error) throw new Error(JSON.stringify(json));
+  return json;
+}
+
+exports.emergencyExitAlert = onDocumentWritten({ document: "emergencyExits/{exitId}", minInstances: 1 }, async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+
+  // Only fire when isOpen flips to true
+  if (!after || !after.isOpen || (before && before.isOpen)) return;
+
+  const exitName = after.name || `Exit ${event.params.exitId}`;
+
+  const db = getFirestore();
+  const smsSnap = await db.collection("config").doc("smsSettings").get();
+  const phoneNumbers = (smsSnap.data() || {}).phoneNumbers || [];
+  if (phoneNumbers.length === 0) return;
+
+  const message = `EMERGENCY EXIT OPENED: ${exitName}. Check the maze immediately.`;
+
+  await Promise.all(
+    phoneNumbers.map(num =>
+      sendSms(num, message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+    )
+  );
+});

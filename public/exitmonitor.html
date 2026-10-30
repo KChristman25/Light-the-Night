@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Exit Monitor — Light the Night</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
+
+    body {
+      min-height: 100vh;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 68px 16px 32px;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: #111;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+    }
+    .topbar-brand { font-size: 14px; font-weight: 700; color: #fff; }
+    .topbar-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 4px;
+      font-size: 11px; color: #fff;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok   { background: #10b981; }
+    .dot-warn { background: #f59e0b; }
+    .dot-err  { background: #ef4444; }
+    .dot-info { background: #60a5fa; }
+
+    /* Alert banner */
+    #alertBanner {
+      display: none;
+      position: fixed;
+      top: 52px; left: 0; right: 0;
+      background: #e52521;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 20px;
+      text-align: center;
+      z-index: 99;
+      animation: pulse 1s ease-in-out infinite alternate;
+    }
+    @keyframes pulse { from { opacity: 1; } to { opacity: .75; } }
+
+    .page {
+      width: 100%;
+      max-width: 600px;
+      padding-top: 16px;
+    }
+
+    .page-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #111;
+      margin-bottom: 6px;
+    }
+    .page-sub {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 24px;
+    }
+
+    .exits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .exit-card {
+      background: #fff;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      padding: 18px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .exit-card.open {
+      border-color: #e52521;
+      box-shadow: 0 0 0 3px rgba(229,37,33,.15);
+      background: #fff5f5;
+    }
+
+    .exit-num {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .exit-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: #111;
+      margin-bottom: 12px;
+    }
+    .exit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .badge-secure { background: #d1fae5; color: #065f46; }
+    .badge-open   { background: #fee2e2; color: #991b1b; }
+
+    .exit-time {
+      font-size: 12px;
+      color: #e52521;
+      margin-bottom: 10px;
+    }
+
+    .btn-clear {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f59e0b;
+      color: #111;
+      transition: opacity .1s;
+    }
+    .btn-clear:active { opacity: .8; }
+
+    .all-secure {
+      text-align: center;
+      padding: 32px;
+      background: #d1fae5;
+      border-radius: 8px;
+      border: 2px solid #10b981;
+      font-size: 16px;
+      font-weight: 700;
+      color: #065f46;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-brand">Exit Monitor</div>
+    <div class="topbar-chip">
+      <span class="dot dot-info" id="connDot"></span>
+      <span id="connText">Connecting…</span>
+    </div>
+  </div>
+
+  <div id="alertBanner">🚨 EMERGENCY EXIT OPEN — Check the maze immediately!</div>
+
+  <div class="page">
+    <div class="page-title">Emergency Exit Monitor</div>
+    <div class="page-sub">Live status of all emergency exits. Clear a door once a staff member has responded.</div>
+
+    <div id="exitsGrid" class="exits-grid">
+      <div style="color:#888;font-size:14px;padding:12px">Connecting…</div>
+    </div>
+
+    <div id="allSecure" class="all-secure">✅ All exits secure</div>
+  </div>
+
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10",
+      authDomain: "light-the-night-2025.firebaseapp.com",
+      projectId: "light-the-night-2025",
+      storageBucket: "light-the-night-2025.appspot.com",
+      messagingSenderId: "563168577950",
+      appId: "1:563168577950:web:874ffc743c2f8a77b1ee8f"
+    });
+    const db = firebase.firestore();
+
+    const EXIT_IDS = ['1','2','3','4'];
+    const exitData = {};
+
+    firebase.auth().signInAnonymously()
+      .then(() => {
+        document.getElementById('connDot').className = 'dot dot-ok';
+        document.getElementById('connText').textContent = 'Connected';
+        startListeners();
+      })
+      .catch(() => {
+        document.getElementById('connDot').className = 'dot dot-err';
+        document.getElementById('connText').textContent = 'Auth failed';
+      });
+
+    function startListeners() {
+      EXIT_IDS.forEach(id => {
+        db.collection('emergencyExits').doc(id).onSnapshot(snap => {
+          exitData[id] = snap.exists ? snap.data() : {};
+          render();
+        }, () => {
+          document.getElementById('connDot').className = 'dot dot-err';
+          document.getElementById('connText').textContent = 'Error';
+        });
+      });
+    }
+
+    function render() {
+      const grid = document.getElementById('exitsGrid');
+      const banner = document.getElementById('alertBanner');
+      const allSecure = document.getElementById('allSecure');
+
+      const anyOpen = EXIT_IDS.some(id => (exitData[id] || {}).isOpen === true);
+      banner.style.display = anyOpen ? 'block' : 'none';
+      document.body.style.paddingTop = anyOpen ? '112px' : '68px';
+
+      grid.innerHTML = EXIT_IDS.map(id => {
+        const d = exitData[id] || {};
+        const isOpen = d.isOpen === true;
+        const name = d.name || `Exit ${id}`;
+        const when = d.openedAt ? new Date(d.openedAt.toDate()).toLocaleTimeString() : '';
+        return `
+          <div class="exit-card${isOpen ? ' open' : ''}">
+            <div class="exit-num">Exit ${id}</div>
+            <div class="exit-name">${name}</div>
+            <div class="exit-badge ${isOpen ? 'badge-open' : 'badge-secure'}">
+              ${isOpen ? '🔴 OPEN' : '✅ Secure'}
+            </div>
+            ${isOpen && when ? `<div class="exit-time">Opened at ${when}</div>` : ''}
+            ${isOpen ? `<button class="btn-clear" onclick="clearExit('${id}')">✓ Mark Cleared</button>` : ''}
+          </div>`;
+      }).join('');
+
+      allSecure.style.display = anyOpen ? 'none' : 'block';
+    }
+
+    async function clearExit(id) {
+      try {
+        await db.collection('emergencyExits').doc(id).update({
+          isOpen: false,
+          clearedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          clearedBy: 'exitmonitor'
+        });
+      } catch(e) {
+        alert('Error: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

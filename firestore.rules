@@ -138,6 +138,12 @@ service cloud.firestore {
       allow read, write: if isAuthed();
     }
 
+    // ── emergencyExits collection ────────────────────────────────────────────
+    // ESP32 boards write door open/close events; web clients read and clear.
+    match /emergencyExits/{exitId} {
+      allow read, write: if isAuthed();
+    }
+
     // ── Deny everything else ─────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

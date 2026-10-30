@@ -465,6 +465,7 @@
       <button onclick="showSection('progress')">📊 Progress Grid</button>
       <button onclick="showSection('showcontrol')">🎬 Show Control</button>
       <button onclick="showSection('dayofops')" style="color:#f87171;font-weight:700">🚨 Day-of Ops</button>
+      <button onclick="showSection('emergencyexits')" style="color:#fb923c;font-weight:700">🚪 Emergency Exits</button>
       <a href="/check.html" target="_blank" style="display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;background:none;border:none;border-radius:4px;color:rgba(255,255,255,.55);font-size:12px;font-weight:500;text-decoration:none;transition:background .12s,color .12s;margin-bottom:2px" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.9)'" onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,.55)'">✅ Checklist ↗</a>
       <a href="/cameras.html" target="_blank" style="display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;background:none;border:none;border-radius:4px;color:rgba(255,255,255,.55);font-size:12px;font-weight:500;text-decoration:none;transition:background .12s,color .12s;margin-bottom:2px" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.9)'" onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,.55)'">📷 Cameras ↗</a>
     </div>
@@ -649,7 +650,7 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn" onclick="createEvent()">+ Create Event</button>
+          <button class="btn" onclick="submitCreateEvent()">+ Create Event</button>
           <span id="createEventStatus" style="font-size:12px;color:var(--muted-dk)"></span>
         </div>
       </div>
@@ -1308,6 +1309,34 @@
       </div>
     </div>
 
+    <!-- ── Emergency Exits ──────────────────────────────────────────────── -->
+    <div id="emergencyexits" class="section">
+      <div class="page-title">🚪 Emergency Exits</div>
+
+      <h3 style="margin-top:0">Live Status</h3>
+      <div id="exitCardsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
+        <div style="font-size:13px;color:var(--muted-dk);padding:12px">Loading…</div>
+      </div>
+
+      <h3>Rename Exits</h3>
+      <div class="panel-box" style="max-width:480px;margin-bottom:24px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Each ESP32 is labeled 1–4. Assign a location name to each number here.</div>
+        <div id="exitRenameList" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div id="exitRenameStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+      </div>
+
+      <h3>SMS Alert Numbers</h3>
+      <div class="panel-box" style="max-width:480px">
+        <div style="font-size:13px;color:var(--muted-dk);margin-bottom:12px">These numbers get a text when any emergency exit opens.</div>
+        <div id="smsNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="smsNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+          <button class="btn" onclick="addSmsNumber()">+ Add Number</button>
+        </div>
+        <div id="smsStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+      </div>
+    </div>
+
   </div><!-- /.main -->
 
   <!-- Scan Management Modal -->
@@ -1587,7 +1616,8 @@
 if(id==='allvisitors')  initAllVisitors();
     if(id==='emails')       initEmails();
     if(id==='progress')     initProgress();
-    if(id==='dayofops')     initDayOfOps();
+    if(id==='dayofops')       initDayOfOps();
+    if(id==='emergencyexits') initEmergencyExits();
   }
 
   /* ── Progress Grid ────────────────────────────────────────────────────── */
@@ -2502,7 +2532,7 @@ if(id==='allvisitors')  initAllVisitors();
     }catch(_){}
   }
 
-  async function createEvent(){
+  async function submitCreateEvent(){
     const nameEl=document.getElementById('newEventName');
     const dateEl=document.getElementById('newEventDate');
     const st=document.getElementById('createEventStatus');
@@ -4039,6 +4069,148 @@ Return ONLY a JSON array, no prose.`;
   }
   async function resetHeaderOffset(stationId){
     await db.collection('stations').doc(stationId).set({headerOffset: 0}, {merge:true});
+  }
+
+  /* ── Emergency Exits ──────────────────────────────────────────────────── */
+  const EXIT_IDS = ['1','2','3','4'];
+  let _exitData = {};
+  let _exitsRenameRendered = false;
+
+  function initEmergencyExits() {
+    _exitsRenameRendered = false;
+    _exitData = {};
+    EXIT_IDS.forEach(id => {
+      listeners.push(
+        db.collection('emergencyExits').doc(id).onSnapshot(snap => {
+          _exitData[id] = snap.exists ? snap.data() : {};
+          renderExitCards();
+          if (!_exitsRenameRendered) {
+            _exitsRenameRendered = true;
+            renderExitRenames();
+          }
+        })
+      );
+    });
+    listeners.push(
+      db.collection('config').doc('smsSettings').onSnapshot(snap => {
+        renderSmsNumbers((snap.data() || {}).phoneNumbers || []);
+      })
+    );
+  }
+
+  function renderExitCards() {
+    const grid = document.getElementById('exitCardsGrid');
+    if (!grid) return;
+    grid.innerHTML = EXIT_IDS.map(id => {
+      const d = _exitData[id] || {};
+      const isOpen = d.isOpen === true;
+      const name = d.name || `Exit ${id}`;
+      const when = d.openedAt ? new Date(d.openedAt.toDate()).toLocaleTimeString() : '';
+      return `
+        <div style="background:${isOpen ? '#fef2f2' : 'var(--card)'};border:3px solid ${isOpen ? '#e52521' : '#231207'};border-radius:4px;padding:14px 16px;box-shadow:4px 4px 0 ${isOpen ? '#e52521' : '#231207'}">
+          <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--muted-dk);margin-bottom:6px">EXIT ${id}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px">${name}</div>
+          <div style="display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:700;background:${isOpen ? '#e52521' : '#10b981'};color:#fff">
+            ${isOpen ? '🔴 OPEN' : '✅ SECURE'}
+          </div>
+          ${when ? `<div style="font-size:11px;color:#e52521;margin-top:6px">Opened ${when}</div>` : ''}
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            ${isOpen
+              ? `<button class="btn btn-warn btn-sm" onclick="adminClearExit('${id}')">✓ Clear</button>`
+              : `<button class="btn btn-sm btn-danger" onclick="adminOpenExit('${id}')">▶ Test Open</button>`}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderExitRenames() {
+    const list = document.getElementById('exitRenameList');
+    if (!list) return;
+    list.innerHTML = EXIT_IDS.map(id => {
+      const name = (_exitData[id] || {}).name || '';
+      return `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;font-weight:700;color:var(--muted-dk);width:60px;flex-shrink:0">EXIT ${id}</span>
+          <input id="exitName_${id}" value="${name}" placeholder="e.g. Tech Booth" style="flex:1;min-width:0"/>
+          <button class="btn btn-sm" onclick="saveExitName('${id}')">Save</button>
+        </div>`;
+    }).join('');
+  }
+
+  async function saveExitName(id) {
+    const input = document.getElementById(`exitName_${id}`);
+    const name = input ? input.value.trim() : '';
+    if (!name) return;
+    try {
+      await db.collection('emergencyExits').doc(id).set({ name }, { merge: true });
+      const s = document.getElementById('exitRenameStatus');
+      if (s) { s.textContent = `Exit ${id} saved as "${name}"`; setTimeout(() => s.textContent = '', 2000); }
+    } catch(e) {
+      const s = document.getElementById('exitRenameStatus');
+      if (s) s.textContent = 'Error: ' + e.message;
+    }
+  }
+
+  async function adminOpenExit(id) {
+    const name = (_exitData[id] || {}).name || `Exit ${id}`;
+    if (!confirm(`Trigger "${name}" as open? This will send SMS alerts.`)) return;
+    try {
+      await db.collection('emergencyExits').doc(id).set({
+        isOpen: true,
+        openedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        name: (_exitData[id] || {}).name || `Exit ${id}`
+      }, { merge: true });
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  async function adminClearExit(id) {
+    try {
+      await db.collection('emergencyExits').doc(id).update({
+        isOpen: false,
+        clearedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        clearedBy: 'admin'
+      });
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  function renderSmsNumbers(phones) {
+    const list = document.getElementById('smsNumberList');
+    if (!list) return;
+    if (phones.length === 0) {
+      list.innerHTML = '<div style="font-size:13px;color:var(--muted-dk)">No numbers added yet.</div>';
+      return;
+    }
+    list.innerHTML = phones.map((num, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid #b0c8e8;border-radius:4px">
+        <span style="font-size:13px;font-family:ui-monospace,monospace;flex:1">${num}</span>
+        <button class="btn btn-sm btn-danger" onclick="removeSmsNumber(${i})">✕</button>
+      </div>`).join('');
+  }
+
+  async function addSmsNumber() {
+    const input = document.getElementById('smsNewNumber');
+    const status = document.getElementById('smsStatus');
+    let num = (input.value || '').trim().replace(/\D/g, '');
+    if (num.length === 10) num = '1' + num;
+    if (num.length !== 11) { if (status) status.textContent = 'Enter a valid 10-digit number.'; return; }
+    try {
+      const snap = await db.collection('config').doc('smsSettings').get();
+      const phones = (snap.data() || {}).phoneNumbers || [];
+      if (phones.includes(num)) { if (status) status.textContent = 'Already added.'; return; }
+      phones.push(num);
+      await db.collection('config').doc('smsSettings').set({ phoneNumbers: phones }, { merge: true });
+      input.value = '';
+      if (status) { status.textContent = 'Added!'; setTimeout(() => status.textContent = '', 2000); }
+    } catch(e) { if (status) status.textContent = 'Error: ' + e.message; }
+  }
+
+  async function removeSmsNumber(index) {
+    try {
+      const snap = await db.collection('config').doc('smsSettings').get();
+      const phones = (snap.data() || {}).phoneNumbers || [];
+      phones.splice(index, 1);
+      await db.collection('config').doc('smsSettings').set({ phoneNumbers: phones }, { merge: true });
+    } catch(e) { alert('Error: ' + e.message); }
   }
 </script>
 

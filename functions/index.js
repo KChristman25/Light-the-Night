@@ -61,8 +61,9 @@ exports.missingPersonAlert = onDocumentWritten({ document: "alerts_missing/{kidI
   if (phoneNumbers.length === 0) return;
 
   const name = after.name || "Unknown";
+  const lastStation = after.lastStation ? ` Last seen at: ${after.lastStation}.` : "";
   const extra = after.message ? ` Note: ${after.message}` : "";
-  const message = `MISSING CHILD: ${name}.${extra} All staff please search immediately.`;
+  const message = `MISSING CHILD: ${name}.${lastStation}${extra} All staff please search immediately.`;
 
   await Promise.all(
     phoneNumbers.map(num =>

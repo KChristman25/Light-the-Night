@@ -3248,12 +3248,21 @@ if(id==='allvisitors')  initAllVisitors();
       document.getElementById('missingModalBg').style.display='flex';
     });
   }
-  function saveMissing(){
+  async function saveMissing(){
     const{id,name}=missingQueue[missingIndex];
     const msg=document.getElementById('missingMsg').value.trim();
+    // Look up last station from scan activity log
+    let lastStation='unknown';
+    try{
+      const scanSnap=await db.collection('scans').where('kidId','==',id).orderBy('timestamp','desc').limit(1).get();
+      if(!scanSnap.empty){
+        const sd=scanSnap.docs[0].data();
+        lastStation=sd.stationLabel||(sd.station?'Station '+sd.station:lastStation);
+      }
+    }catch(_){}
     db.collection("kids").doc(id).set({missing:true,missingMsg:msg||'',missingAt:firebase.firestore.Timestamp.now()},{merge:true});
     db.collection("alerts_missing").doc(id).set({
-      kidId:id,name:name||null,message:msg||'',active:true,
+      kidId:id,name:name||null,message:msg||'',lastStation,active:true,
       updatedAt:firebase.firestore.Timestamp.now()
     },{merge:true});
     missingIndex++;

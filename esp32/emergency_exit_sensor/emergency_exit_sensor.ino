@@ -93,6 +93,7 @@ void loop() {
       if (disarmed) {
         // Re-arm
         disarmed = false;
+        writeDisarmedState(false);
         Serial.println("Re-armed via button");
       } else {
         // Disarm — clear any active alert silently
@@ -101,6 +102,7 @@ void loop() {
           doorOpen = false;
           writeDoorState(false);
         }
+        writeDisarmedState(true);
         Serial.println("Disarmed via button");
       }
       updateLed();
@@ -222,6 +224,23 @@ void writeDoorState(bool isOpen) {
 
   int code = http.PATCH(body);
   Serial.println("Write result: " + String(code));
+  http.end();
+}
+
+void writeDisarmedState(bool isDisarmed) {
+  if (idToken == "") return;
+
+  String url = firestoreBase() + "?updateMask.fieldPaths=disarmed";
+  String body = String("{\"fields\":{\"disarmed\":{\"booleanValue\":") +
+                (isDisarmed ? "true" : "false") + "}}}";
+
+  HTTPClient http;
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + idToken);
+
+  int code = http.PATCH(body);
+  Serial.println("Disarmed write: " + String(code));
   http.end();
 }
 

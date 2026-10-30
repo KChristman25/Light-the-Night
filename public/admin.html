@@ -542,13 +542,19 @@
       <!-- Broadcast message -->
       <div class="panel-box" style="margin-bottom:24px">
         <div style="font-weight:600;color:var(--text);font-size:13px;margin-bottom:10px">📢 Broadcast to Stations</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="broadcastInput" placeholder="Message shown on all station screens…" style="width:320px"/>
-          <button class="btn" onclick="saveBroadcast()">Send</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <input id="broadcastInput" placeholder="Message shown on all station screens…" style="width:280px"/>
+          <button class="btn" onclick="saveBroadcast(false)" title="Show message as a banner at the top of each station">Banner</button>
+          <button class="btn" style="background:#dc2626;border-color:#dc2626" onclick="saveBroadcast(true)" title="Cover every station screen completely until cleared">🔒 Lockout</button>
           <button class="btn btn-warn" onclick="clearBroadcast()">Clear</button>
-          <span id="broadcastStatus" style="font-size:12px;color:var(--muted-dk)"></span>
         </div>
-        <div id="broadcastCurrent" style="font-size:12px;color:var(--muted-dk);margin-top:6px">No active broadcast</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--panel);color:var(--muted-dk)" onclick="document.getElementById('broadcastInput').value='Night is Over — Thanks for playing!'">Night is Over</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--panel);color:var(--muted-dk)" onclick="document.getElementById('broadcastInput').value='Maze Opening Soon — Please Wait'">Maze Opening Soon</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--panel);color:var(--muted-dk)" onclick="document.getElementById('broadcastInput').value='Stand By — Staff Needed'">Stand By</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--panel);color:var(--muted-dk)" onclick="document.getElementById('broadcastInput').value='Be Right Back!'">Be Right Back</button>
+        </div>
+        <div id="broadcastCurrent" style="font-size:12px;color:var(--muted-dk)">No active broadcast</div>
       </div>
 
       <!-- Station health -->
@@ -2198,7 +2204,17 @@ if(id==='allvisitors')  initAllVisitors();
     listeners.push(db.collection('config').doc('broadcast').onSnapshot(doc=>{
       const d=doc.exists?doc.data():{};
       const curr=document.getElementById('broadcastCurrent');
-      if(curr) curr.textContent=d.active&&d.message?'Active: '+d.message:'No active broadcast';
+      if(curr){
+        if(d.active&&d.message){
+          const mode = d.lockout ? '🔒 LOCKOUT' : '📢 Banner';
+          curr.textContent = mode+': '+d.message;
+          curr.style.color = d.lockout ? '#dc2626' : '#e8a000';
+          curr.style.fontWeight = d.lockout ? '700' : '';
+        } else {
+          curr.textContent='No active broadcast';
+          curr.style.color=''; curr.style.fontWeight='';
+        }
+      }
       if(d.active&&d.message) document.getElementById('broadcastInput').value=d.message;
     }));
 
@@ -3372,15 +3388,13 @@ if(id==='allvisitors')  initAllVisitors();
   }
 
   /* ── Broadcast ───────────────────────────────────────────────────────── */
-  async function saveBroadcast(){
+  async function saveBroadcast(lockout=false){
     const msg=document.getElementById('broadcastInput').value.trim();
-    const st=document.getElementById('broadcastStatus');
-    if(!msg){ st.textContent='Enter a message first.'; return; }
-    await db.collection('config').doc('broadcast').set({message:msg,active:true,updatedAt:firebase.firestore.Timestamp.now()});
-    st.textContent='Sent ✓'; setTimeout(()=>st.textContent='',2000);
+    if(!msg){ alert('Enter a message first.'); return; }
+    await db.collection('config').doc('broadcast').set({message:msg,active:true,lockout:!!lockout,updatedAt:firebase.firestore.Timestamp.now()});
   }
   async function clearBroadcast(){
-    await db.collection('config').doc('broadcast').set({message:'',active:false,updatedAt:firebase.firestore.Timestamp.now()});
+    await db.collection('config').doc('broadcast').set({message:'',active:false,lockout:false,updatedAt:firebase.firestore.Timestamp.now()});
     document.getElementById('broadcastInput').value='';
     const st=document.getElementById('broadcastStatus');
     st.textContent='Cleared ✓'; setTimeout(()=>st.textContent='',2000);

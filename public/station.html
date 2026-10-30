@@ -1363,14 +1363,28 @@ firebase.auth().onAuthStateChanged(user=>{
     }catch(_){}
   }
 
-  // Broadcast banner listener
+  // Broadcast banner / lockout listener
   db.collection('config').doc('broadcast').onSnapshot(doc=>{
     const d=doc.exists?doc.data():{};
     const banner=document.getElementById('broadcastBanner');
-    const text=document.getElementById('broadcastText');
-    if(!banner) return;
-    if(d.active&&d.message){ banner.style.display='block'; text.textContent=d.message; }
-    else { banner.style.display='none'; text.textContent=''; }
+    const lockout=document.getElementById('lockoutOverlay');
+    const bannerText=document.getElementById('broadcastText');
+    const lockoutText=document.getElementById('lockoutText');
+    if(!banner||!lockout) return;
+    if(d.active&&d.message&&d.lockout){
+      banner.style.display='none';
+      lockout.style.display='flex';
+      lockoutText.textContent=d.message;
+    } else if(d.active&&d.message){
+      lockout.style.display='none';
+      banner.style.display='block';
+      bannerText.textContent=d.message;
+    } else {
+      banner.style.display='none';
+      lockout.style.display='none';
+      bannerText.textContent='';
+      lockoutText.textContent='';
+    }
   });
 
   // Shell flash listener
@@ -3712,10 +3726,16 @@ const SFX = (function(){
 
 </script>
 
-<!-- Broadcast banner — last in body so no ancestor style can clip it -->
+<!-- Broadcast banner (top strip) -->
 <div id="broadcastBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#e8a000;border-bottom:3px solid #231207;box-shadow:0 4px 0 #231207;padding:clamp(10px,1.8svh,16px) 20px;text-align:center;padding-top:max(clamp(10px,1.8svh,16px),env(safe-area-inset-top))">
   <div style="font-family:'Press Start 2P',monospace;font-size:9px;font-weight:700;color:#231207;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">📢 Admin Message</div>
   <div id="broadcastText" style="font-size:clamp(14px,2.2vw,18px);font-weight:700;color:#231207;font-family:'Inter',sans-serif;line-height:1.4"></div>
+</div>
+
+<!-- Lockout overlay (full screen) -->
+<div id="lockoutOverlay" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d0d0d;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:clamp(16px,3vh,32px);padding:32px;pointer-events:all">
+  <img src="icons/wario.png" style="height:clamp(60px,12vw,100px);width:auto;image-rendering:pixelated;animation:warioBounce 1.8s ease-in-out infinite">
+  <div id="lockoutText" style="font-family:'Press Start 2P',monospace;font-size:clamp(18px,4vw,36px);color:#f5c800;text-shadow:3px 3px 0 #000;line-height:1.6;max-width:80vw;word-break:break-word"></div>
 </div>
 </body>
 </html>

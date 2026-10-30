@@ -1157,6 +1157,7 @@
 
 
   <audio id="yahoo" src="yahoo.mp3" preload="auto"></audio>
+  <audio id="wario-sound" src="wario-laugh.mp3" preload="auto"></audio>
 
 <script>
 // Lock to landscape wherever the API is supported
@@ -1548,6 +1549,7 @@ function setStatus(msg){
 function primeAudio(){ try{const y=$('yahoo');if(y){y.volume=1.0;y.muted=false;y.play().then(()=>{y.pause();y.currentTime=0;}).catch(()=>{});}}catch(_){} }
 function beep(){ /* silent */ }
 function playYahoo(){ try{const y=$('yahoo');if(y){y.currentTime=0;y.play().catch(()=>{});}}catch(_){} }
+function playWarioSound(){ try{const w=$('wario-sound');if(w&&w.src&&!w.src.endsWith('/')){w.currentTime=0;w.play().catch(()=>{});}}catch(_){} }
 
 function safeGet(obj,pathArr){var cur=obj;for(var i=0;i<pathArr.length;i++){if(!cur||typeof cur!=='object')return;cur=cur[pathArr[i]];}return cur;}
 function waitForAuth(){
@@ -2335,6 +2337,7 @@ function showWarioLeaderboard(currentRef, currentData){
 
     listEl.querySelectorAll('.wl-row-selectable').forEach(row=>{
       row.onclick=()=>{
+        SFX.stomp();
         const kid = kids.find(k=>k.id===row.dataset.kidId);
         if(!kid) return;
         selectedTarget = (selectedTarget && selectedTarget.id===kid.id) ? null : kid;
@@ -2364,7 +2367,7 @@ function showWarioLeaderboard(currentRef, currentData){
       const switchBtn=document.createElement('button');
       switchBtn.className='wl-btn wl-btn-switch';
       switchBtn.innerHTML=`SWITCH COINS WITH ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
-      switchBtn.onclick=()=>doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl);
+      switchBtn.onclick=()=>{ SFX.powerup(); doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl); };
       actionsEl.appendChild(switchBtn);
 
       // Steal is optional (admin toggle)
@@ -2373,7 +2376,7 @@ function showWarioLeaderboard(currentRef, currentData){
         const stealBtn=document.createElement('button');
         stealBtn.className='wl-btn wl-btn-steal';
         stealBtn.innerHTML=`STEAL ${stealAmt} ${COIN_IMG} FROM ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
-        stealBtn.onclick=()=>doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl);
+        stealBtn.onclick=()=>{ SFX.powerup(); doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl); };
         actionsEl.appendChild(stealBtn);
       }
     }
@@ -2381,7 +2384,7 @@ function showWarioLeaderboard(currentRef, currentData){
     const doneBtn=document.createElement('button');
     doneBtn.className='wl-btn wl-btn-done';
     doneBtn.textContent='NO THANKS';
-    doneBtn.onclick=()=>{ overlay.classList.remove('show'); };
+    doneBtn.onclick=()=>{ SFX.key(); overlay.classList.remove('show'); };
     actionsEl.appendChild(doneBtn);
   }
 
@@ -2390,18 +2393,42 @@ function showWarioLeaderboard(currentRef, currentData){
   overlay.classList.add('show');
 }
 
+function _showWarioCoinResult(listEl, actionsEl, resultEl, headline, fromCoins, toCoins, onDone){
+  actionsEl.innerHTML='';
+  resultEl.innerHTML='';
+  listEl.innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:clamp(20px,4vh,48px) 24px;gap:clamp(8px,1.5vh,18px)">
+      <div style="font-family:'Press Start 2P',monospace;font-size:clamp(10px,1.8vw,15px);color:#f5c800;text-align:center;text-shadow:2px 2px 0 #000">${escapeHtml(headline)}</div>
+      <div style="display:flex;align-items:center;gap:clamp(10px,2vw,20px)">
+        <img src="coin.svg" style="height:clamp(40px,8vw,64px);width:auto;image-rendering:pixelated">
+        <div id="wario-counter" style="font-family:'Press Start 2P',monospace;font-size:clamp(40px,9vw,72px);color:#f5c800;text-shadow:3px 3px 0 #000;min-width:3ch;text-align:center">${fromCoins}</div>
+      </div>
+      <div style="font-family:'Inter',sans-serif;font-size:clamp(11px,1.6vw,14px);color:#d0a0ff">YOUR NEW TOTAL</div>
+    </div>`;
+  const counterEl = document.getElementById('wario-counter');
+  SFX.result();
+  setTimeout(()=>{
+    animateCoinCount(counterEl, fromCoins, toCoins, 1800);
+    playWarioSound();
+    fireConfetti();
+    setTimeout(onDone, 3000);
+  }, 400);
+}
+
 async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listEl,actionsEl,resultEl){
   actionsEl.querySelectorAll('button').forEach(b=>b.disabled=true);
-  resultEl.textContent='Stealing…';
+  resultEl.innerHTML='Stealing…';
   try{
+    const myOld = currentData.coins||0;
+    const myNew = myOld + stealAmt;
     const batch=db.batch();
     batch.update(currentRef,{coins:FSV.increment(stealAmt)});
     batch.update(target.ref,{coins:FSV.increment(-stealAmt)});
     await batch.commit();
-    const myNewCoins=(currentData.coins||0)+stealAmt;
-    resultEl.innerHTML=`WAAAHAHA! +${stealAmt} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> stolen from ${escapeHtml(target.data.name||'them')}!`;
-    fireConfetti();
-    setTimeout(()=>overlay.classList.remove('show'),3500);
+    _showWarioCoinResult(listEl, actionsEl, resultEl,
+      `WAAAHAHA! +${stealAmt} STOLEN FROM ${(target.data.name||'THEM').toUpperCase()}!`,
+      myOld, myNew,
+      ()=>overlay.classList.remove('show'));
   }catch(e){
     resultEl.textContent='Error: '+e.message;
     actionsEl.querySelectorAll('button').forEach(b=>b.disabled=false);
@@ -2410,7 +2437,7 @@ async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listE
 
 async function doWarioSwitch(currentRef,currentData,target,overlay,listEl,actionsEl,resultEl){
   actionsEl.querySelectorAll('button').forEach(b=>b.disabled=true);
-  resultEl.textContent='Switching…';
+  resultEl.innerHTML='Switching…';
   try{
     const myCoins   = currentData.coins||0;
     const theirCoins= target.data.coins||0;
@@ -2418,9 +2445,10 @@ async function doWarioSwitch(currentRef,currentData,target,overlay,listEl,action
     batch.update(currentRef,{coins:theirCoins});
     batch.update(target.ref,{coins:myCoins});
     await batch.commit();
-    resultEl.innerHTML=`WAAAHAHA! Swapped! You now have ${theirCoins} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">!`;
-    fireConfetti();
-    setTimeout(()=>overlay.classList.remove('show'),3500);
+    _showWarioCoinResult(listEl, actionsEl, resultEl,
+      `WAAAHAHA! SWITCHED WITH ${(target.data.name||'THEM').toUpperCase()}!`,
+      myCoins, theirCoins,
+      ()=>overlay.classList.remove('show'));
   }catch(e){
     resultEl.textContent='Error: '+e.message;
     actionsEl.querySelectorAll('button').forEach(b=>b.disabled=false);
@@ -2901,6 +2929,7 @@ const SFX = (function(){
       stealAmount:   Number(d.warioStealAmount  ?? 30),
       switchEnabled: d.warioSwitchEnabled === true,
     };
+    if(d.warioSoundUrl){ const ws=$('wario-sound'); if(ws) ws.src=d.warioSoundUrl; }
   }).catch(()=>{});
 
 

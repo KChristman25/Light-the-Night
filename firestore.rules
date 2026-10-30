@@ -133,6 +133,11 @@ service cloud.firestore {
       allow read, write: if isAuthed();
     }
 
+    // ── events collection ────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow read, write: if isAuthed();
+    }
+
     // ── Deny everything else ─────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

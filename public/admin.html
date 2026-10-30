@@ -1680,6 +1680,7 @@ if(id==='allvisitors')  initAllVisitors();
           const counts={};
           visited.forEach(id=>{ counts[id]=sc[id]||1; });
           if(sc['start']) counts['start']=sc['start'];
+          if(sc['wario']) counts['wario']=sc['wario'];
           const done=new Set([...visited].filter(k=>!isNaN(Number(k))));
           _pgKidsMap[doc.id]={
             id: doc.id, name:d.name, done, counts,
@@ -1694,6 +1695,7 @@ if(id==='allvisitors')  initAllVisitors();
             land_water: visited.has('land_water'),
             land_fire:  visited.has('land_fire'),
             land_lava:  visited.has('land_lava'),
+            wario:      visited.has('wario'),
           };
         });
         renderProgressGrid();
@@ -1724,12 +1726,13 @@ if(id==='allvisitors')  initAllVisitors();
     head+='<th style="text-align:center;min-width:32px" title="Water Land">🌊</th>';
     head+='<th style="text-align:center;min-width:32px" title="Fire Land">🔥</th>';
     head+='<th style="text-align:center;min-width:32px" title="Lava Land">🌋</th>';
+    head+='<th style="text-align:center;min-width:32px" title="Wario\'s Vault"><img src="icons/wario.png" style="height:16px;width:auto;vertical-align:middle;image-rendering:pixelated"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Mushroom"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Red Shell"><img src="icons/red_shell.webp" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Saved Peach"><img src="icons/princess_peach.png" style="height:16px;width:auto;vertical-align:middle"></th>';
     head+='<th style="text-align:center;min-width:32px" title="Castle/Bowser">🏰</th>';
     head+='<th style="text-align:center;white-space:nowrap">Done</th>';
-    head+='<th style="text-align:center;min-width:48px" title="Coins">🪙</th></tr></thead>';
+    head+='<th style="text-align:center;min-width:48px" title="Coins"><img src="coin.svg" style="height:14px;width:auto;vertical-align:middle;image-rendering:pixelated"></th></tr></thead>';
 
     let body='<tbody>';
     for(const kid of kids){
@@ -1754,6 +1757,10 @@ if(id==='allvisitors')  initAllVisitors();
           ? `<td style="text-align:center"><span title="Click to remove ${label}" style="cursor:pointer;font-size:15px" onclick="pgUncheckLand('${kid.id}','${lid}','${label} for ${escapeHtml(kid.name)}')">${icon}</span></td>`
           : `<td style="text-align:center"><span class="pg-add" title="Click to add ${label}" onclick="pgCheckLand('${kid.id}','${lid}','${escapeHtml(kid.name)}')">+</span></td>`;
       }
+      const warioN=kid.counts['wario']||0;
+      body+=kid.wario
+        ? `<td style="text-align:center"><span title="Click to remove Wario visit" style="cursor:pointer;position:relative;display:inline-block" onclick="pgUncheckWario('${kid.id}','${escapeHtml(kid.name)}')"><img src="icons/wario.png" style="height:16px;width:auto;vertical-align:middle;image-rendering:pixelated">${pgBadge(warioN)}</span></td>`
+        : `<td style="text-align:center"><span class="pg-add" title="Click to add Wario visit" onclick="pgCheckWario('${kid.id}','${escapeHtml(kid.name)}')">+</span></td>`;
       body+=kid.mushroom
         ? `<td style="text-align:center"><span title="Click to remove Mushroom" style="cursor:pointer" onclick="pgUncheckField('${kid.id}','usedMushroom','mushroom for ${escapeHtml(kid.name)}')"><img src="icons/mushroom.png" style="height:16px;width:auto;vertical-align:middle"></span></td>`
         : `<td style="text-align:center"><span class="pg-add" title="Click to add Mushroom" onclick="pgCheckField('${kid.id}','usedMushroom','${escapeHtml(kid.name)}')">+</span></td>`;
@@ -1767,7 +1774,7 @@ if(id==='allvisitors')  initAllVisitors();
         ? `<td style="text-align:center"><span title="Click to un-finish (send back to maze)" style="cursor:pointer;font-size:15px" onclick="pgUncheckCastle('${kid.id}','${escapeHtml(kid.name)}')">🏰</span></td>`
         : `<td style="text-align:center"><span style="color:#d1d5db">·</span></td>`;
       body+=`<td style="text-align:center;font-weight:700;color:${allDone?'#16a34a':'#8b6040'}">${stationsDone}/${total}</td>`;
-      body+=`<td style="text-align:center;font-weight:700;color:#e8a000">${kid.coins}</td>`;
+      body+=`<td style="text-align:center;font-weight:700;color:#e8a000"><img src="coin.svg" style="height:12px;width:auto;vertical-align:middle;image-rendering:pixelated;margin-right:2px">${kid.coins}</td>`;
       body+='</tr>';
     }
     if(!kids.length) body+=`<tr><td colspan="99" class="muted" style="padding:16px">${q?'No match.':'No checked-in participants yet.'}</td></tr>`;
@@ -1822,6 +1829,34 @@ if(id==='allvisitors')  initAllVisitors();
         return true;
       });
       await db.collection('kids').doc(docId).update({scans:filtered});
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgUncheckWario(docId, name){
+    if(!confirm(`Remove Wario's Vault visit for ${name}?`)) return;
+    try{
+      const snap=await db.collection('kids').doc(docId).get();
+      const scans=Array.isArray(snap.data()?.scans)?snap.data().scans:[];
+      const filtered=scans.filter(s=>{
+        if(typeof s==='string') return s!=='wario';
+        if(s&&typeof s==='object'&&s.station!=null) return s.station!=='wario';
+        return true;
+      });
+      await db.collection('kids').doc(docId).update({
+        scans: filtered,
+        'scanCounts.wario': firebase.firestore.FieldValue.delete()
+      });
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function pgCheckWario(docId, name){
+    if(!confirm(`Add Wario's Vault visit for ${name}?`)) return;
+    try{
+      const FSV=firebase.firestore.FieldValue;
+      await db.collection('kids').doc(docId).update({
+        scans: FSV.arrayUnion('wario'),
+        'scanCounts.wario': FSV.increment(1)
+      });
     }catch(e){ alert('Error: '+e.message); }
   }
 
@@ -2026,7 +2061,7 @@ if(id==='allvisitors')  initAllVisitors();
 
     // ── Activity feed ────────────────────────────────────────────────────────
     const _feedIcons = {
-      start:'🏁', coin:'🪙', coin_direct:'🪙',
+      start:'🏁', coin:'<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">', coin_direct:'<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">',
       shell:'🐢', shell_frozen:'🐢', shell_station:'💥',
       mushroom:'🍄', rescue:'👸', bowser:'🏰', timed_out:'⏱',
     };

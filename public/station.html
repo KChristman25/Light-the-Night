@@ -2329,7 +2329,7 @@ function showWarioLeaderboard(currentRef, currentData){
         return `<div class="${rowClass}" data-kid-id="${k.id}">
           <div class="wl-rank">${_ordinalWario(i+1)}</div>
           <div class="${nameClass}">${escapeHtml(k.data.name||'?')}</div>
-          <div class="wl-coins">🪙 ${k.data.coins||0}</div>
+          <div class="wl-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.data.coins||0}</div>
         </div>`;
       }).join('');
 
@@ -2356,14 +2356,14 @@ function showWarioLeaderboard(currentRef, currentData){
         const stealAmt = Math.min(cfg.stealAmount, selectedTarget.data.coins||0);
         const btn=document.createElement('button');
         btn.className='wl-btn wl-btn-steal';
-        btn.textContent=`STEAL ${stealAmt} 🪙 FROM ${(selectedTarget.data.name||'?').toUpperCase()}`;
+        btn.innerHTML=`STEAL ${stealAmt} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> FROM ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
         btn.onclick=()=>doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl);
         actionsEl.appendChild(btn);
       }
       if(cfg.switchEnabled){
         const btn=document.createElement('button');
         btn.className='wl-btn wl-btn-switch';
-        btn.textContent=`SWITCH WITH ${(selectedTarget.data.name||'?').toUpperCase()}`;
+        btn.innerHTML=`SWITCH WITH ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
         btn.onclick=()=>doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl);
         actionsEl.appendChild(btn);
       }
@@ -2390,7 +2390,7 @@ async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listE
     batch.update(target.ref,{coins:FSV.increment(-stealAmt)});
     await batch.commit();
     const myNewCoins=(currentData.coins||0)+stealAmt;
-    resultEl.textContent=`WAAAHAHA! +${stealAmt} 🪙 stolen from ${target.data.name||'them'}!`;
+    resultEl.innerHTML=`WAAAHAHA! +${stealAmt} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> stolen from ${escapeHtml(target.data.name||'them')}!`;
     fireConfetti();
     setTimeout(()=>overlay.classList.remove('show'),3500);
   }catch(e){
@@ -2409,7 +2409,7 @@ async function doWarioSwitch(currentRef,currentData,target,overlay,listEl,action
     batch.update(currentRef,{coins:theirCoins});
     batch.update(target.ref,{coins:myCoins});
     await batch.commit();
-    resultEl.textContent=`WAAAHAHA! Swapped! You now have ${theirCoins} 🪙!`;
+    resultEl.innerHTML=`WAAAHAHA! Swapped! You now have ${theirCoins} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">!`;
     fireConfetti();
     setTimeout(()=>overlay.classList.remove('show'),3500);
   }catch(e){

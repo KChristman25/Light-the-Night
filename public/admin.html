@@ -1937,58 +1937,70 @@ if(id==='allvisitors')  initAllVisitors();
     }}
   );
 
+  let _liveKidsSnap = null;
+  function _processLiveSnap(){
+    if(!_liveKidsSnap) return;
+    const STUCK_MIN = 45;
+    let total=0, inMaze=0, notStarted=0, done=0;
+    const completedWithTimes=[], missing=[], stuck=[];
+    _liveKidsSnap.forEach(d=>{
+      const dd = d.data();
+      if(dd.missing===true) missing.push({name:dd.name||'(no name)', msg:dd.missingMsg||''});
+      if(!isCheckedIn(dd)) return;
+      if(_adminActiveEventId && dd.eventId !== _adminActiveEventId) return;
+      total++;
+      if(dd.completed === true){
+        done++;
+        if(typeof dd.durationMs === 'number' && isFinite(dd.durationMs) && dd.durationMs >= 0){
+          completedWithTimes.push({name: dd.name||'', dur: dd.durationMs});
+        } else {
+          const start = safeTS(dd.startMaze) || safeTS(dd.startCheckIn) || safeTS(dd.checkinTime);
+          const end   = safeTS(dd.completionTime);
+          if(start && end){
+            const dur = end.getTime() - start.getTime();
+            if(isFinite(dur) && dur >= 0) completedWithTimes.push({name: dd.name||'', dur});
+          }
+        }
+      } else {
+        if(dd.mazeStartTime) inMaze++; else notStarted++;
+        const start=safeTS(dd.mazeStartTime);
+        if(start){ const elapsed=(Date.now()-start.getTime())/60000; if(elapsed>STUCK_MIN) stuck.push({id:d.id,name:dd.name||'(no name)',elapsed}); }
+      }
+    });
+    document.getElementById("metricTotal").innerText     = total;
+    document.getElementById("metricWaiting").innerText  = notStarted;
+    document.getElementById("metricInMaze").innerText   = inMaze;
+    document.getElementById("metricCompleted").innerText = done;
+    const avg = completedWithTimes.length
+      ? completedWithTimes.reduce((a,b)=>a+b.dur,0)/completedWithTimes.length : 0;
+    document.getElementById("metricAvg").innerText = formatTime(avg);
+    if(completedWithTimes.length){
+      const fastest = completedWithTimes.reduce((m,c)=>c.dur<m.dur?c:m, completedWithTimes[0]);
+      document.getElementById("metricFastest").innerText = `${fastest.name||'—'} (${formatTime(fastest.dur)})`;
+    } else { document.getElementById("metricFastest").innerText = '—'; }
+    completionChart.data.labels = completedWithTimes.map(x=>x.name||'—');
+    completionChart.data.datasets[0].data = completedWithTimes.map(x=>x.dur);
+    completionChart.update();
+
+    const mAlert=document.getElementById('dashMissingAlert'), mList=document.getElementById('dashMissingList');
+    if(mAlert){ if(missing.length){ mAlert.classList.add('visible'); mList.innerHTML=missing.map(m=>`<div>• <strong>${escapeHtml(m.name)}</strong>${m.msg?' — '+escapeHtml(m.msg):''}</div>`).join(''); } else { mAlert.classList.remove('visible'); } }
+
+    const sAlert=document.getElementById('dashStuckAlert'), sList=document.getElementById('dashStuckList');
+    if(sAlert){ if(stuck.length){ sAlert.classList.add('visible'); sList.innerHTML=stuck.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;flex-wrap:wrap"><span>• <strong>${escapeHtml(s.name)}</strong> — ${Math.round(s.elapsed)} min</span><span style="display:flex;gap:4px;flex-shrink:0"><button class="btn btn-sm btn-warn" onclick="missingFromAlert('${s.id}','${escapeHtml(s.name).replace(/'/g,"\\'")}')">⚠ Missing</button><button class="btn btn-sm" onclick="resetKid('${s.id}')">Reset</button></span></div>`).join(''); } else { sAlert.classList.remove('visible'); } }
+  }
+
   function initLive(){
     // ── Metrics + chart + alerts ─────────────────────────────────────────────
-    const STUCK_MIN = 45;
+    listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        _processLiveSnap();
+      })
+    );
     listeners.push(
       db.collection("kids").onSnapshot(snap=>{
-        let total=0, inMaze=0, notStarted=0, done=0;
-        const completedWithTimes=[], missing=[], stuck=[];
-        snap.forEach(d=>{
-          const dd = d.data();
-          if(dd.missing===true) missing.push({name:dd.name||'(no name)', msg:dd.missingMsg||''});
-          if(!isCheckedIn(dd)) return;
-          total++;
-          if(dd.completed === true){
-            done++;
-            if(typeof dd.durationMs === 'number' && isFinite(dd.durationMs) && dd.durationMs >= 0){
-              completedWithTimes.push({name: dd.name||'', dur: dd.durationMs});
-            } else {
-              const start = safeTS(dd.startMaze) || safeTS(dd.startCheckIn) || safeTS(dd.checkinTime);
-              const end   = safeTS(dd.completionTime);
-              if(start && end){
-                const dur = end.getTime() - start.getTime();
-                if(isFinite(dur) && dur >= 0) completedWithTimes.push({name: dd.name||'', dur});
-              }
-            }
-          } else {
-            if(dd.mazeStartTime) inMaze++; else notStarted++;
-            const start=safeTS(dd.mazeStartTime);
-            if(start){ const elapsed=(Date.now()-start.getTime())/60000; if(elapsed>STUCK_MIN) stuck.push({id:d.id,name:dd.name||'(no name)',elapsed}); }
-          }
-        });
-        document.getElementById("metricTotal").innerText     = total;
-        document.getElementById("metricWaiting").innerText  = notStarted;
-        document.getElementById("metricInMaze").innerText   = inMaze;
-        document.getElementById("metricCompleted").innerText = done;
-        const avg = completedWithTimes.length
-          ? completedWithTimes.reduce((a,b)=>a+b.dur,0)/completedWithTimes.length : 0;
-        document.getElementById("metricAvg").innerText = formatTime(avg);
-        if(completedWithTimes.length){
-          const fastest = completedWithTimes.reduce((m,c)=>c.dur<m.dur?c:m, completedWithTimes[0]);
-          document.getElementById("metricFastest").innerText = `${fastest.name||'—'} (${formatTime(fastest.dur)})`;
-        } else { document.getElementById("metricFastest").innerText = '—'; }
-        completionChart.data.labels = completedWithTimes.map(x=>x.name||'—');
-        completionChart.data.datasets[0].data = completedWithTimes.map(x=>x.dur);
-        completionChart.update();
-
-        // Missing alert
-        const mAlert=document.getElementById('dashMissingAlert'), mList=document.getElementById('dashMissingList');
-        if(mAlert){ if(missing.length){ mAlert.classList.add('visible'); mList.innerHTML=missing.map(m=>`<div>• <strong>${escapeHtml(m.name)}</strong>${m.msg?' — '+escapeHtml(m.msg):''}</div>`).join(''); } else { mAlert.classList.remove('visible'); } }
-
-        // Stuck alert
-        const sAlert=document.getElementById('dashStuckAlert'), sList=document.getElementById('dashStuckList');
-        if(sAlert){ if(stuck.length){ sAlert.classList.add('visible'); sList.innerHTML=stuck.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;flex-wrap:wrap"><span>• <strong>${escapeHtml(s.name)}</strong> — ${Math.round(s.elapsed)} min</span><span style="display:flex;gap:4px;flex-shrink:0"><button class="btn btn-sm btn-warn" onclick="missingFromAlert('${s.id}','${escapeHtml(s.name).replace(/'/g,"\\'")}')">⚠ Missing</button><button class="btn btn-sm" onclick="resetKid('${s.id}')">Reset</button></span></div>`).join(''); } else { sAlert.classList.remove('visible'); } }
+        _liveKidsSnap=snap;
+        _processLiveSnap();
       })
     );
 
@@ -2127,29 +2139,42 @@ if(id==='allvisitors')  initAllVisitors();
   }
 
   /* ── Leaderboard Controls ─────────────────────────────────────────────── */
+  let _lbRawKids = [];
+  let _lbAllRows = [];
+  function _buildLbRows(){
+    let kids = _adminActiveEventId
+      ? _lbRawKids.filter(k=>k.eventId===_adminActiveEventId)
+      : _lbRawKids;
+    kids.forEach(k=>{ k._score = k.coins||0; });
+    kids.sort((a,b)=>b._score-a._score||((a.durationMs??Infinity)-(b.durationMs??Infinity))||(a.name||'').localeCompare(b.name||''));
+    _lbAllRows = kids.map((k,i)=>{
+      const rankColor=['#ca8a04','#6b7280','#92400e'][i]||'#8b6040';
+      return {
+        rank:i+1, name:k.name||'', score:k._score,
+        dur:k.durationMs||0, nameLC:(k.name||'').toLowerCase(),
+        html:`<tr data-name="${escapeHtml((k.name||'').toLowerCase())}"><td style="font-weight:700;color:${rankColor}">${i+1}</td><td>${escapeHtml(k.name||'')}</td><td style="font-family:monospace;color:#e8a000">${k._score}</td><td style="font-family:monospace;color:#16a34a">${formatTime(k.durationMs||0)}</td></tr>`
+      };
+    });
+    filterLbTable(document.getElementById('lbSearch')?.value||'');
+  }
+
   function initLeaderboard(){
     // Status card listener
     listeners.push(db.collection('leaderboard').doc('control').onSnapshot(doc=>{
       updateLbStatus(doc.exists?(doc.data().command||''):'');
     }));
-    // All finishers listener
-    let _lbAllRows = [];
+    listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        _buildLbRows();
+      })
+    );
     listeners.push(
       db.collection("kids")
         .where("completed","==",true)
         .onSnapshot(snap=>{
-          const kids = snap.docs.map(d=>({id:d.id,...d.data()}));
-          kids.forEach(k=>{ k._score = k.coins||0; });
-          kids.sort((a,b)=>b._score-a._score||((a.durationMs??Infinity)-(b.durationMs??Infinity))||(a.name||'').localeCompare(b.name||''));
-          _lbAllRows = kids.map((k,i)=>{
-            const rankColor=['#ca8a04','#6b7280','#92400e'][i]||'#8b6040';
-            return {
-              rank:i+1, name:k.name||'', score:k._score,
-              dur:k.durationMs||0, nameLC:(k.name||'').toLowerCase(),
-              html:`<tr data-name="${escapeHtml((k.name||'').toLowerCase())}"><td style="font-weight:700;color:${rankColor}">${i+1}</td><td>${escapeHtml(k.name||'')}</td><td style="font-family:monospace;color:#e8a000">${k._score}</td><td style="font-family:monospace;color:#16a34a">${formatTime(k.durationMs||0)}</td></tr>`
-            };
-          });
-          filterLbTable(document.getElementById('lbSearch')?.value||'');
+          _lbRawKids = snap.docs.map(d=>({id:d.id,...d.data()}));
+          _buildLbRows();
         })
     );
     window._lbAllRows=()=>_lbAllRows;

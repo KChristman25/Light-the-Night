@@ -1647,6 +1647,12 @@ if(id==='allvisitors')  initAllVisitors();
 
   function initProgress(){
     listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        renderProgressGrid();
+      })
+    );
+    listeners.push(
       db.collection('stations').onSnapshot(snap=>{
         let max=0;
         snap.forEach(doc=>{ if(/^\d+$/.test(doc.id)) max=Math.max(max,Number(doc.id)); });
@@ -1677,6 +1683,7 @@ if(id==='allvisitors')  initAllVisitors();
           const done=new Set([...visited].filter(k=>!isNaN(Number(k))));
           _pgKidsMap[doc.id]={
             id: doc.id, name:d.name, done, counts,
+            eventId:  d.eventId||null,
             coins:    d.coins ?? 0,
             start:    visited.has('start'),
             peach:    !!d.savedPeach,
@@ -1702,6 +1709,7 @@ if(id==='allvisitors')  initAllVisitors();
     const table=document.getElementById('progressGrid');
     const q=(filterQ!==undefined ? filterQ : (document.getElementById('progressSearch')||{}).value||'').toLowerCase().trim();
     let kids=Object.values(_pgKidsMap).sort((a,b)=>a.name.localeCompare(b.name));
+    if(_adminActiveEventId) kids=kids.filter(k=>k.eventId===_adminActiveEventId);
     if(q) kids=kids.filter(k=>k.name.toLowerCase().includes(q));
     const total=_pgTotal;
     if(!total){
@@ -2973,7 +2981,8 @@ if(id==='allvisitors')  initAllVisitors();
     const count=document.getElementById("visitorCount");
     const rows=new Map();
     function render(){
-      const arr=Array.from(rows.values()).sort((a,b)=>(b.timestampMs||0)-(a.timestampMs||0));
+      let arr=Array.from(rows.values()).sort((a,b)=>(b.timestampMs||0)-(a.timestampMs||0));
+      if(_adminActiveEventId) arr=arr.filter(e=>e.src!=='kids'||e.eventId===_adminActiveEventId);
       table.innerHTML=arr.map(entry=>`
         <tr>
           <td>${entry.number||'—'}</td>
@@ -2985,6 +2994,12 @@ if(id==='allvisitors')  initAllVisitors();
     }
     if(unsubVisitors){try{unsubVisitors();}catch(e){}}
     if(unsubKids){try{unsubKids();}catch(e){}}
+    listeners.push(
+      db.collection('config').doc('config').onSnapshot(snap=>{
+        _adminActiveEventId=(snap.data()||{}).activeEventId||null;
+        render();
+      })
+    );
     unsubVisitors=db.collection("participants").onSnapshot(snap=>{
       for(const[k,v]of Array.from(rows.entries())){
         if(v.src==='participants'&&!snap.docs.find(d=>`participants/${d.id}`===k)) rows.delete(k);
@@ -3011,6 +3026,7 @@ if(id==='allvisitors')  initAllVisitors();
         rows.set(`kids/${doc.id}`,{
           src:'kids', number:`K${++idx}`, name:d.name||'—',
           barcode:d.barcode||doc.id,
+          eventId:d.eventId||null,
           when:ts?ts.getTime():0, timestampMs:ts?ts.getTime():0
         });
       });

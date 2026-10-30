@@ -2344,28 +2344,37 @@ function showWarioLeaderboard(currentRef, currentData){
     });
   }
 
+  const COIN_IMG = '<img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated">';
+
   function renderActions(){
-    resultEl.textContent='';
+    resultEl.innerHTML='';
     actionsEl.innerHTML='';
 
+    const myCoins = currentData.coins||0;
+
     if(!selectedTarget){
-      subtitleEl.textContent = myIdx===0 ? "WAAAHAHA! You're already #1!" : 'TAP A PLAYER TO TARGET';
+      subtitleEl.innerHTML = myIdx===0
+        ? `WAAAHAHA! You're #1 with ${myCoins} ${COIN_IMG}!`
+        : `You have ${myCoins} ${COIN_IMG} — tap a player to switch`;
     } else {
-      subtitleEl.textContent = `Targeting: ${selectedTarget.data.name||'?'}`;
+      const theirCoins = selectedTarget.data.coins||0;
+      subtitleEl.innerHTML = `Your ${myCoins} ${COIN_IMG} ↔ ${escapeHtml(selectedTarget.data.name||'?')}'s ${theirCoins} ${COIN_IMG}`;
+
+      // Switch is always available (coins only — no stations or power-ups swap)
+      const switchBtn=document.createElement('button');
+      switchBtn.className='wl-btn wl-btn-switch';
+      switchBtn.innerHTML=`SWITCH COINS WITH ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
+      switchBtn.onclick=()=>doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl);
+      actionsEl.appendChild(switchBtn);
+
+      // Steal is optional (admin toggle)
       if(cfg.stealEnabled){
-        const stealAmt = Math.min(cfg.stealAmount, selectedTarget.data.coins||0);
-        const btn=document.createElement('button');
-        btn.className='wl-btn wl-btn-steal';
-        btn.innerHTML=`STEAL ${stealAmt} <img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> FROM ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
-        btn.onclick=()=>doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl);
-        actionsEl.appendChild(btn);
-      }
-      if(cfg.switchEnabled){
-        const btn=document.createElement('button');
-        btn.className='wl-btn wl-btn-switch';
-        btn.innerHTML=`SWITCH WITH ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
-        btn.onclick=()=>doWarioSwitch(currentRef,currentData,selectedTarget,overlay,listEl,actionsEl,resultEl);
-        actionsEl.appendChild(btn);
+        const stealAmt = Math.min(cfg.stealAmount, theirCoins);
+        const stealBtn=document.createElement('button');
+        stealBtn.className='wl-btn wl-btn-steal';
+        stealBtn.innerHTML=`STEAL ${stealAmt} ${COIN_IMG} FROM ${escapeHtml((selectedTarget.data.name||'?').toUpperCase())}`;
+        stealBtn.onclick=()=>doWarioSteal(currentRef,currentData,selectedTarget,stealAmt,overlay,listEl,actionsEl,resultEl);
+        actionsEl.appendChild(stealBtn);
       }
     }
 

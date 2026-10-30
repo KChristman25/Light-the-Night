@@ -5,7 +5,7 @@
  * Change EXIT_NUMBER to match the number written on the board (1–4).
  *
  * Wiring:
- *   Reed switch  → GPIO 4  (and GND)  — INPUT_PULLUP, LOW = door closed
+ *   Reed switch  → GPIO 15 (and GND)  — INPUT_PULLUP, LOW = door closed
  *   Button       → onboard BOOT button (GPIO 0) — press to disarm
  *
  * LED behaviour (built-in LED, GPIO 2):
@@ -27,12 +27,12 @@
 #define EXIT_NUMBER "1"   // 1, 2, 3, or 4 — match the number on the ESP32
 // ───────────────────────────────────────────────────────────────────────────
 
-const char* WIFI_SSID       = "Light the Night";
-const char* WIFI_PASSWORD   = "Halloween2026";
+const char* WIFI_SSID       = "Airplane";
+const char* WIFI_PASSWORD   = "crispyink721";
 const char* FIREBASE_API_KEY = "AIzaSyBYsQCbHZ6r2KeqJ3-dgmFiR1mZ_IFZ-10";
 const char* PROJECT_ID      = "light-the-night-2025";
 
-const int PIN_REED   = 4;
+const int PIN_REED   = 15;
 const int PIN_LED    = 2;   // built-in LED on most ESP32 boards
 const int PIN_BTN    = 0;   // onboard BOOT button
 

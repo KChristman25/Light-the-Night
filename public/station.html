@@ -1593,7 +1593,7 @@ async function pickSpecialStation(mode, skipFullscreen=false){
   const li=$('landIcon');
   if(li){ if(mode==='wario'){ li.innerHTML='<img src="icons/wario.png" alt="Wario" style="height:clamp(48px,8vh,96px);width:auto;image-rendering:pixelated">'; } else { li.innerHTML=''; } }
   const beat=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
-  _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,600000);
+  _lastBeatFn=beat; beat(); heartbeatInterval=setInterval(beat,60000);
   codeBuffer='';updateDisplay();setStatus('');
   attachStationMsgListener(currentStationId);
 }
@@ -1614,7 +1614,7 @@ async function pickLandStation(theme, skipFullscreen=false){
   if(pn) pn.textContent=label;
   const li=$('landIcon'); if(li) li.textContent=LAND_ICONS[theme]||'';
   const beat2=()=>{_lastBeatAt=Date.now();db.collection('stations').doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp(),label},{merge:true}).catch(()=>{});};
-  _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,600000);
+  _lastBeatFn=beat2; beat2(); heartbeatInterval=setInterval(beat2,60000);
   codeBuffer='';updateDisplay();setStatus('');
   attachStationMsgListener(currentStationId);
 }
@@ -1674,7 +1674,7 @@ async function startControlForStation(skipFullscreen=false){
     _prevActive=d.active===false?false:true;
   });
   const beat=()=>{_lastBeatAt=Date.now();db.collection("stations").doc(currentStationId).set({heartbeat:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});};
-  _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,600000);
+  _lastBeatFn=beat; beat();heartbeatInterval=setInterval(beat,60000);
   codeBuffer='';updateDisplay();setStatus('');
   attachStationMsgListener(currentStationId);
 }
@@ -2758,7 +2758,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
         _lastBeatFn();
         // Restart interval in case the browser killed it while hidden
         if(heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval=setInterval(_lastBeatFn,600000);
+        heartbeatInterval=setInterval(_lastBeatFn,60000);
       }
       // Re-acquire wake lock if it was released while hidden
       try{if('wakeLock'in navigator&&navigator.wakeLock&&!wakeLockObj){wakeLockObj=await navigator.wakeLock.request('screen');if(wakeLockObj)wakeLockObj.addEventListener('release',()=>{wakeLockObj=null;});}else if(noSleep&&noSleep.enable)noSleep.enable();}catch(_){}
@@ -2768,7 +2768,7 @@ function showScanMsg(msg,color,border,bg,hint,dur){
   });
 })();
 // Backstop: every 25s fire the beat unconditionally regardless of any interval state
-setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 600000);
+setInterval(()=>{ if(_lastBeatFn) _lastBeatFn(); }, 60000);
 
 window.addEventListener('beforeunload',()=>{if(heartbeatInterval){clearInterval(heartbeatInterval);heartbeatInterval=null;}});
 

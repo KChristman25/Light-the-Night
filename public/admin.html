@@ -2109,7 +2109,7 @@ if(id==='allvisitors')  initAllVisitors();
 
     // ── Station health grid ──────────────────────────────────────────────────
     let dashTotalSt = 0, dashStData = {};
-    const STATION_TH = 90000;
+    const STATION_TH = 180000;  // 3 min — stations heartbeat every 1 min
     const SPECIAL_STATIONS=[
       {id:'start',       icon:'🏁', label:'Start'},
       {id:'rescue_peach',icon:'👸', label:'Peach'},
@@ -2152,7 +2152,9 @@ if(id==='allvisitors')  initAllVisitors();
       dashTotalSt=max;
       renderDashStations();
     }));
-    // Status refreshes only when a real Firestore heartbeat arrives (via onSnapshot above)
+    // Re-render every 30s so online/offline status stays current between heartbeats
+    const _stRefreshTimer = setInterval(renderDashStations, 30000);
+    listeners.push({ unsubscribe: ()=>clearInterval(_stRefreshTimer) });
 
     // ── Camera access status ──────────────────────────────────────────────────
     listeners.push(db.collection('config').doc('cameras').onSnapshot(doc=>{
@@ -2301,7 +2303,7 @@ if(id==='allvisitors')  initAllVisitors();
     land_lava:  {icon:'🌋', name:'Lava World'}
   };
   function initStations(){
-    const TH=90000; let data={};
+    const TH=180000; let data={};
     listeners.push(
       db.collection("config").doc("config").onSnapshot(doc=>{
         const cfg=doc.data()||{};
@@ -2328,6 +2330,8 @@ if(id==='allvisitors')  initAllVisitors();
         if(hbChanged){ render(); renderSpecialStations(); renderLandStations(); }
       })
     );
+    const _stTblTimer = setInterval(()=>{ render(); renderSpecialStations(); renderLandStations(); }, 30000);
+    listeners.push({ unsubscribe: ()=>clearInterval(_stTblTimer) });
     function render(){
       const ids = Object.keys(data).filter(id=>/^\d+$/.test(id)).map(Number).sort((a,b)=>a-b);
       const tbody = document.getElementById("stationsTable");

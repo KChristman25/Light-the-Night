@@ -2663,17 +2663,16 @@ if(id==='allvisitors')  initAllVisitors();
     });
   }
   function unmarkComplete(id){
-    if(!confirm('Move this participant back to in-maze? Their castle scan will be removed so they can scan again.')) return;
+    if(!confirm('Put this participant back in the maze? Their start time, coins, and all station scans are kept exactly as-is — only their finish time is removed. They can scan the castle again to finish.')) return;
     db.collection("kids").doc(id).update({
-      completed: firebase.firestore.FieldValue.delete(),
-      completionTime: firebase.firestore.FieldValue.delete(),
-      mazeEndTime:    firebase.firestore.FieldValue.delete(),
-      durationMs:     firebase.firestore.FieldValue.delete(),
-      completedBy:    firebase.firestore.FieldValue.delete(),
+      completed:       firebase.firestore.FieldValue.delete(),
+      completionTime:  firebase.firestore.FieldValue.delete(),
+      mazeEndTime:     firebase.firestore.FieldValue.delete(),
+      durationMs:      firebase.firestore.FieldValue.delete(),
+      completedBy:     firebase.firestore.FieldValue.delete(),
       bestMazeEndTime: firebase.firestore.FieldValue.delete(),
       bestDurationMs:  firebase.firestore.FieldValue.delete(),
       bestCoins:       firebase.firestore.FieldValue.delete(),
-      scans:           firebase.firestore.FieldValue.arrayRemove('bowser')
     });
   }
   function markComplete(id){

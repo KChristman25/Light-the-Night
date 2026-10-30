@@ -1833,8 +1833,10 @@ async function submitStationCode(code){
   }
 
   // Block duplicate scans; completed kids re-scanning start get a fresh run (bypass dup check).
+  // Bowser also bypasses when kid is back in-maze (admin Un-completed them) — scans kept, just finish time cleared.
   const isRerun=(kidData.completed===true||kidData.mazeEndTime)&&currentStationMode==='start';
-  if(!allowMultiScan&&!isRerun){
+  const isRefinish=currentStationMode==='bowser'&&!kidData.completed&&!kidData.mazeEndTime;
+  if(!allowMultiScan&&!isRerun&&!isRefinish){
     const existingScans=Array.isArray(kidData.scans)?kidData.scans:[];
     const already=existingScans.some(s=>{const id=typeof s==='object'&&s!==null?s.station:s;return String(id)===String(currentStationId);});
     if(already){showScanMsg(name+' already scanned here! Move to next station.','#e8a000','#e8a000','rgba(232,160,0,.12)','',3000);return;}

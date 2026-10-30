@@ -214,7 +214,7 @@
   <div class="topbar">
     <span class="topbar-coin"></span>
     <div class="topbar-title">🏆 FINISHERS</div>
-    <div class="topbar-count" id="countEl">0 finishers</div>
+    <div class="topbar-count" id="countEl" style="display:none">0 finishers</div>
   </div>
 
   <div class="scroll-wrap" id="scrollWrap">
@@ -333,10 +333,8 @@ function elapsedMs(item) {
 // pendingQueue:  { item, queueDocId } — waiting to be inserted
 // isLooped:      true after innerHTML is doubled for seamless scroll
 let committedList = [], pendingQueue = [];
-let animBusy = false, isLooped = false;
-let scrollPos = 0, scrollAnim = null, _tickN = 0;
-let _seamAt = 0;
-let _firstHalfCount = 0; // lb-row count in first half — never changes while scrolling
+let isLooped = false;
+let scrollPos = 0, scrollAnim = null;
 const SCROLL_SPEED = 0.7;
 
 // ── Row building ─────────────────────────────────────────
@@ -391,7 +389,7 @@ function _calcRank(item) {
 // ── Scroll ───────────────────────────────────────────────
 function stopScroll() {
   if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
-  scrollPos = 0; isLooped = false; _seamAt = 0; _firstHalfCount = 0;
+  scrollPos = 0; isLooped = false;
   scrollInner.style.transform = '';
 }
 
@@ -399,94 +397,19 @@ function _rebuildDOM() {
   scrollInner.innerHTML = committedList.map((k, i) => buildRowEl(k, i).outerHTML).join('');
 }
 
-const MAX_PER_REVOLUTION = 5;
-
-// Try to absorb pending into the off-screen second half right now.
-// Inserts rows surgically — no existing rows are removed, so no frame-blocking rebuild.
-function _tryAddToSecondHalf() {
-  if (!pendingQueue.length || !isLooped) return;
-  if (scrollPos + scrollWrap.clientHeight >= _seamAt) return;
-
-  // Absorb into committedList, tracking items (not ranks — ranks shift as we insert)
-  const newItems = [];
-  while (pendingQueue.length && newItems.length < MAX_PER_REVOLUTION) {
-    const { item, queueDocId } = pendingQueue.shift();
-    committedList.splice(_calcRank(item), 0, item);
-    if (queueDocId) db.collection('leaderboardQueue').doc(queueDocId).delete().catch(() => {});
-    newItems.push(item);
-  }
-  if (!newItems.length) return;
-  countEl.textContent = committedList.length + (committedList.length === 1 ? ' finisher' : ' finishers');
-
-  // Compute final ranks now that all insertions are done, sort ascending for correct DOM order
-  const newRanks = newItems.map(it => committedList.indexOf(it)).sort((a, b) => a - b);
-  const newRankSet = new Set(newRanks);
-  const minRank = newRanks[0];
-
-  const allRows = Array.from(scrollInner.querySelectorAll('.lb-row'));
-
-  // Insert each new row at its correct second-half position
-  for (const rank of newRanks) {
-    const newRow = buildRowEl(committedList[rank], rank);
-    scrollInner.insertBefore(newRow, allRows[_firstHalfCount + rank] || null);
-    allRows.splice(_firstHalfCount + rank, 0, newRow); // keep array in sync for subsequent inserts
-  }
-
-  // Update rank label + class for existing rows shifted down by the insertions
-  for (let r = minRank; r < committedList.length; r++) {
-    if (newRankSet.has(r)) continue; // already built with correct rank
-    const row = allRows[_firstHalfCount + r];
-    if (!row) continue;
-    const cls = ['gold','silver','bronze'][r] || '';
-    const alt = r % 2 === 1 ? ' lb-row-alt' : '';
-    const rankStr = r===0?'🥇':r===1?'🥈':r===2?'🥉':`#${r+1}`;
-    row.className = `lb-row${cls?' '+cls:''}${alt}`;
-    const rk = row.querySelector('.lb-rank');
-    if (rk) { rk.className = `lb-rank ${r<3?'':'other'}`; rk.textContent = rankStr; }
-  }
-}
-
-// At the seam: promote the old second half to first half (no DOM recreation),
-// then clone it as the new second half. Avoids innerHTML mutation and row-height drift.
-function _atSeam() {
-  scrollAnim = null;
-  scrollPos = 0; isLooped = false;
-
-  // Remove old first-half rows — second half becomes the new first half
-  const rows = Array.from(scrollInner.querySelectorAll('.lb-row'));
-  for (let i = _firstHalfCount - 1; i >= 0; i--) { if (rows[i]) rows[i].remove(); }
-
-  // Clone the surviving content (new first half) as the new second half
-  const frag = document.createDocumentFragment();
-  Array.from(scrollInner.childNodes).forEach(n => frag.appendChild(n.cloneNode(true)));
-  scrollInner.appendChild(frag);
-
-  isLooped = true;
-  scrollInner.style.transform = 'translateY(0px)';
-  _firstHalfCount = committedList.length;
-  _seamAt = scrollInner.scrollHeight / 2;
-  _tryAddToSecondHalf();
-  requestAnimationFrame(maybeStartScroll);
-}
-
 function startScrollLoop() {
   if (scrollAnim) cancelAnimationFrame(scrollAnim);
   if (!isLooped) {
+    // Duplicate list so item #1 appears directly after the last item — seamless loop
     const frag = document.createDocumentFragment();
     Array.from(scrollInner.childNodes).forEach(n => frag.appendChild(n.cloneNode(true)));
     scrollInner.appendChild(frag);
     isLooped = true;
-    _firstHalfCount = committedList.length;
-    _seamAt = scrollInner.scrollHeight / 2;
-    _tryAddToSecondHalf();
   }
+  const half = scrollInner.scrollHeight / 2;
   function tick() {
     scrollPos += SCROLL_SPEED;
-    if (_seamAt > 0 && scrollPos >= _seamAt) {
-      scrollAnim = null;
-      _atSeam();
-      return;
-    }
+    if (half > 0 && scrollPos >= half) scrollPos -= half; // wrap — no DOM mutation, no jump
     scrollInner.style.transform = `translateY(-${scrollPos}px)`;
     scrollAnim = requestAnimationFrame(tick);
   }
@@ -495,29 +418,21 @@ function startScrollLoop() {
 
 function maybeStartScroll() {
   if (scrollAnim) return;
-  // Require single-copy height > viewport. This guarantees _seamAt > viewport,
-  // so _tryAddToSecondHalf always has a safe off-screen window at scrollPos=0.
   const singleH = isLooped ? scrollInner.scrollHeight / 2 : scrollInner.scrollHeight;
   if (singleH > scrollWrap.clientHeight) startScrollLoop();
 }
 
-// ── Queue processing (non-scrolling case only) ────────────
+// ── Queue processing ─────────────────────────────────────
 function _tryProcessQueue() {
-  if (!pendingQueue.length || isLooped) return;
+  if (!pendingQueue.length) return;
   while (pendingQueue.length) {
     const { item, queueDocId } = pendingQueue.shift();
-    const rank = _calcRank(item);
-    if (committedList.length === 0) {
-      const empty = scrollInner.querySelector('.empty-msg');
-      if (empty) empty.remove();
-    }
-    const all = Array.from(scrollInner.querySelectorAll('.lb-row'));
-    scrollInner.insertBefore(buildRowEl(item, rank), all[rank] || null);
-    committedList.splice(rank, 0, item);
+    committedList.splice(_calcRank(item), 0, item);
     if (queueDocId) db.collection('leaderboardQueue').doc(queueDocId).delete().catch(() => {});
   }
   countEl.textContent = committedList.length + (committedList.length === 1 ? ' finisher' : ' finishers');
-  rebuildAllRanks();
+  stopScroll();
+  _rebuildDOM();
   requestAnimationFrame(maybeStartScroll);
 }
 
@@ -589,8 +504,7 @@ function _testAddOne() {
 }
 function _testAddAndProcess() {
   if (!_testAddOne()) { _testStop(); return; }
-  if (!scrollAnim) _tryProcessQueue();
-  else _tryAddToSecondHalf();
+  _tryProcessQueue();
   const el = document.getElementById('_testCounter');
   if (el) el.textContent = `${_testCount} / ${TEST_MAX}`;
   if (_testCount >= TEST_MAX) _testStop();
@@ -729,8 +643,7 @@ firebase.auth().onAuthStateChanged(user => {
           score: calcScore(d.coins)
         };
         pendingQueue.push({ item, queueDocId: null });
-        if (!scrollAnim) _tryProcessQueue();
-        else _tryAddToSecondHalf();
+        _tryProcessQueue();
       });
 
       if (needsRebuild) {

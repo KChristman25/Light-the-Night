@@ -2109,7 +2109,7 @@ if(id==='allvisitors')  initAllVisitors();
 
     // ── Station health grid ──────────────────────────────────────────────────
     let dashTotalSt = 0, dashStData = {};
-    const STATION_TH = 180000;  // 3 min — stations heartbeat every 1 min
+    const STATION_TH = 240000;  // 4 min — stations heartbeat every 3 min
     const SPECIAL_STATIONS=[
       {id:'start',       icon:'🏁', label:'Start'},
       {id:'rescue_peach',icon:'👸', label:'Peach'},
@@ -2303,7 +2303,7 @@ if(id==='allvisitors')  initAllVisitors();
     land_lava:  {icon:'🌋', name:'Lava World'}
   };
   function initStations(){
-    const TH=180000; let data={};
+    const TH=240000; let data={};
     listeners.push(
       db.collection("config").doc("config").onSnapshot(doc=>{
         const cfg=doc.data()||{};

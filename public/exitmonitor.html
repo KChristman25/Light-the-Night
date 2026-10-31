@@ -259,6 +259,9 @@
             <div class="exit-badge ${badgeClass}">${badgeText}</div>
             ${isOpen && when ? `<div class="exit-time">Opened at ${when}</div>` : ''}
             ${isOpen ? `<button class="btn-clear" onclick="clearExit('${id}')">✓ Mark Cleared</button>` : ''}
+            ${isDisarmed
+              ? `<button class="btn-clear" style="background:#10b981" onclick="rearmExit('${id}')">🔒 Re-arm</button>`
+              : `<button class="btn-clear" style="background:#f59e0b;margin-top:6px" onclick="disarmExit('${id}')">🔓 Disarm</button>`}
           </div>`;
       }).join('');
 
@@ -275,6 +278,18 @@
       } catch(e) {
         alert('Error: ' + e.message);
       }
+    }
+
+    async function disarmExit(id) {
+      try {
+        await db.collection('emergencyExits').doc(id).set({ disarmed: true, isOpen: false }, { merge: true });
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    async function rearmExit(id) {
+      try {
+        await db.collection('emergencyExits').doc(id).set({ disarmed: false }, { merge: true });
+      } catch(e) { alert('Error: ' + e.message); }
     }
   </script>
 </body>

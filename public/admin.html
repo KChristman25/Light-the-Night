@@ -4388,21 +4388,30 @@ Return ONLY a JSON array, no prose.`;
     if (!grid) return;
     grid.innerHTML = EXIT_IDS.map(id => {
       const d = _exitData[id] || {};
-      const isOpen = d.isOpen === true;
+      const isOpen     = d.isOpen === true;
+      const isDisarmed = d.disarmed === true;
       const name = d.name || `Exit ${id}`;
       const when = d.openedAt ? new Date(d.openedAt.toDate()).toLocaleTimeString() : '';
+      const bg     = isOpen ? '#fef2f2' : isDisarmed ? '#fffbeb' : 'var(--card)';
+      const border = isOpen ? '#e52521' : isDisarmed ? '#f59e0b' : '#231207';
+      const badge  = isOpen ? '🔴 OPEN' : isDisarmed ? '🔓 DISARMED' : '✅ SECURE';
+      const badgeBg= isOpen ? '#e52521' : isDisarmed ? '#f59e0b' : '#10b981';
       return `
-        <div style="background:${isOpen ? '#fef2f2' : 'var(--card)'};border:3px solid ${isOpen ? '#e52521' : '#231207'};border-radius:4px;padding:14px 16px;box-shadow:4px 4px 0 ${isOpen ? '#e52521' : '#231207'}">
+        <div style="background:${bg};border:3px solid ${border};border-radius:4px;padding:14px 16px;box-shadow:4px 4px 0 ${border}">
           <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--muted-dk);margin-bottom:6px">EXIT ${id}</div>
           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px">${name}</div>
-          <div style="display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:700;background:${isOpen ? '#e52521' : '#10b981'};color:#fff">
-            ${isOpen ? '🔴 OPEN' : '✅ SECURE'}
+          <div style="display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:700;background:${badgeBg};color:#fff">
+            ${badge}
           </div>
-          ${when ? `<div style="font-size:11px;color:#e52521;margin-top:6px">Opened ${when}</div>` : ''}
+          ${isOpen && when ? `<div style="font-size:11px;color:#e52521;margin-top:6px">Opened ${when}</div>` : ''}
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
             ${isOpen
-              ? `<button class="btn btn-warn btn-sm" onclick="adminClearExit('${id}')">✓ Clear</button>`
-              : `<button class="btn btn-sm btn-danger" onclick="adminOpenExit('${id}')">▶ Test Open</button>`}
+              ? `<button class="btn btn-warn btn-sm" onclick="adminClearExit('${id}')">✓ Clear</button>
+                 <button class="btn btn-sm" onclick="adminDisarmExit('${id}')" style="background:#f59e0b;color:#111;border-color:#f59e0b">🔓 Disarm</button>`
+              : isDisarmed
+              ? `<button class="btn btn-sm" onclick="adminRearmExit('${id}')" style="background:#10b981;color:#fff;border-color:#10b981">🔒 Re-arm</button>`
+              : `<button class="btn btn-sm" onclick="adminDisarmExit('${id}')" style="background:#f59e0b;color:#111;border-color:#f59e0b">🔓 Disarm</button>
+                 <button class="btn btn-sm btn-danger" onclick="adminOpenExit('${id}')">▶ Test Open</button>`}
           </div>
         </div>`;
     }).join('');
@@ -4465,6 +4474,20 @@ Return ONLY a JSON array, no prose.`;
         clearedAt: firebase.firestore.FieldValue.serverTimestamp(),
         clearedBy: 'admin'
       });
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  async function adminDisarmExit(id) {
+    try {
+      await db.collection('emergencyExits').doc(id).set({
+        disarmed: true, isOpen: false
+      }, { merge: true });
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  async function adminRearmExit(id) {
+    try {
+      await db.collection('emergencyExits').doc(id).set({ disarmed: false }, { merge: true });
     } catch(e) { alert('Error: ' + e.message); }
   }
 

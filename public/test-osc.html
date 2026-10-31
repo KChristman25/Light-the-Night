@@ -73,7 +73,7 @@ async function fire(){
   if(_piUrl){
     try{
       const ctrl = new AbortController();
-      const t = setTimeout(()=>ctrl.abort(), 3000);
+      const t = setTimeout(()=>ctrl.abort(), 300);
       const r = await fetch(_piUrl+'/cmd', {method:'POST',
         headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
       clearTimeout(t);

@@ -1077,6 +1077,7 @@
         <button class="sv-key" data-key="Backspace" style="background:#4a1212;color:#ff8080;border-color:#e52521">⌫</button>
       </div>
       <div id="startStatus" style="font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.4vw,11px);color:#4cff50;min-height:1.4em;text-align:center"></div>
+      <div id="startOscStatus" style="font-size:9px;color:#5a4030;text-align:center;min-height:12px;margin-top:4px"></div>
     </div>
   </section>
 
@@ -1249,19 +1250,55 @@ let _qlabCues = {};
 let _aiParsedGroups = {};   // groupId → steps[]
 let _aiGroupComp    = {};   // groupId → computerId
 let _mcComputers    = [];   // qlabComputers array
-let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "http://192.168.8.106:8080"
+let _piBaseUrl      = null; // Pi HTTP server URL, e.g. "https://192.168.8.106:8080"
 let _outlet1KeepalivePaused = false;
 
-// Send a command directly to the Pi over HTTP (sub-millisecond vs 100ms Firestore poll).
+// Direct Pi path state — after first failure we skip the Pi for 30s to avoid hang delays
+let _piReachable = null;  // null=unknown, true=ok, false=bad
+let _piReachableResetTimer = null;
+function _markPiBad() {
+  _piReachable = false;
+  if (_piReachableResetTimer) clearTimeout(_piReachableResetTimer);
+  _piReachableResetTimer = setTimeout(() => { _piReachable = null; }, 30000);
+}
+
+// Probe Pi reachability once we know its URL — avoids first-scan lag
+async function _probePiReachability() {
+  if (!_piBaseUrl) return;
+  if (window.location.protocol === 'https:' && /^http:\/\//i.test(_piBaseUrl)) {
+    _piReachable = false; _updateStartOscStatus(); return;  // mixed content — will always fail
+  }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 300);
+    await fetch(_piBaseUrl + '/', { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(t);
+    _piReachable = true;
+    console.log('[pi] direct path OK:', _piBaseUrl);
+  } catch(e) {
+    _markPiBad();
+    console.log('[pi] direct path unavailable, using Firestore queue');
+  }
+  _updateStartOscStatus();
+}
+
+// Send a command directly to the Pi over HTTP — sub-10ms on LAN.
 // Falls back to the Firestore queue if the Pi is unreachable.
 async function _sendViaPi(payload) {
-  if (!_piBaseUrl) throw new Error('no pi url');
+  if (!_piBaseUrl || _piReachable === false) throw new Error('no direct path');
+  if (window.location.protocol === 'https:' && /^http:\/\//i.test(_piBaseUrl)) {
+    _markPiBad(); throw new Error('mixed content blocked');
+  }
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 400);
+  const t = setTimeout(() => ctrl.abort(), 200);
   try {
     const r = await fetch(_piBaseUrl + '/cmd', {method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl.signal});
     if (!r.ok) throw new Error('pi ' + r.status);
+    _piReachable = true;
+    if (_piReachableResetTimer) { clearTimeout(_piReachableResetTimer); _piReachableResetTimer = null; }
+  } catch(e) {
+    _markPiBad(); throw e;
   } finally { clearTimeout(t); }
 }
 
@@ -2481,8 +2518,11 @@ function sendOscQueueCommand(address){
   QUEUE_COL.add(payload).catch(()=>{});
 }
 async function loadQlabCues(){
-  // Keep _piBaseUrl live so we always send to the Pi's current IP
-  db.collection('webswitch').doc('config').onSnapshot(s=>{ _piBaseUrl=(s.data()||{}).baseUrl||null; });
+  // Keep _piBaseUrl live; probe reachability whenever URL changes
+  db.collection('webswitch').doc('config').onSnapshot(s=>{
+    const newUrl=(s.data()||{}).baseUrl||null;
+    if(newUrl !== _piBaseUrl){ _piBaseUrl=newUrl; _piReachable=null; _probePiReachability(); }
+  });
   const snap = await db.collection('webswitch').doc('config').get();
   if(!snap.exists) return;
   const d = snap.data()||{};
@@ -2501,6 +2541,24 @@ async function loadQlabCues(){
       cooldownMs:cfg.cooldownMs!=null?cfg.cooldownMs:2000
     };
   });
+  _updateStartOscStatus();
+}
+
+function _updateStartOscStatus(){
+  const el = document.getElementById('startOscStatus');
+  if(!el) return;
+  if(!oscEnabled){ el.textContent='OSC OFF'; return; }
+  const hasCue = !!(_qlabCues['maze_start']?.cue);
+  const hasAi  = !!(_aiParsedGroups?.['maze']?.length);
+  const hasPi  = !!_piBaseUrl;
+  if(hasCue || hasAi){
+    const via = _piReachable===true ? 'DIRECT' : (hasPi ? 'QUEUE' : 'NO PI');
+    el.textContent = 'OSC: ' + (hasCue ? _qlabCues['maze_start'].cue : 'AI') + ' · ' + via;
+    el.style.color = '#3a6a3a';
+  } else {
+    el.textContent = 'OSC: NOT CONFIGURED — set cue in Mission Control';
+    el.style.color = '#a04040';
+  }
 }
 function sendConfiguredOsc(key){
   if(!oscEnabled) return Promise.resolve();

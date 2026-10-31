@@ -30,6 +30,11 @@ import os
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+# Persistent HTTPS session — reuses TLS connections so each Firestore poll
+# takes ~20ms instead of ~200ms (no TLS handshake per request).
+_session = requests.Session()
+_session.headers.update({"Connection": "keep-alive"})
+
 try:
     import RPi.GPIO as _GPIO
     _GPIO.setmode(_GPIO.BCM)
@@ -113,7 +118,7 @@ FS_BASE = (f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT}"
 def sign_in():
     url = (f"https://identitytoolkit.googleapis.com/v1/accounts:signUp"
            f"?key={FIREBASE_API_KEY}")
-    r = requests.post(url, json={"returnSecureToken": True}, timeout=10)
+    r = _session.post(url, json={"returnSecureToken": True}, timeout=10)
     r.raise_for_status()
     d = r.json()
     print(f"[auth] signed in as {d['localId'][:8]}…")
@@ -152,8 +157,8 @@ def fs_list_unprocessed(token, col_path):
             "limit": 50
         }
     }
-    r = requests.post(url, headers={**_headers(token), "Content-Type": "application/json"},
-                      json=body, timeout=10)
+    r = _session.post(url, headers={**_headers(token), "Content-Type": "application/json"},
+                      json=body, timeout=4)
     if r.status_code == 200:
         return [item["document"] for item in r.json() if "document" in item]
     return []
@@ -161,7 +166,7 @@ def fs_list_unprocessed(token, col_path):
 
 def fs_get(token, doc_path):
     url = f"{FS_BASE}/{doc_path}?key={FIREBASE_API_KEY}"
-    r = requests.get(url, headers=_headers(token), timeout=10)
+    r = _session.get(url, headers=_headers(token), timeout=4)
     if r.status_code == 200:
         return {k: _fs_val(v) for k, v in r.json().get("fields", {}).items()}
     return {}
@@ -177,8 +182,8 @@ def fs_patch(token, doc_path, py_fields):
         else:                      fs_fields[k] = {"stringValue": str(v)}
     mask = "&".join(f"updateMask.fieldPaths={k}" for k in py_fields)
     url = f"{FS_BASE}/{doc_path}?key={FIREBASE_API_KEY}&{mask}"
-    requests.patch(url, headers={**_headers(token), "Content-Type": "application/json"},
-                   json={"fields": fs_fields}, timeout=10)
+    _session.patch(url, headers={**_headers(token), "Content-Type": "application/json"},
+                   json={"fields": fs_fields}, timeout=4)
 
 
 # ── GPIO control (Raspberry Pi BCM pins) ──────────────────────────────────────
@@ -233,7 +238,7 @@ def control_outlet(outlet, state):
         else:
             actual = state
         url = f"{RELAY_BASE_URL}/outlet?{outlet}={actual.upper()}"
-        r = requests.get(url, timeout=3)
+        r = _session.get(url, timeout=3)
         print(f"[relay] outlet {outlet} → {actual}  ({r.status_code})")
         if r.status_code == 200:
             _outlet_states[outlet] = actual
@@ -247,7 +252,7 @@ def push_state(token):
         return
     url = (f"{FS_BASE}/webswitch/state"
            f"?key={FIREBASE_API_KEY}&updateMask.fieldPaths=states")
-    requests.patch(url,
+    _session.patch(url,
                    headers={**_headers(token), "Content-Type": "application/json"},
                    json={"fields": {"states": {"mapValue": {"fields": {str(k): {"stringValue": v} for k, v in _outlet_states.items()}}}}},
                    timeout=5)
@@ -256,7 +261,7 @@ def push_state(token):
 def poll_relay_state(token):
     """Poll the relay's status page and push any state changes to Firestore."""
     try:
-        r = requests.get(f"{RELAY_BASE_URL}/index.htm", timeout=5)
+        r = _session.get(f"{RELAY_BASE_URL}/index.htm", timeout=5)
         if r.status_code != 200:
             return
         # outlet?N=ON in href means outlet N is currently OFF (button offers to turn ON)
@@ -523,7 +528,7 @@ def self_update_loop():
     while True:
         time.sleep(UPDATE_INTERVAL_S)
         try:
-            r = requests.get(GITHUB_RAW, timeout=15)
+            r = _session.get(GITHUB_RAW, timeout=15)
             if r.status_code != 200:
                 continue
             new_content = r.content

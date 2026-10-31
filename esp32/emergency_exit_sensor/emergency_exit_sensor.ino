@@ -87,26 +87,32 @@ void loop() {
 
   bool physical = (digitalRead(PIN_REED) == HIGH);  // HIGH = door open
 
+  // Alert active: door closes → clear alert and re-arm
+  if (doorOpen && !physical) {
+    delay(100);
+    if (digitalRead(PIN_REED) == LOW) {
+      doorOpen = false;
+      writeDoorState(false);
+      Serial.println("Alert cleared — door closed, re-armed");
+      updateLed();
+    }
+  }
+
   // While disarmed, track if door was opened so we know to wait for close
   if (disarmed && physical && !pendingClose) {
     pendingClose = true;
-    Serial.println("DEBUG: door opened while disarmed — pendingClose=true");
   }
 
-  // Door closed after being opened while disarmed → re-arm
+  // Disarmed: door closed after being opened → re-arm
   if (pendingClose && disarmed && !physical) {
-    disarmed = false;
-    pendingClose = false;
-    writeDisarmedState(false);
-    Serial.println("Door closed — re-armed");
-    updateLed();
-  }
-
-  // Debug: print state every 2 seconds
-  static unsigned long lastDebug = 0;
-  if (millis() - lastDebug > 2000) {
-    lastDebug = millis();
-    Serial.printf("STATE: physical=%d disarmed=%d pendingClose=%d doorOpen=%d\n", physical, disarmed, pendingClose, doorOpen);
+    delay(100);
+    if (digitalRead(PIN_REED) == LOW) {
+      disarmed = false;
+      pendingClose = false;
+      writeDisarmedState(false);
+      Serial.println("Door closed — re-armed");
+      updateLed();
+    }
   }
 
   // BOOT button: disarm (clears any active alert silently)
@@ -197,8 +203,7 @@ void signInAnonymously() {
     DynamicJsonDocument doc(2048);
     deserializeJson(doc, http.getString());
     idToken = doc["idToken"].as<String>();
-    unsigned long expiresIn = doc["expiresIn"].as<unsigned long>();
-    tokenExpiry = millis() + expiresIn * 1000UL;
+    tokenExpiry = millis() + 3500000UL;  // tokens last 1hr; refresh at ~58min
     Serial.println("Auth OK");
   } else {
     Serial.println("Auth failed: " + String(code));

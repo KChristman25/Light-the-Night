@@ -1383,6 +1383,27 @@
   <div id="stationsms" class="section" style="display:none">
     <div class="page-title">📡 Station SMS</div>
 
+    <h3>First Scan Alert</h3>
+    <div class="panel-box" style="max-width:480px;margin-bottom:24px">
+      <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Get a text when the first participant scans in. Sends once per event — reset it before each new event.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px">
+        <div>
+          <div style="font-weight:600;color:var(--text);font-size:13px">First Scan Alert</div>
+          <div id="firstScanNotifiedStatus" style="color:var(--muted-dk);font-size:12px;margin-top:3px">—</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="firstScanSmsBtn" onclick="toggleFirstScanSms()" style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;min-width:70px;transition:all .15s">OFF</button>
+          <button onclick="resetFirstScan()" style="padding:8px 14px;border-radius:6px;border:2px solid var(--border);background:var(--panel);color:var(--muted-dk);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;transition:all .15s">Reset</button>
+        </div>
+      </div>
+      <div id="firstScanNumberList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="firstScanNewNumber" placeholder="e.g. 6692082462" style="width:180px"/>
+        <button class="btn" onclick="addAlertNumber('firstScanAlertSettings','firstScanNewNumber','firstScanStatus')">+ Add Number</button>
+      </div>
+      <div id="firstScanStatus" style="font-size:12px;color:var(--muted-dk);margin-top:8px;min-height:16px"></div>
+    </div>
+
     <h3>Station Offline Alerts</h3>
     <div class="panel-box" style="max-width:480px;margin-bottom:24px">
       <div style="font-size:13px;color:var(--muted-dk);margin-bottom:14px">Get a text when a station stops responding. Checks every 5 minutes — flags a station after 4 minutes with no heartbeat. Won't repeat for the same station within 10 minutes.</div>
@@ -4313,6 +4334,27 @@ Return ONLY a JSON array, no prose.`;
 
   function initStationSms(){
     listeners.push(
+      db.collection('config').doc('firstScanAlertSettings').onSnapshot(snap => {
+        const d = snap.data() || {};
+        renderAlertNumberList('firstScanNumberList', d.phoneNumbers || [], 'firstScanAlertSettings');
+        const btn = document.getElementById('firstScanSmsBtn');
+        if(btn){
+          const on = d.enabled === true;
+          btn.textContent = on ? 'ON' : 'OFF';
+          btn.style.background  = on ? '#16a34a' : 'var(--panel)';
+          btn.style.color       = on ? '#fff'    : 'var(--muted-dk)';
+          btn.style.borderColor = on ? '#16a34a' : 'var(--border)';
+        }
+      })
+    );
+    listeners.push(
+      db.collection('config').doc('eventStats').onSnapshot(snap => {
+        const d = snap.data() || {};
+        const el = document.getElementById('firstScanNotifiedStatus');
+        if(el) el.textContent = d.firstScanNotified ? '✅ Alert already sent this event — reset before next event' : 'Waiting for first scan…';
+      })
+    );
+    listeners.push(
       db.collection('config').doc('stationOfflineAlertSettings').onSnapshot(snap => {
         const d = snap.data() || {};
         renderAlertNumberList('stationOfflineNumberList', d.phoneNumbers || [], 'stationOfflineAlertSettings');
@@ -4326,6 +4368,19 @@ Return ONLY a JSON array, no prose.`;
         }
       })
     );
+  }
+
+  function toggleFirstScanSms(){
+    db.collection('config').doc('firstScanAlertSettings').get().then(snap => {
+      const on = (snap.data() || {}).enabled === true;
+      db.collection('config').doc('firstScanAlertSettings').set({ enabled: !on }, { merge: true });
+    });
+  }
+
+  async function resetFirstScan(){
+    await db.collection('config').doc('eventStats').set({ firstScanNotified: false }, { merge: true });
+    document.getElementById('firstScanStatus').textContent = 'Reset — ready for next event';
+    setTimeout(() => { const el=document.getElementById('firstScanStatus'); if(el) el.textContent=''; }, 3000);
   }
 
   function renderExitCards() {

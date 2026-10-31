@@ -96,6 +96,42 @@ exports.noStartAlert = onDocumentWritten({ document: "alerts/{alertId}" }, async
   );
 });
 
+exports.firstScanAlert = onDocumentWritten({ document: "scans/{scanId}" }, async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+
+  // Only on new scan creation
+  if (!after || before) return;
+
+  const db = getFirestore();
+
+  const [settingsSnap, statsSnap] = await Promise.all([
+    db.collection("config").doc("firstScanAlertSettings").get(),
+    db.collection("config").doc("eventStats").get(),
+  ]);
+
+  const settings = settingsSnap.data() || {};
+  if (!settings.enabled) return;
+
+  const phoneNumbers = settings.phoneNumbers || [];
+  if (phoneNumbers.length === 0) return;
+
+  const stats = statsSnap.data() || {};
+  if (stats.firstScanNotified) return;
+
+  // Mark notified before sending to prevent duplicate sends
+  await db.collection("config").doc("eventStats").set({ firstScanNotified: true }, { merge: true });
+
+  const name = after.kidName || after.name || "First participant";
+  const message = `First participant scanned in: ${name}. The event has started!`;
+
+  await Promise.all(
+    phoneNumbers.map(num =>
+      sendSms(num, "Event Started", message).catch(err => console.error(`SMS failed for ${num}:`, err.message))
+    )
+  );
+});
+
 exports.stationOfflineCheck = onSchedule("every 5 minutes", async () => {
   const db = getFirestore();
 

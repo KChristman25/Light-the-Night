@@ -1498,6 +1498,7 @@ firebase.auth().onAuthStateChanged(user=>{
     allowMultiScan = d.allowMultiScan === true;
     window._countdownEnabled = d.countdownEnabled !== false;
     oscEnabled = d.oscEnabled !== false;
+    _updateStartOscStatus();
   });
 });
 

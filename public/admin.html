@@ -392,6 +392,23 @@
     .sidebar-overlay.open { display: block; }
     .sidebar.shown { display: flex; }
 
+    /* ── Emergency exit alert banner ────────────────────────────────────── */
+    #exitAlertBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #e52521;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 20px;
+      text-align: center;
+      z-index: 9999;
+      animation: exitPulse 1s ease-in-out infinite alternate;
+    }
+    @keyframes exitPulse { from { opacity: 1; } to { opacity: .75; } }
+    body.exit-banner-visible { padding-top: 40px; }
+
     /* ── Leaderboard status pulse ────────────────────────────────────────── */
     @keyframes lbPulse {
       0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.5); }
@@ -424,6 +441,9 @@
   <script src="/pw.js"></script>
 </head>
 <body>
+
+  <!-- Emergency exit alert banner -->
+  <div id="exitAlertBanner">🚨 EMERGENCY EXIT OPEN — Check the maze immediately!</div>
 
   <!-- Hamburger (mobile) -->
   <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
@@ -1613,6 +1633,20 @@
     document.getElementById("main").style.display = "block";
     showSection('live');
     startConnectionMonitor();
+    startExitBannerListeners();
+  }
+
+  const _exitBannerData = {};
+  function startExitBannerListeners() {
+    ['1','2','3','4'].forEach(id => {
+      db.collection('emergencyExits').doc(id).onSnapshot(snap => {
+        _exitBannerData[id] = snap.exists ? snap.data() : {};
+        const anyOpen = ['1','2','3','4'].some(i => (_exitBannerData[i] || {}).isOpen === true);
+        const banner = document.getElementById('exitAlertBanner');
+        if (banner) banner.style.display = anyOpen ? 'block' : 'none';
+        document.body.classList.toggle('exit-banner-visible', anyOpen);
+      });
+    });
   }
 
   function checkAdminPassword(){
@@ -2128,10 +2162,28 @@ if(id==='allvisitors')  initAllVisitors();
         const list=document.getElementById('noStartAlertList');
         if(!panel||!list)return;
         if(snap.empty){panel.style.display='none';list.innerHTML='';return;}
-        panel.style.display='block';
-        list.innerHTML='';
+
+        // Build a map of kidId → mazeStartTime from live kids snapshot
+        const startedKids = new Set();
+        if(_liveKidsSnap){
+          _liveKidsSnap.forEach(kd=>{ if(kd.data().mazeStartTime) startedKids.add(kd.id); });
+        }
+
+        const activeDocs = [];
         snap.forEach(doc=>{
           const d=doc.data();
+          if(d.kidId && startedKids.has(d.kidId)){
+            // Kid already started — clean up stale alert silently
+            db.collection('alerts').doc(doc.id).delete().catch(()=>{});
+          } else {
+            activeDocs.push({doc,d});
+          }
+        });
+
+        if(!activeDocs.length){panel.style.display='none';list.innerHTML='';return;}
+        panel.style.display='block';
+        list.innerHTML='';
+        activeDocs.forEach(({doc,d})=>{
           const ago=d.createdAt?Math.round((Date.now()-d.createdAt.toMillis())/1000)+'s ago':'';
           const row=document.createElement('div');
           row.style.cssText='display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff1f2;border:2px solid #fca5a5;border-radius:6px;margin-bottom:8px';
@@ -2598,6 +2650,7 @@ if(id==='allvisitors')  initAllVisitors();
       db.collection('events').orderBy('date','asc').onSnapshot(snap=>{
         _allEvents = snap.docs.map(d=>({id:d.id,...d.data()}));
         renderEventList();
+        renderActiveEventBanner();
         renderMigrateSelect();
         renderLbFilterBtns();
         renderParticipantEventFilterBtns();
@@ -2854,7 +2907,8 @@ if(id==='allvisitors')  initAllVisitors();
       // Start their timer 3 minutes ago to compensate for lost time
       const startTime = firebase.firestore.Timestamp.fromMillis(Date.now() - 3*60*1000);
       await db.collection('kids').doc(kidId).update({
-        mazeStartTime: startTime
+        mazeStartTime: startTime,
+        scans: firebase.firestore.FieldValue.arrayUnion('start')
       });
       // Send "go" message to that station's message doc
       if(stationId){

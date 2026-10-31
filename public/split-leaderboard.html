@@ -445,7 +445,11 @@ firebase.auth().onAuthStateChanged(user=>{
     // ── In Maze ──────────────────────────────────────────────
     const inMaze=visKids
       .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
-      .sort((a,b)=>(b.coins??0)-(a.coins??0)||(a.name||'').localeCompare(b.name||''));
+      .sort((a,b)=>{
+        const aMs=_kidStartMs[a.id]?.localMs??now;
+        const bMs=_kidStartMs[b.id]?.localMs??now;
+        return bMs-aMs; // lowest elapsed first (most recently entered)
+      });
 
     imCount.textContent=inMaze.length;
     if(chipInMaze) chipInMaze.textContent=inMaze.length+' in maze';
@@ -466,7 +470,6 @@ firebase.auth().onAuthStateChanged(user=>{
           (k.collectedShell||k.usedShell)      ?`<img src="icons/red_shell.webp" alt="Shell">`:'',
         ].filter(Boolean).join('');
         return `<div class="im-row" data-start="${startMs}">
-          <div class="im-pos">${ordinal(i+1)}</div>
           <div class="im-dot"></div>
           <div class="im-name">${escHtml(k.name||'?')}</div>
           ${powerups?`<div class="im-powerups">${powerups}</div>`:''}

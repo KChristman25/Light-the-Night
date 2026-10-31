@@ -48,8 +48,9 @@ const unsigned long BLINK_SLOW_MS = 900;     // half-period when disarmed
 
 String   idToken     = "";
 unsigned long tokenExpiry = 0;
-bool     doorOpen    = false;
-bool     disarmed    = false;
+bool     doorOpen     = false;
+bool     disarmed     = false;
+bool     pendingClose = false;  // true when door was opened while disarmed; wait for close to re-arm
 unsigned long lastPoll  = 0;
 unsigned long lastBlink = 0;
 bool     ledState    = false;
@@ -86,11 +87,15 @@ void loop() {
 
   bool physical = (digitalRead(PIN_REED) == HIGH);  // HIGH = door open
 
-  // Door closed while disarmed or alert active → re-arm
-  if ((disarmed || doorOpen) && !physical) {
+  // While disarmed, track if door was opened so we know to wait for close
+  if (disarmed && physical && !pendingClose) {
+    pendingClose = true;
+  }
+
+  // Door closed after being opened while disarmed → re-arm
+  if (pendingClose && disarmed && !physical) {
     disarmed = false;
-    doorOpen = false;
-    writeDoorState(false);
+    pendingClose = false;
     writeDisarmedState(false);
     Serial.println("Door closed — re-armed");
     updateLed();
@@ -101,6 +106,7 @@ void loop() {
     delay(50);
     if (digitalRead(PIN_BTN) == LOW) {
       disarmed = true;
+      pendingClose = physical;  // only wait for close if door is already open
       if (doorOpen) { doorOpen = false; writeDoorState(false); }
       writeDisarmedState(true);
       Serial.println("Disarmed via button");

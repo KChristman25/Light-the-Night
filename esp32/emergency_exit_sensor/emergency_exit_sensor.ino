@@ -87,55 +87,56 @@ void loop() {
 
   bool physical = (digitalRead(PIN_REED) == HIGH);  // HIGH = door open
 
-  // Alert active: door closes → clear alert and re-arm
-  if (doorOpen && !physical) {
-    delay(100);
-    if (digitalRead(PIN_REED) == LOW) {
-      doorOpen = false;
-      writeDoorState(false);
-      Serial.println("Alert cleared — door closed, re-armed");
-      updateLed();
-    }
-  }
-
-  // While disarmed, track if door was opened so we know to wait for close
-  if (disarmed && physical && !pendingClose) {
-    pendingClose = true;
-  }
-
-  // Disarmed: door closed after being opened → re-arm
-  if (pendingClose && disarmed && !physical) {
-    delay(100);
-    if (digitalRead(PIN_REED) == LOW) {
-      disarmed = false;
-      pendingClose = false;
-      writeDisarmedState(false);
-      Serial.println("Door closed — re-armed");
-      updateLed();
-    }
-  }
-
-  // BOOT button: disarm (clears any active alert silently)
+  // BOOT button: disarm
   if (digitalRead(PIN_BTN) == LOW) {
     delay(50);
     if (digitalRead(PIN_BTN) == LOW) {
       disarmed = true;
-      pendingClose = physical;  // only wait for close if door is already open
+      pendingClose = physical;
       if (doorOpen) { doorOpen = false; writeDoorState(false); }
       writeDisarmedState(true);
-      Serial.println("Disarmed via button");
+      Serial.println("Disarmed");
       updateLed();
       while (digitalRead(PIN_BTN) == LOW) delay(10);
     }
   }
 
+  // Alert active: door closes → clear alert, show secure (not disarmed)
+  if (doorOpen && !physical) {
+    delay(300);
+    if (digitalRead(PIN_REED) == LOW) {
+      doorOpen = false;
+      writeDoorState(false);
+      writeDisarmedState(false);  // clear any stale disarmed flag in Firestore
+      Serial.println("Alert cleared — re-armed");
+      updateLed();
+    }
+  }
+
   // Door opened while armed → trigger alert
-  if (!disarmed && physical && !doorOpen) {
+  if (!disarmed && !doorOpen && physical) {
     delay(DEBOUNCE_MS);
     if (digitalRead(PIN_REED) == HIGH) {
       doorOpen = true;
       writeDoorState(true);
       Serial.println("Door OPENED");
+      updateLed();
+    }
+  }
+
+  // Disarmed: any time door is open, mark that we need to wait for close
+  if (disarmed && physical) {
+    pendingClose = true;
+  }
+
+  // Disarmed: door closed after being opened → re-arm
+  if (disarmed && pendingClose && !physical) {
+    delay(300);
+    if (digitalRead(PIN_REED) == LOW) {
+      disarmed = false;
+      pendingClose = false;
+      writeDisarmedState(false);
+      Serial.println("Re-armed");
       updateLed();
     }
   }

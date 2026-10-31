@@ -62,20 +62,6 @@
     25%,75%  { transform: scaleX(0.3); background: #c07800; }
     50%      { transform: scaleX(0.1); background: #c07800; }
   }
-  .topbar-counts {
-    position: absolute; right: clamp(12px,2vw,24px);
-    display: flex; gap: 12px;
-  }
-  .topbar-chip {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(7px, 1vw, 10px);
-    color: #fff;
-    background: rgba(0,0,0,.25);
-    border: 1px solid rgba(255,255,255,.3);
-    border-radius: 3px;
-    padding: 4px 10px;
-    white-space: nowrap;
-  }
 
   /* ── Two-panel layout ── */
   .panels {
@@ -138,6 +124,7 @@
     padding: clamp(9px,1.4vh,18px) clamp(12px,2vw,28px);
     border-bottom: 2px solid rgba(35,18,7,.1);
     background: rgba(255,255,255,.88);
+    position: relative; overflow: hidden;
   }
   .lb-row:nth-child(even) { background: rgba(255,255,255,.7); }
   .lb-row.gold   { background: rgba(232,160,0,.52); border-bottom-color: rgba(200,130,0,.35); }
@@ -154,6 +141,7 @@
   .lb-rank.r1 { color: #e8a000; }
   .lb-rank.r2 { color: #888; }
   .lb-rank.r3 { color: #cd7f32; }
+  .lb-rank.other { color: #aaa; }
 
   .lb-name {
     font-weight: 800;
@@ -165,6 +153,7 @@
   .lb-badges { display: flex; align-items: center; gap: clamp(3px,0.4vw,6px); flex-shrink: 0; }
   .lb-badge { line-height: 1; }
   .lb-badge img { height: clamp(28px,4.2vh,52px); width: auto; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.3)); }
+  .lb-badge-emoji { font-size: clamp(26px,3.8vh,48px); line-height: 1; }
 
   .lb-coins {
     font-family: 'Press Start 2P', monospace;
@@ -192,13 +181,6 @@
   }
   .im-row:nth-child(even) { background: rgba(255,255,255,.7); }
 
-  .im-pos {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(9px, 1.3vw, 14px);
-    color: #888;
-    min-width: clamp(22px,3vw,40px);
-    flex-shrink: 0; text-align: center;
-  }
   .im-dot {
     width: clamp(8px,1.1vw,12px); height: clamp(8px,1.1vw,12px);
     border-radius: 50%;
@@ -253,6 +235,44 @@
     height: clamp(10px,1.4vh,16px);
     background: #c8601c;
     border-top: 3px solid #231207;
+  }
+
+  /* ── Gold wipe animation (new finisher) ── */
+  @keyframes goldFlash {
+    0%, 15%  { opacity: 0; }
+    25%, 70% { opacity: 1; }
+    90%      { opacity: 1; }
+    100%     { opacity: 0; }
+  }
+  @keyframes goldWipe {
+    0%   { transform: translateX(-110%); }
+    22%  { transform: translateX(0%);    }
+    68%  { transform: translateX(0%);    }
+    90%  { transform: translateX(110%);  }
+    100% { transform: translateX(110%);  }
+  }
+  .lb-row-new::after {
+    content: '';
+    position: absolute; inset: 0;
+    z-index: 0; pointer-events: none;
+    background: rgba(232,160,0,.45);
+    opacity: 0;
+    animation: goldFlash 3.5s cubic-bezier(.4,0,.2,1) forwards;
+  }
+  .lb-row-new::before {
+    content: '';
+    position: absolute; inset: 0;
+    z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(232,160,0,.82) 14%,
+      rgba(255,218,30,.97) 38%,
+      rgba(255,244,100,1) 50%,
+      rgba(255,218,30,.97) 62%,
+      rgba(232,160,0,.82) 86%,
+      transparent 100%
+    );
+    animation: goldWipe 3.5s cubic-bezier(.4,0,.2,1) forwards;
   }
 </style>
 </head>
@@ -340,38 +360,53 @@ const db = firebase.firestore();
 
 // ── Helpers ───────────────────────────────────────────────────
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 function fmtTime(ms){
   if(!ms||ms<0) return '—';
   const s=Math.floor(ms/1000), m=Math.floor(s/60), r=s%60;
   return `${m}:${String(r).padStart(2,'0')}`;
 }
-
-function ordinal(n){
-  const s=['th','st','nd','rd'],v=n%100;
-  return n+(s[(v-20)%10]||s[v]||s[0]);
+function calcScore(coins){ return coins||0; }
+function elapsedMs(item){
+  const s=item.mazeStartTime?.toMillis?.()??0;
+  const e=item.mazeEndTime?.toMillis?.()??0;
+  return e-s;
 }
+function _addLandFields(d){
+  const has=id=>Array.isArray(d.scans)&&d.scans.some(s=>s===id||(s&&s.station===id));
+  return {...d,land_ice:has('land_ice'),land_water:has('land_water'),land_fire:has('land_fire'),land_lava:has('land_lava')};
+}
+function _scanHas(d,id){ return Array.isArray(d.scans)&&d.scans.some(s=>s===id||(s&&typeof s==='object'&&s.station===id)); }
 
-// ── Auto-scroll ───────────────────────────────────────────────
-function makeScroller(scrollEl, innerEl){
-  let pos=0, anim=null;
-  function tick(){
-    const ch=innerEl.scrollHeight, vh=scrollEl.clientHeight;
-    if(ch>vh){ pos+=0.5; if(pos>=ch-vh+60) pos=0; }
-    else pos=0;
-    innerEl.style.transform=`translateY(${-pos}px)`;
+// ── Seamless scroller factory ─────────────────────────────────
+function makeScroller(wrapEl,innerEl){
+  let pos=0,anim=null,looped=false;
+  function start(){
+    if(anim) cancelAnimationFrame(anim);
+    function tick(){
+      const half=innerEl.scrollHeight/2;
+      pos+=0.5; if(half>0&&pos>=half) pos-=half;
+      innerEl.style.transform=`translateY(-${pos}px)`;
+      anim=requestAnimationFrame(tick);
+    }
     anim=requestAnimationFrame(tick);
   }
-  anim=requestAnimationFrame(tick);
-  return { reset(){ pos=0; } };
+  function stop(){
+    if(anim){cancelAnimationFrame(anim);anim=null;}
+    pos=0; looped=false; innerEl.style.transform='';
+  }
+  function maybeStart(){
+    if(innerEl.scrollHeight>wrapEl.clientHeight){
+      if(!looped){innerEl.innerHTML+=innerEl.innerHTML; looped=true;}
+      start();
+    } else { stop(); }
+  }
+  return {stop,maybeStart};
 }
 
-// ── Per-kid local start-time anchor (avoids clock drift) ──────
-const _kidStartMs = {};
+// ── Shared start-time anchor ──────────────────────────────────
+const _kidStartMs={};
 
 // ── Main ──────────────────────────────────────────────────────
-let _slbEventFilter = null;
-
 firebase.auth().signInAnonymously().catch(()=>{});
 firebase.auth().onAuthStateChanged(user=>{
   if(!user) return;
@@ -382,52 +417,57 @@ firebase.auth().onAuthStateChanged(user=>{
   const lbInner  = document.getElementById('lbInner');
   const lbCount  = document.getElementById('lbCount');
   const lbScroll = document.getElementById('lbScroll');
-  const chipInMaze   = document.getElementById('chipInMaze');
-  const chipFinished = document.getElementById('chipFinished');
 
-  const imScroller = makeScroller(imScroll, imInner);
-  const lbScroller = makeScroller(lbScroll, lbInner);
+  const imScroller = makeScroller(imScroll,imInner);
+  const lbScroller = makeScroller(lbScroll,lbInner);
 
-  let latestKids = [];
+  let _eventFilter = null;
+  let _allKidsRaw  = [];
+  let imKids       = [];
+  let lbCommitted  = [], lbPending = [];
 
-  // Event filter
-  db.collection('config').doc('config').onSnapshot(snap=>{
-    const newFilter=(snap.data()||{}).lbEventFilter||null;
-    if(newFilter!==_slbEventFilter){ _slbEventFilter=newFilter; renderAll(); }
-  });
+  // ── In-maze render ────────────────────────────────────────
+  function renderIM(){
+    const now = Date.now();
+    const vis = _eventFilter ? imKids.filter(k=>k.eventId===_eventFilter) : imKids;
+    const inMaze = vis
+      .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
+      .sort((a,b)=>{
+        const aMs=_kidStartMs[a.id]?.localMs??now;
+        const bMs=_kidStartMs[b.id]?.localMs??now;
+        return bMs-aMs; // lowest elapsed first
+      });
 
-  // Reload on broadcast
-  let _reloadTs = Number(sessionStorage.getItem('ltn_slb_reload_ts')||0);
-  db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap=>{
-    if(!snap.exists) return;
-    const ts=snap.data().triggeredAt?.toMillis?.()??null;
-    if(!ts||ts===_reloadTs) return;
-    _reloadTs=ts;
-    sessionStorage.setItem('ltn_slb_reload_ts',ts);
-    if(Date.now()-ts>30000) return;
-    setTimeout(()=>location.reload(), 500);
-  });
+    imCount.textContent = inMaze.length;
 
-  db.collection('kids').onSnapshot(snap=>{
-    const snapNow=Date.now();
-    latestKids=[];
-    snap.forEach(doc=>{
-      const d=doc.data();
-      if(d.revoked) return;
-      if(d.mazeStartTime&&!d.mazeEndTime){
-        const serverMs=d.mazeStartTime?.toMillis?.()??0;
-        const prev=_kidStartMs[doc.id];
-        if(!prev||prev.serverMs!==serverMs){
-          const localMs=serverMs>0&&serverMs<=snapNow?serverMs:snapNow;
-          _kidStartMs[doc.id]={serverMs,localMs};
-        }
-      } else {
-        delete _kidStartMs[doc.id];
-      }
-      latestKids.push({id:doc.id,...d});
-    });
-    renderAll();
-  });
+    if(!inMaze.length){
+      imScroller.stop();
+      imInner.innerHTML='<div class="empty-msg">Nobody in the maze yet…</div>';
+      return;
+    }
+
+    imScroller.stop();
+    imInner.innerHTML = inMaze.map(k=>{
+      const startMs = _kidStartMs[k.id]?.localMs??now;
+      const powerups=[
+        _scanHas(k,'land_ice')   ?`<span title="Ice Land">🧊</span>`   :'',
+        _scanHas(k,'land_water') ?`<span title="Water Land">🌊</span>` :'',
+        _scanHas(k,'land_fire')  ?`<span title="Fire Land">🔥</span>`  :'',
+        _scanHas(k,'land_lava')  ?`<span title="Lava Land">🌋</span>`  :'',
+        k.savedPeach                             ?`<img src="icons/princess_peach.png" alt="Peach">`:'',
+        (k.collectedMushroom||k.usedMushroom)    ?`<img src="icons/mushroom.png" alt="Mushroom">`:'',
+        (k.collectedShell||k.usedShell)          ?`<img src="icons/red_shell.webp" alt="Shell">`:'',
+      ].filter(Boolean).join('');
+      return `<div class="im-row" data-start="${startMs}">
+        <div class="im-dot"></div>
+        <div class="im-name">${escHtml(k.name||'?')}</div>
+        ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
+        <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
+        <div class="im-elapsed">${fmtTime(now-startMs)}</div>
+      </div>`;
+    }).join('');
+    requestAnimationFrame(()=>imScroller.maybeStart());
+  }
 
   // Tick elapsed every second
   setInterval(()=>{
@@ -438,87 +478,201 @@ firebase.auth().onAuthStateChanged(user=>{
     });
   },1000);
 
-  function renderAll(){
-    const now=Date.now();
-    const visKids = _slbEventFilter ? latestKids.filter(k=>k.eventId===_slbEventFilter) : latestKids;
-
-    // ── In Maze ──────────────────────────────────────────────
-    const inMaze=visKids
-      .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
-      .sort((a,b)=>{
-        const aMs=_kidStartMs[a.id]?.localMs??now;
-        const bMs=_kidStartMs[b.id]?.localMs??now;
-        return bMs-aMs; // lowest elapsed first (most recently entered)
-      });
-
-    imCount.textContent=inMaze.length;
-    if(chipInMaze) chipInMaze.textContent=inMaze.length+' in maze';
-
-    if(!inMaze.length){
-      imInner.innerHTML='<div class="empty-msg">Nobody in the maze yet…</div>';
-    } else {
-      const _sc=(k,s)=>Array.isArray(k.scans)&&k.scans.some(x=>x===s||(x&&typeof x==='object'&&x.station===s));
-      imInner.innerHTML=inMaze.map((k,i)=>{
-        const startMs=_kidStartMs[k.id]?.localMs??now;
-        const powerups=[
-          _sc(k,'land_ice')   ?`<span title="Ice Land">🧊</span>`   :'',
-          _sc(k,'land_water') ?`<span title="Water Land">🌊</span>` :'',
-          _sc(k,'land_fire')  ?`<span title="Fire Land">🔥</span>`  :'',
-          _sc(k,'land_lava')  ?`<span title="Lava Land">🌋</span>`  :'',
-          k.savedPeach        ?`<img src="icons/princess_peach.png" alt="Peach">`:'',
-          (k.collectedMushroom||k.usedMushroom)?`<img src="icons/mushroom.png" alt="Mushroom">`:'',
-          (k.collectedShell||k.usedShell)      ?`<img src="icons/red_shell.webp" alt="Shell">`:'',
-        ].filter(Boolean).join('');
-        return `<div class="im-row" data-start="${startMs}">
-          <div class="im-dot"></div>
-          <div class="im-name">${escHtml(k.name||'?')}</div>
-          ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
-          <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
-          <div class="im-elapsed">${fmtTime(now-startMs)}</div>
-        </div>`;
-      }).join('');
-    }
-    imScroller.reset();
-
-    // ── Finishers ─────────────────────────────────────────────
-    const finished=visKids
-      .filter(k=>!!k.mazeEndTime)
-      .map(k=>{
-        const startMs=k.mazeStartTime?.toMillis?.()??null;
-        const endMs  =k.mazeEndTime?.toMillis?.()  ??null;
-        const durationMs=(startMs&&endMs)?endMs-startMs:null;
-        return {...k, durationMs};
-      })
-      .sort((a,b)=>(b.coins??0)-(a.coins??0)||((a.durationMs??Infinity)-(b.durationMs??Infinity)));
-
-    lbCount.textContent=finished.length;
-    if(chipFinished) chipFinished.textContent=finished.length+' finished';
-
-    if(!finished.length){
-      lbInner.innerHTML='<div class="empty-msg">No finishers yet…<br>Be the first!</div>';
-    } else {
-      lbInner.innerHTML=finished.map((k,i)=>{
-        const rank=i+1;
-        const rankClass=rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
-        const rowClass =rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
-        const rankStr  =rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':`#${rank}`;
-        const time=k.durationMs?fmtTime(k.durationMs):'—';
-        const badges=[
-          k.savedPeach?`<span class="lb-badge"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
-          (k.collectedShell||k.usedShell)?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
-          (k.collectedMushroom||k.usedMushroom)?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
-        ].filter(Boolean).join('');
-        return `<div class="lb-row ${rowClass}">
-          <div class="lb-rank ${rankClass}">${rankStr}</div>
-          <div class="lb-name">${escHtml(k.name||'?')}</div>
-          ${badges?`<div class="lb-badges">${badges}</div>`:''}
-          <div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
-          <div class="lb-time">${time}</div>
-        </div>`;
-      }).join('');
-    }
-    lbScroller.reset();
+  // ── Finisher helpers ──────────────────────────────────────
+  function buildLbRow(item,rank){
+    const cls=['gold','silver','bronze'][rank]||'';
+    const rankStr=rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
+    const s=item.mazeStartTime?.toMillis?.()??0;
+    const e=item.mazeEndTime?.toMillis?.()??0;
+    const badges=[
+      item.land_ice   ?`<span class="lb-badge lb-badge-emoji">🧊</span>`:'',
+      item.land_water ?`<span class="lb-badge lb-badge-emoji">🌊</span>`:'',
+      item.land_fire  ?`<span class="lb-badge lb-badge-emoji">🔥</span>`:'',
+      item.land_lava  ?`<span class="lb-badge lb-badge-emoji">🌋</span>`:'',
+      item.savedPeach                                    ?`<span class="lb-badge"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
+      (item.collectedShell||item.usedShell)              ?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
+      (item.collectedMushroom||item.usedMushroom)        ?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
+    ].filter(Boolean).join('');
+    const el=document.createElement('div');
+    el.className=`lb-row${cls?' '+cls:''}`;
+    el.dataset.id=item.id;
+    el.innerHTML=`<div class="lb-rank ${rank<3?'r'+(rank+1):'other'}">${rankStr}</div>`
+      +`<div class="lb-name">${escHtml(item.name||'?')}</div>`
+      +(badges?`<div class="lb-badges">${badges}</div>`:'')
+      +`<div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${item.coins??0}</div>`
+      +`<div class="lb-time">${fmtTime(e-s)}</div>`;
+    return el;
   }
+
+  function _calcLbRank(item){
+    return lbCommitted.filter(c=>
+      c.score>item.score||
+      (c.score===item.score&&elapsedMs(c)<elapsedMs(item))||
+      (c.score===item.score&&elapsedMs(c)===elapsedMs(item)&&(c.name||'')<(item.name||''))
+    ).length;
+  }
+
+  function rebuildLbDOM(){
+    lbInner.innerHTML=lbCommitted.map((k,i)=>buildLbRow(k,i).outerHTML).join('');
+  }
+
+  function _tryProcessLbQueue(){
+    if(!lbPending.length) return;
+    while(lbPending.length){
+      const{item}=lbPending.shift();
+      lbCommitted.splice(_calcLbRank(item),0,item);
+    }
+    lbCount.textContent=lbCommitted.length;
+    lbScroller.stop();
+    rebuildLbDOM();
+    requestAnimationFrame(()=>lbScroller.maybeStart());
+  }
+
+  function initLbRender(kids){
+    const finishers=kids
+      .filter(k=>k.mazeEndTime)
+      .map(k=>({..._addLandFields(k),score:calcScore(k.coins)}))
+      .sort((a,b)=>b.score-a.score||elapsedMs(a)-elapsedMs(b)||(a.name||'').localeCompare(b.name||''));
+    lbCommitted=finishers;
+    lbCount.textContent=finishers.length;
+    lbScroller.stop();
+    if(!finishers.length){
+      lbInner.innerHTML='<div class="empty-msg">No finishers yet…<br>Be the first!</div>';
+      return;
+    }
+    rebuildLbDOM();
+    requestAnimationFrame(()=>lbScroller.maybeStart());
+  }
+
+  // ── Config listener ───────────────────────────────────────
+  db.collection('config').doc('config').onSnapshot(snap=>{
+    const newFilter=(snap.data()||{}).lbEventFilter||null;
+    if(newFilter!==_eventFilter){
+      _eventFilter=newFilter;
+      if(_allKidsRaw.length){
+        const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+        lbCommitted=[];lbPending=[];
+        initLbRender(vis);
+        renderIM();
+      }
+    }
+  });
+
+  // ── Reload broadcast ──────────────────────────────────────
+  let _reloadTs=Number(sessionStorage.getItem('ltn_slb_reload_ts')||0);
+  db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const ts=snap.data().triggeredAt?.toMillis?.()??null;
+    if(!ts||ts===_reloadTs) return;
+    _reloadTs=ts;
+    sessionStorage.setItem('ltn_slb_reload_ts',ts);
+    if(Date.now()-ts>30000) return;
+    setTimeout(()=>location.reload(),500);
+  });
+
+  // ── Kids listener ─────────────────────────────────────────
+  let _firstSnap=true;
+  db.collection('kids').onSnapshot(snap=>{
+    const snapNow=Date.now();
+
+    // Rebuild in-maze state from full snapshot every time
+    _allKidsRaw=[]; imKids=[];
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(d.revoked) return;
+      const kid={id:doc.id,...d};
+      _allKidsRaw.push(kid);
+      imKids.push(kid);
+      if(d.mazeStartTime&&!d.mazeEndTime){
+        const serverMs=d.mazeStartTime?.toMillis?.()??0;
+        const prev=_kidStartMs[doc.id];
+        if(!prev||prev.serverMs!==serverMs){
+          const localMs=serverMs>0&&serverMs<=snapNow?serverMs:snapNow;
+          _kidStartMs[doc.id]={serverMs,localMs};
+        }
+      } else {
+        delete _kidStartMs[doc.id];
+      }
+    });
+
+    renderIM();
+
+    if(_firstSnap){
+      _firstSnap=false;
+      const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+      initLbRender(vis);
+      return;
+    }
+
+    // Handle finisher-panel changes
+    let lbNeedsRebuild=false;
+    snap.docChanges().forEach(change=>{
+      const id=change.doc.id;
+
+      if(change.type==='removed'){
+        if(lbCommitted.some(c=>c.id===id)) lbNeedsRebuild=true;
+        return;
+      }
+
+      const d=change.doc.data();
+
+      if(change.type==='modified'&&!d.mazeEndTime){
+        if(lbCommitted.some(c=>c.id===id)) lbNeedsRebuild=true;
+        return;
+      }
+
+      if(!d.mazeEndTime||d.revoked) return;
+      if(_eventFilter&&d.eventId!==_eventFilter) return;
+
+      // Already on leaderboard — update in place
+      const existingIdx=lbCommitted.findIndex(c=>c.id===id);
+      if(existingIdx!==-1){
+        lbCommitted[existingIdx]={
+          ...lbCommitted[existingIdx],
+          coins:d.coins??lbCommitted[existingIdx].coins,
+          savedPeach:!!d.savedPeach,
+          collectedShell:!!(d.collectedShell||d.usedShell),
+          usedShell:!!d.usedShell,
+          collectedMushroom:!!(d.collectedMushroom||d.usedMushroom),
+          usedMushroom:!!d.usedMushroom,
+          land_ice:   _scanHas(d,'land_ice'),
+          land_water: _scanHas(d,'land_water'),
+          land_fire:  _scanHas(d,'land_fire'),
+          land_lava:  _scanHas(d,'land_lava'),
+          score:calcScore(d.coins)
+        };
+        lbInner.querySelectorAll(`.lb-row[data-id="${id}"]`).forEach(row=>{
+          row.replaceWith(buildLbRow(lbCommitted[existingIdx],existingIdx));
+        });
+        return;
+      }
+
+      if(lbPending.some(p=>p.item.id===id)) return;
+
+      const item={
+        id,name:d.name,coins:d.coins||0,
+        mazeStartTime:d.mazeStartTime,mazeEndTime:d.mazeEndTime,
+        savedPeach:!!d.savedPeach,
+        collectedMushroom:!!(d.collectedMushroom||d.usedMushroom),
+        usedMushroom:!!d.usedMushroom,
+        collectedShell:!!(d.collectedShell||d.usedShell),
+        usedShell:!!d.usedShell,
+        land_ice:   _scanHas(d,'land_ice'),
+        land_water: _scanHas(d,'land_water'),
+        land_fire:  _scanHas(d,'land_fire'),
+        land_lava:  _scanHas(d,'land_lava'),
+        score:calcScore(d.coins)
+      };
+      lbPending.push({item});
+      _tryProcessLbQueue();
+    });
+
+    if(lbNeedsRebuild){
+      const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+      lbCommitted=[];lbPending=[];
+      initLbRender(vis);
+    }
+  });
 });
 </script>
 </body>

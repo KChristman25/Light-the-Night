@@ -4406,8 +4406,7 @@ Return ONLY a JSON array, no prose.`;
           ${isOpen && when ? `<div style="font-size:11px;color:#e52521;margin-top:6px">Opened ${when}</div>` : ''}
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
             ${isOpen
-              ? `<button class="btn btn-warn btn-sm" onclick="adminClearExit('${id}')">✓ Clear</button>
-                 <button class="btn btn-sm" onclick="adminDisarmExit('${id}')" style="background:#f59e0b;color:#111;border-color:#f59e0b">🔓 Disarm</button>`
+              ? `<button class="btn btn-warn btn-sm" onclick="adminClearExit('${id}')">✓ Clear</button>`
               : isDisarmed
               ? `<button class="btn btn-sm" onclick="adminRearmExit('${id}')" style="background:#10b981;color:#fff;border-color:#10b981">🔒 Re-arm</button>`
               : `<button class="btn btn-sm" onclick="adminDisarmExit('${id}')" style="background:#f59e0b;color:#111;border-color:#f59e0b">🔓 Disarm</button>
@@ -4479,9 +4478,7 @@ Return ONLY a JSON array, no prose.`;
 
   async function adminDisarmExit(id) {
     try {
-      await db.collection('emergencyExits').doc(id).set({
-        disarmed: true, isOpen: false
-      }, { merge: true });
+      await db.collection('emergencyExits').doc(id).set({ disarmed: true }, { merge: true });
     } catch(e) { alert('Error: ' + e.message); }
   }
 

@@ -90,6 +90,7 @@ void loop() {
   // While disarmed, track if door was opened so we know to wait for close
   if (disarmed && physical && !pendingClose) {
     pendingClose = true;
+    Serial.println("DEBUG: door opened while disarmed — pendingClose=true");
   }
 
   // Door closed after being opened while disarmed → re-arm
@@ -99,6 +100,13 @@ void loop() {
     writeDisarmedState(false);
     Serial.println("Door closed — re-armed");
     updateLed();
+  }
+
+  // Debug: print state every 2 seconds
+  static unsigned long lastDebug = 0;
+  if (millis() - lastDebug > 2000) {
+    lastDebug = millis();
+    Serial.printf("STATE: physical=%d disarmed=%d pendingClose=%d doorOpen=%d\n", physical, disarmed, pendingClose, doorOpen);
   }
 
   // BOOT button: disarm (clears any active alert silently)

@@ -397,12 +397,13 @@ firebase.auth().onAuthStateChanged(user=>{
   });
 
   // Reload on broadcast
-  let _reloadTs = 0;
+  let _reloadTs = Number(sessionStorage.getItem('ltn_slb_reload_ts')||0);
   db.collection('config').doc('leaderboardReloadBroadcast').onSnapshot(snap=>{
     if(!snap.exists) return;
     const ts=snap.data().triggeredAt?.toMillis?.()??null;
     if(!ts||ts===_reloadTs) return;
     _reloadTs=ts;
+    sessionStorage.setItem('ltn_slb_reload_ts',ts);
     if(Date.now()-ts>30000) return;
     setTimeout(()=>location.reload(), 500);
   });

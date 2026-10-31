@@ -208,15 +208,15 @@
 
   .im-coins {
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(9px, 1.3vw, 14px);
-    color: #e8a000; flex-shrink: 0;
-    min-width: clamp(50px,6.5vw,88px); text-align: right;
+    font-size: clamp(11px, 1.6vw, 18px);
+    color: #231207; flex-shrink: 0;
+    min-width: clamp(56px,7vw,96px); text-align: right;
   }
   .im-elapsed {
-    font-size: clamp(11px, 1.3vw, 15px);
+    font-size: clamp(13px, 1.6vw, 19px);
     font-weight: 700;
     color: #4a3728; flex-shrink: 0;
-    min-width: clamp(44px,5.5vw,72px); text-align: right;
+    min-width: clamp(50px,6vw,80px); text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
@@ -462,7 +462,7 @@ firebase.auth().onAuthStateChanged(user=>{
         <div class="im-dot"></div>
         <div class="im-name">${escHtml(k.name||'?')}</div>
         ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
-        <div class="im-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
+        <div class="im-coins"><img src="coin.svg" style="height:1.4em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
         <div class="im-elapsed">${fmtTime(now-startMs)}</div>
       </div>`;
     }).join('');

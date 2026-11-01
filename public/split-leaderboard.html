@@ -433,11 +433,7 @@ firebase.auth().onAuthStateChanged(user=>{
     const vis = _eventFilter ? imKids.filter(k=>k.eventId===_eventFilter) : imKids;
     const inMaze = vis
       .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
-      .sort((a,b)=>{
-        const aMs=_kidStartMs[a.id]?.localMs??now;
-        const bMs=_kidStartMs[b.id]?.localMs??now;
-        return bMs-aMs; // lowest elapsed first
-      });
+      .sort((a,b)=>(b.coins||0)-(a.coins||0)||((_kidStartMs[a.id]?.localMs??now)-(_kidStartMs[b.id]?.localMs??now)));
 
     imCount.textContent = inMaze.length;
 
@@ -448,23 +444,25 @@ firebase.auth().onAuthStateChanged(user=>{
     }
 
     imScroller.stop();
-    imInner.innerHTML = inMaze.map(k=>{
+    imInner.innerHTML = inMaze.map((k,rank)=>{
+      const cls=['gold','silver','bronze'][rank]||'';
+      const rankStr=rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
       const startMs = _kidStartMs[k.id]?.localMs??now;
-      const powerups=[
-        _scanHas(k,'land_ice')   ?`<span title="Ice Land">🧊</span>`   :'',
-        _scanHas(k,'land_water') ?`<span title="Water Land">🌊</span>` :'',
-        _scanHas(k,'land_fire')  ?`<span title="Fire Land">🔥</span>`  :'',
-        _scanHas(k,'land_lava')  ?`<span title="Lava Land">🌋</span>`  :'',
-        k.savedPeach                             ?`<img src="icons/princess_peach.png" alt="Peach">`:'',
-        (k.collectedMushroom||k.usedMushroom)    ?`<img src="icons/mushroom.png" alt="Mushroom">`:'',
-        (k.collectedShell||k.usedShell)          ?`<img src="icons/red_shell.webp" alt="Shell">`:'',
+      const badges=[
+        _scanHas(k,'land_ice')   ?`<span class="lb-badge lb-badge-emoji">🧊</span>`:'',
+        _scanHas(k,'land_water') ?`<span class="lb-badge lb-badge-emoji">🌊</span>`:'',
+        _scanHas(k,'land_fire')  ?`<span class="lb-badge lb-badge-emoji">🔥</span>`:'',
+        _scanHas(k,'land_lava')  ?`<span class="lb-badge lb-badge-emoji">🌋</span>`:'',
+        k.savedPeach                          ?`<span class="lb-badge peach"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
+        (k.collectedShell||k.usedShell)       ?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
+        (k.collectedMushroom||k.usedMushroom) ?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
       ].filter(Boolean).join('');
-      return `<div class="im-row" data-start="${startMs}">
-        <div class="im-dot"></div>
-        <div class="im-name">${escHtml(k.name||'?')}</div>
-        ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
-        <div class="im-coins"><img src="coin.svg" style="height:2em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
-        <div class="im-elapsed">${fmtTime(now-startMs)}</div>
+      return `<div class="lb-row${cls?' '+cls:''}" data-id="${k.id}" data-start="${startMs}">
+        <div class="lb-rank ${rank<3?'r'+(rank+1):'other'}">${rankStr}</div>
+        <div class="lb-name">${escHtml(k.name||'?')}</div>
+        <div class="lb-badges">${badges}</div>
+        <div class="lb-coins"><img src="coin.svg" style="height:1.6em;width:auto;image-rendering:pixelated;margin-left:24px"><span class="lb-coin-num">${k.coins??0}</span></div>
+        <div class="lb-time im-live-time">${fmtTime(now-startMs)}</div>
       </div>`;
     }).join('');
     requestAnimationFrame(()=>imScroller.maybeStart());
@@ -474,7 +472,7 @@ firebase.auth().onAuthStateChanged(user=>{
   setInterval(()=>{
     imInner.querySelectorAll('[data-start]').forEach(row=>{
       const ts=parseInt(row.dataset.start,10);
-      const el=row.querySelector('.im-elapsed');
+      const el=row.querySelector('.im-live-time');
       if(el) el.textContent=fmtTime(isNaN(ts)?0:Date.now()-ts);
     });
   },1000);

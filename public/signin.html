@@ -380,6 +380,7 @@
     let _activeEventId = null;
     let _activeEventName = null;
     let _liveListSnap = null;
+    let _cachedConfig = null;
 
     firebase.auth().signInAnonymously().then(()=>{ probe(); openCheckin(); startEventWatch(); }).catch(()=>{
       setChip('err','Auth failed');
@@ -426,6 +427,7 @@
         const snap = await db.collection('config').doc('config').get();
         if (!snap.exists){ setChip('warn','Connected (config missing)'); return; }
         const data = snap.data() || {};
+        _cachedConfig = data;
         if (!data.signinPassword) setChip('warn','signinPassword missing');
         else                      setChip('ok','Connected');
         if (data.codeLength >= 1) codeLength = data.codeLength;
@@ -437,14 +439,17 @@
     async function doLogin(){
       const msg     = document.getElementById('loginMessage');
       const attempt = (document.getElementById('passwordInput').value || '').trim();
+      if (!attempt) { msg.textContent = 'Enter a password.'; return; }
       msg.textContent = 'Checking…'; msg.className = 'msg';
       try {
-        const snap = await db.collection('config').doc('config').get();
-        if (!snap.exists){ msg.innerHTML = 'Missing config/config doc.'; return; }
-        const data    = snap.data() || {};
+        if (!_cachedConfig) {
+          const snap = await db.collection('config').doc('config').get();
+          if (!snap.exists){ msg.innerHTML = 'Missing config/config doc.'; return; }
+          _cachedConfig = snap.data() || {};
+        }
+        const data    = _cachedConfig;
         const correct = (data.signinPassword || '').trim();
         if (data.codeLength >= 1) codeLength = data.codeLength;
-        if (!attempt)            { msg.textContent = 'Enter a password.'; return; }
         if (attempt.toLowerCase() !== correct.toLowerCase()) { msg.textContent = 'Incorrect password.'; return; }
         msg.textContent = 'Signed in!'; msg.className = 'msg ok';
         setTimeout(openCheckin, 300);

@@ -1352,6 +1352,11 @@
     <div id="emergencyexits" class="section">
       <div class="page-title">🚪 Emergency Exits</div>
 
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:12px 16px;background:var(--card);border:2px solid var(--border);border-radius:6px">
+        <div style="flex:1;font-size:13px;color:var(--text)">Exit sensor alerts &amp; SMS</div>
+        <button id="exitMuteBtn" class="btn" onclick="toggleExitMute()" style="min-width:150px">Loading…</button>
+      </div>
+
       <h3 style="margin-top:0">Live Status</h3>
       <div id="exitCardsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
         <div style="font-size:13px;color:var(--muted-dk);padding:12px">Loading…</div>
@@ -1637,15 +1642,27 @@
   }
 
   const _exitBannerData = {};
+  let _exitSensorsMuted = false;
+
+  function _updateExitBanner() {
+    const anyOpen = ['1','2','3','4'].some(i => (_exitBannerData[i] || {}).isOpen === true);
+    const show = anyOpen && !_exitSensorsMuted;
+    const banner = document.getElementById('exitAlertBanner');
+    if (banner) banner.style.display = show ? 'block' : 'none';
+    document.body.classList.toggle('exit-banner-visible', show);
+  }
+
   function startExitBannerListeners() {
     ['1','2','3','4'].forEach(id => {
       db.collection('emergencyExits').doc(id).onSnapshot(snap => {
         _exitBannerData[id] = snap.exists ? snap.data() : {};
-        const anyOpen = ['1','2','3','4'].some(i => (_exitBannerData[i] || {}).isOpen === true);
-        const banner = document.getElementById('exitAlertBanner');
-        if (banner) banner.style.display = anyOpen ? 'block' : 'none';
-        document.body.classList.toggle('exit-banner-visible', anyOpen);
+        _updateExitBanner();
       });
+    });
+    db.collection('config').doc('smsSettings').onSnapshot(snap => {
+      _exitSensorsMuted = (snap.data() || {}).exitSensorsMuted === true;
+      _updateExitBanner();
+      _updateExitMuteBtn();
     });
   }
 
@@ -4375,6 +4392,24 @@ Return ONLY a JSON array, no prose.`;
   const EXIT_IDS = ['1','2','3','4'];
   let _exitData = {};
 
+  function _updateExitMuteBtn() {
+    const btn = document.getElementById('exitMuteBtn');
+    if (!btn) return;
+    if (_exitSensorsMuted) {
+      btn.textContent = '🔇 Sensors Muted — click to unmute';
+      btn.style.cssText += ';background:#dc2626;color:#fff;border-color:#dc2626';
+    } else {
+      btn.textContent = '🔔 Sensors Active — click to mute';
+      btn.style.cssText += ';background:#16a34a;color:#fff;border-color:#16a34a';
+    }
+  }
+
+  async function toggleExitMute() {
+    await db.collection('config').doc('smsSettings').set(
+      { exitSensorsMuted: !_exitSensorsMuted }, { merge: true }
+    );
+  }
+
   function initEmergencyExits() {
     _exitData = {};
     EXIT_IDS.forEach(id => {
@@ -4388,7 +4423,10 @@ Return ONLY a JSON array, no prose.`;
     });
     listeners.push(
       db.collection('config').doc('smsSettings').onSnapshot(snap => {
-        renderSmsNumbers((snap.data() || {}).phoneNumbers || []);
+        const d = snap.data() || {};
+        renderSmsNumbers(d.phoneNumbers || []);
+        _exitSensorsMuted = d.exitSensorsMuted === true;
+        _updateExitMuteBtn();
       })
     );
     listeners.push(

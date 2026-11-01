@@ -37,7 +37,9 @@ exports.emergencyExitAlert = onDocumentWritten({ document: "emergencyExits/{exit
 
   const db = getFirestore();
   const smsSnap = await db.collection("config").doc("smsSettings").get();
-  const phoneNumbers = (smsSnap.data() || {}).phoneNumbers || [];
+  const smsData = smsSnap.data() || {};
+  if (smsData.exitSensorsMuted === true) return;
+  const phoneNumbers = smsData.phoneNumbers || [];
   if (phoneNumbers.length === 0) return;
 
   const message = `EMERGENCY EXIT OPENED: ${exitName}. Check the maze immediately.`;

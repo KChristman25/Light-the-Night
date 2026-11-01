@@ -546,11 +546,24 @@ firebase.auth().onAuthStateChanged(user=>{
   }
 
   // ── Config listener ───────────────────────────────────────
-  // Reload on event switch — guarantees clean state, no stale data
+  // On first load: set filter then kick off a render if kids already arrived.
+  // On subsequent changes: reload for guaranteed clean state.
   let _configLoaded = false;
+  let _kidsLoaded   = false;
   db.collection('config').doc('config').onSnapshot(snap=>{
     const newFilter=(snap.data()||{}).lbEventFilter||null;
-    if(!_configLoaded){ _configLoaded=true; _eventFilter=newFilter; return; }
+    if(!_configLoaded){
+      _configLoaded=true;
+      _eventFilter=newFilter;
+      if(_kidsLoaded){
+        // Kids beat config — re-render now with correct filter
+        lbCommitted=[]; lbPending=[];
+        const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+        initLbRender(vis);
+        renderIM();
+      }
+      return;
+    }
     if(newFilter!==_eventFilter){ setTimeout(()=>location.reload(), 300); }
   });
 
@@ -591,10 +604,12 @@ firebase.auth().onAuthStateChanged(user=>{
       }
     });
 
-    renderIM();
+    if(_configLoaded) renderIM();
 
     if(_firstSnap){
       _firstSnap=false;
+      _kidsLoaded=true;
+      if(!_configLoaded) return;  // config hasn't arrived yet — it will re-render when it does
       const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
       initLbRender(vis);
       return;

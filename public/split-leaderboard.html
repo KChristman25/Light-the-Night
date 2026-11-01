@@ -433,7 +433,7 @@ firebase.auth().onAuthStateChanged(user=>{
     const vis = _eventFilter ? imKids.filter(k=>k.eventId===_eventFilter) : imKids;
     const inMaze = vis
       .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
-      .sort((a,b)=>(b.coins||0)-(a.coins||0)||((_kidStartMs[a.id]?.localMs??now)-(_kidStartMs[b.id]?.localMs??now)));
+      .sort((a,b)=>(_kidStartMs[b.id]?.localMs??now)-(_kidStartMs[a.id]?.localMs??now));
 
     imCount.textContent = inMaze.length;
 
@@ -444,9 +444,7 @@ firebase.auth().onAuthStateChanged(user=>{
     }
 
     imScroller.stop();
-    imInner.innerHTML = inMaze.map((k,rank)=>{
-      const cls=['gold','silver','bronze'][rank]||'';
-      const rankStr=rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`#${rank+1}`;
+    imInner.innerHTML = inMaze.map(k=>{
       const startMs = _kidStartMs[k.id]?.localMs??now;
       const badges=[
         _scanHas(k,'land_ice')   ?`<span class="lb-badge lb-badge-emoji">🧊</span>`:'',
@@ -457,8 +455,8 @@ firebase.auth().onAuthStateChanged(user=>{
         (k.collectedShell||k.usedShell)       ?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
         (k.collectedMushroom||k.usedMushroom) ?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
       ].filter(Boolean).join('');
-      return `<div class="lb-row${cls?' '+cls:''}" data-id="${k.id}" data-start="${startMs}">
-        <div class="lb-rank ${rank<3?'r'+(rank+1):'other'}">${rankStr}</div>
+      return `<div class="lb-row" data-id="${k.id}" data-start="${startMs}">
+        <div class="im-dot"></div>
         <div class="lb-name">${escHtml(k.name||'?')}</div>
         <div class="lb-badges">${badges}</div>
         <div class="lb-coins"><img src="coin.svg" style="height:1.6em;width:auto;image-rendering:pixelated;margin-left:24px"><span class="lb-coin-num">${k.coins??0}</span></div>

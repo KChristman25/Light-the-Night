@@ -2790,7 +2790,7 @@ if(id==='allvisitors')  initAllVisitors();
   }
 
   async function setActiveEvent(eventId){
-    await db.collection('config').doc('config').set({activeEventId:eventId},{merge:true});
+    await db.collection('config').doc('config').set({activeEventId:eventId,lbEventFilter:eventId||null},{merge:true});
   }
 
   async function setLbFilter(eventId){

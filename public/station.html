@@ -2213,7 +2213,7 @@ async function handleShellStation(docRef,kidData){
       Object.values(cache).forEach(({ref,data:d})=>{
         if(seen.has(ref.id))return; seen.add(ref.id);
         if(ref.id===docRef.id)return;
-        if(d.completed||!d.mazeStartTime)return;
+        if(d.completed||d.mazeEndTime||!d.mazeStartTime)return;
         if(d.shellShield)return shielded++;
         batch.update(ref,{coins:FSV.increment(-penalty),frozen:true});
         affected++;
@@ -2224,7 +2224,7 @@ async function handleShellStation(docRef,kidData){
       allKids.forEach(doc=>{
         if(doc.id===docRef.id)return;
         const d=doc.data()||{};
-        if(d.completed||!d.mazeStartTime)return;
+        if(d.completed||d.mazeEndTime||!d.mazeStartTime)return;
         if(d.shellShield)return shielded++;
         batch.update(doc.ref,{coins:FSV.increment(-penalty),frozen:true});
         affected++;
@@ -2437,6 +2437,11 @@ async function doWarioSteal(currentRef,currentData,target,stealAmt,overlay,listE
     const myOld = currentData.coins||0;
     const myNew = myOld + stealAmt;
     const batch=db.batch();
+    if(target.data.completed||target.data.mazeEndTime){
+      resultEl.textContent='They already finished — no steal!';
+      actionsEl.querySelectorAll('button').forEach(b=>b.disabled=false);
+      return;
+    }
     batch.update(currentRef,{coins:FSV.increment(stealAmt)});
     batch.update(target.ref,{coins:FSV.increment(-stealAmt)});
     await batch.commit();
@@ -3491,7 +3496,7 @@ const SFX = (function(){
         Object.values(cache).forEach(({ref,data:dd})=>{
           if(seen.has(ref.id))return; seen.add(ref.id);
           if(ref.id===G.kidRef.id)return;
-          if(dd.completed||!dd.mazeStartTime)return;
+          if(dd.completed||dd.mazeEndTime||!dd.mazeStartTime)return;
           if(dd.shellShield){batch.update(ref,{shellShield:FSV.delete()});shielded++;}
           else{batch.update(ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});n++;}
         });
@@ -3500,7 +3505,7 @@ const SFX = (function(){
         allKids.forEach(doc=>{
           if(doc.id===G.kidRef.id)return;
           const dd=doc.data();
-          if(dd.completed||!dd.mazeStartTime)return;
+          if(dd.completed||dd.mazeEndTime||!dd.mazeStartTime)return;
           if(dd.shellShield){batch.update(doc.ref,{shellShield:FSV.delete()});shielded++;}
           else{batch.update(doc.ref,{coins:FSV.increment(-CFG.shellPenalty),frozen:true});n++;}
         });

@@ -2935,7 +2935,13 @@ if(id==='allvisitors')  initAllVisitors();
   async function deleteKid(id){
     if(!confirm("Delete this participant? This cannot be undone.")) return;
     try {
-      await db.collection("kids").doc(id).delete();
+      const [alertsSnap] = await Promise.all([
+        db.collection('alerts').where('kidId','==',id).get(),
+      ]);
+      const batch = db.batch();
+      batch.delete(db.collection('kids').doc(id));
+      alertsSnap.forEach(doc=>batch.delete(doc.ref));
+      await batch.commit();
     } catch(e){ console.error('deleteKid error:', e); }
   }
   function selectAllParticipants(){ document.querySelectorAll('.p-cb').forEach(cb=>cb.checked=true); }

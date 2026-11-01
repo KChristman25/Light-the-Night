@@ -2881,6 +2881,7 @@ if(id==='allvisitors')  initAllVisitors();
     document.getElementById('participantSearch').value = '';
     _participantEventFilter = _adminActiveEventId;
     renderParticipantEventFilterBtns();
+    let _ptConfigLoaded = false;
     listeners.push(
       db.collection('events').orderBy('date','asc').onSnapshot(()=>renderParticipantEventFilterBtns())
     );
@@ -2888,6 +2889,7 @@ if(id==='allvisitors')  initAllVisitors();
       db.collection('config').doc('config').onSnapshot(snap=>{
         _adminActiveEventId=(snap.data()||{}).activeEventId||null;
         _participantEventFilter=_adminActiveEventId;
+        _ptConfigLoaded = true;
         renderParticipantEventFilterBtns();
         renderParticipantRows(_participantDocs);
       })
@@ -2895,7 +2897,7 @@ if(id==='allvisitors')  initAllVisitors();
     listeners.push(
       db.collection("kids").orderBy("startCheckIn","desc").onSnapshot(snap=>{
         _participantDocs = snap.docs;
-        renderParticipantRows(_participantDocs);
+        if(_ptConfigLoaded) renderParticipantRows(_participantDocs);
       })
     );
   }

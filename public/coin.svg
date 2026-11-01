@@ -2,7 +2,7 @@
   <!-- black outline -->
   <circle cx="8" cy="8" r="7.5" fill="#231207"/>
   <!-- gold body -->
-  <circle cx="8" cy="8" r="6" fill="#e8a000"/>
+  <circle cx="8" cy="8" r="6.8" fill="#e8a000"/>
   <!-- inner face -->
   <circle cx="8" cy="8" r="4.5" fill="#ffc800"/>
   <!-- shine highlight top-left -->

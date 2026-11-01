@@ -53,14 +53,14 @@
   }
   .topbar-coin {
     display: inline-block;
-    width: clamp(12px,1.8vw,18px); height: clamp(12px,1.8vw,18px);
-    background: #e8a000; border: 2px solid #fff; border-radius: 50%;
-    animation: coinSpin 1.2s steps(4) infinite; flex-shrink: 0;
+    width: clamp(18px,2.6vw,28px); height: clamp(18px,2.6vw,28px);
+    image-rendering: pixelated;
+    animation: coinSpin 2s steps(4) infinite; flex-shrink: 0;
   }
   @keyframes coinSpin {
-    0%,100% { transform: scaleX(1); background: #e8a000; }
-    25%,75%  { transform: scaleX(0.3); background: #c07800; }
-    50%      { transform: scaleX(0.1); background: #c07800; }
+    0%,100% { transform: scaleX(1); }
+    25%,75%  { transform: scaleX(0.3); }
+    50%      { transform: scaleX(0.1); }
   }
 
   /* ── Two-panel layout ── */
@@ -127,7 +127,7 @@
     position: relative; overflow: hidden;
   }
   .lb-row:nth-child(even) { background: rgba(255,255,255,.7); }
-  .lb-row.gold   { background: rgba(232,160,0,.52); border-bottom-color: rgba(200,130,0,.35); }
+  .lb-row.gold   { background: rgba(232,160,0,.68); border-bottom-color: rgba(200,130,0,.45); }
   .lb-row.silver { background: rgba(192,192,192,.52); border-bottom-color: rgba(160,160,160,.35); }
   .lb-row.bronze { background: rgba(205,127,50,.44); border-bottom-color: rgba(175,100,30,.3); }
 
@@ -150,22 +150,27 @@
     flex: 1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .lb-badges { display: flex; align-items: center; gap: clamp(3px,0.4vw,6px); flex-shrink: 0; }
-  .lb-badge { line-height: 1; }
-  .lb-badge img { height: clamp(28px,4.2vh,52px); width: auto; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.3)); }
-  .lb-badge-emoji { font-size: clamp(26px,3.8vh,48px); line-height: 1; }
+  .lb-badges { display: flex; align-items: center; justify-content: flex-end; gap: clamp(4px,0.6vw,8px); flex-shrink: 0; }
+  .lb-badge { display: flex; align-items: center; justify-content: center; height: clamp(22px,3.2vh,42px); }
+  .lb-badge img { height: 100%; width: auto; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.3)); }
+  .lb-badge.peach { height: clamp(30px,4.4vh,56px); }
+  .lb-badge-emoji { font-size: clamp(20px,3vh,38px); line-height: 1; display: flex; align-items: center; justify-content: center; height: clamp(22px,3.2vh,42px); }
 
   .lb-coins {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(9px, 1.3vw, 15px);
-    color: #e8a000;
+    display: flex; align-items: center; gap: clamp(3px,0.4vw,6px);
     flex-shrink: 0;
-    min-width: clamp(56px,7vw,96px); text-align: right;
+  }
+  .lb-coin-num {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 1.6vw, 18px);
+    color: #000000;
+    width: clamp(56px,6vw,84px); text-align: center;
+    margin-left: 2px;
   }
   .lb-time {
-    font-size: clamp(11px, 1.3vw, 15px);
+    font-size: clamp(13px, 1.6vw, 18px);
     font-weight: 700;
-    color: #4a3728;
+    color: #000000;
     flex-shrink: 0;
     min-width: clamp(48px,6vw,80px); text-align: right;
     font-variant-numeric: tabular-nums;
@@ -208,14 +213,14 @@
 
   .im-coins {
     font-family: 'Press Start 2P', monospace;
-    font-size: clamp(11px, 1.6vw, 18px);
-    color: #231207; flex-shrink: 0;
+    font-size: clamp(13px, 1.9vw, 22px);
+    color: #000000; flex-shrink: 0;
     min-width: clamp(56px,7vw,96px); text-align: right;
   }
   .im-elapsed {
-    font-size: clamp(13px, 1.6vw, 19px);
+    font-size: clamp(15px, 1.9vw, 22px);
     font-weight: 700;
-    color: #4a3728; flex-shrink: 0;
+    color: #000000; flex-shrink: 0;
     min-width: clamp(50px,6vw,80px); text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -225,7 +230,7 @@
     text-align: center;
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(9px,1.4vw,13px);
-    color: #7a5c44;
+    color: #000000;
     line-height: 2.2;
   }
 
@@ -282,16 +287,16 @@
 
 <div id="app">
   <div class="topbar">
-    <span class="topbar-coin"></span>
+    <img class="topbar-coin" src="coin.svg" alt="coin">
     <div class="topbar-title">LIGHT THE NIGHT — LIVE LEADERBOARD</div>
-    <span class="topbar-coin"></span>
+    <img class="topbar-coin" src="coin.svg" alt="coin">
   </div>
 
   <div class="panels">
     <!-- LEFT: In Maze -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">🌟 IN THE MAZE</div>
+        <div class="panel-title">IN THE MAZE</div>
         <div class="panel-count" id="imCount">0</div>
       </div>
       <div class="panel-scroll" id="imScroll">
@@ -306,7 +311,7 @@
     <!-- RIGHT: Finishers -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">🏁 FINISHERS</div>
+        <div class="panel-title">FINISHERS</div>
         <div class="panel-count" id="lbCount">0</div>
       </div>
       <div class="panel-scroll" id="lbScroll">
@@ -336,12 +341,8 @@
     const W=bc.width=window.innerWidth, H=bc.height=window.innerHeight;
     bx.imageSmoothingEnabled=false;
     bx.fillStyle='#5c94fc'; bx.fillRect(0,0,W,H);
-    const groundH=Math.round(H*0.04), gy=H-groundH;
+    const groundH=Math.round(H*0.07), gy=H-groundH;
     if(img.complete&&img.naturalWidth>0){
-      const cs=Math.round(W*0.055);
-      drawCloud(W*0.12,H*0.1,cs);
-      drawCloud(W*0.48,H*0.08,Math.round(cs*1.2));
-      drawCloud(W*0.80,H*0.12,Math.round(cs*0.85));
       const gt=Math.round(groundH/2),cols=Math.ceil(W/gt)+1;
       for(let c=0;c<cols;c++) bx.drawImage(img,16,0,16,16,c*gt,gy,gt,gt);
       for(let c=0;c<cols;c++) bx.drawImage(img,0,0,16,16,c*gt,gy+gt,gt,gt);
@@ -462,7 +463,7 @@ firebase.auth().onAuthStateChanged(user=>{
         <div class="im-dot"></div>
         <div class="im-name">${escHtml(k.name||'?')}</div>
         ${powerups?`<div class="im-powerups">${powerups}</div>`:''}
-        <div class="im-coins"><img src="coin.svg" style="height:1.4em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
+        <div class="im-coins"><img src="coin.svg" style="height:2em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${k.coins??0}</div>
         <div class="im-elapsed">${fmtTime(now-startMs)}</div>
       </div>`;
     }).join('');
@@ -489,17 +490,17 @@ firebase.auth().onAuthStateChanged(user=>{
       item.land_water ?`<span class="lb-badge lb-badge-emoji">🌊</span>`:'',
       item.land_fire  ?`<span class="lb-badge lb-badge-emoji">🔥</span>`:'',
       item.land_lava  ?`<span class="lb-badge lb-badge-emoji">🌋</span>`:'',
-      item.savedPeach                                    ?`<span class="lb-badge"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
-      (item.collectedShell||item.usedShell)              ?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
-      (item.collectedMushroom||item.usedMushroom)        ?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
+      item.savedPeach                             ?`<span class="lb-badge peach"><img src="icons/princess_peach.png" alt="Peach"></span>`:'',
+      (item.collectedShell||item.usedShell)       ?`<span class="lb-badge"><img src="icons/red_shell.webp" alt="Shell"></span>`:'',
+      (item.collectedMushroom||item.usedMushroom) ?`<span class="lb-badge"><img src="icons/mushroom.png" alt="Mushroom"></span>`:'',
     ].filter(Boolean).join('');
     const el=document.createElement('div');
     el.className=`lb-row${cls?' '+cls:''}`;
     el.dataset.id=item.id;
     el.innerHTML=`<div class="lb-rank ${rank<3?'r'+(rank+1):'other'}">${rankStr}</div>`
       +`<div class="lb-name">${escHtml(item.name||'?')}</div>`
-      +(badges?`<div class="lb-badges">${badges}</div>`:'')
-      +`<div class="lb-coins"><img src="coin.svg" style="height:1em;width:auto;vertical-align:middle;image-rendering:pixelated"> ${item.coins??0}</div>`
+      +`<div class="lb-badges">${badges}</div>`
+      +`<div class="lb-coins"><img src="coin.svg" style="height:1.6em;width:auto;image-rendering:pixelated;margin-left:24px"><span class="lb-coin-num">${item.coins??0}</span></div>`
       +`<div class="lb-time">${fmtTime(e-s)}</div>`;
     return el;
   }
@@ -545,17 +546,12 @@ firebase.auth().onAuthStateChanged(user=>{
   }
 
   // ── Config listener ───────────────────────────────────────
+  // Reload on event switch — guarantees clean state, no stale data
+  let _configLoaded = false;
   db.collection('config').doc('config').onSnapshot(snap=>{
     const newFilter=(snap.data()||{}).lbEventFilter||null;
-    if(newFilter!==_eventFilter){
-      _eventFilter=newFilter;
-      if(_allKidsRaw.length){
-        const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
-        lbCommitted=[];lbPending=[];
-        initLbRender(vis);
-        renderIM();
-      }
-    }
+    if(!_configLoaded){ _configLoaded=true; _eventFilter=newFilter; return; }
+    if(newFilter!==_eventFilter){ setTimeout(()=>location.reload(), 300); }
   });
 
   // ── Reload broadcast ──────────────────────────────────────

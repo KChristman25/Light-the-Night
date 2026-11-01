@@ -4085,11 +4085,9 @@ Return ONLY a JSON array, no prose.`;
       let affected = 0, shielded = 0;
       allKids.forEach(doc=>{
         const d = doc.data()||{};
-        if(!d.mazeStartTime) return;
+        if(!d.mazeStartTime || d.completed) return;
         if(d.shellShield || d.frozen){ shielded++; return; }
-        const upd = {coins: firebase.firestore.FieldValue.increment(-penalty)};
-        if(!d.completed) upd.frozen = true;
-        batch.update(doc.ref, upd);
+        batch.update(doc.ref, {coins: firebase.firestore.FieldValue.increment(-penalty), frozen: true});
         affected++;
       });
       if(affected + shielded > 0) await batch.commit();

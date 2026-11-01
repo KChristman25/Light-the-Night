@@ -2906,9 +2906,16 @@ if(id==='allvisitors')  initAllVisitors();
   async function adminStartKid(alertDocId, kidId, stationId, kidName){
     if(!kidId) return;
     try{
+      const kidRef = db.collection('kids').doc(kidId);
+      const kidSnap = await kidRef.get();
+      if(!kidSnap.exists){
+        // Kid was deleted — stale alert, just remove it
+        await db.collection('alerts').doc(alertDocId).delete();
+        return;
+      }
       // Start their timer 3 minutes ago to compensate for lost time
       const startTime = firebase.firestore.Timestamp.fromMillis(Date.now() - 3*60*1000);
-      await db.collection('kids').doc(kidId).update({
+      await kidRef.update({
         mazeStartTime: startTime,
         scans: firebase.firestore.FieldValue.arrayUnion('start')
       });

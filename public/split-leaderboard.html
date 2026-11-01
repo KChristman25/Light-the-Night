@@ -430,7 +430,7 @@ firebase.auth().onAuthStateChanged(user=>{
   // ── In-maze render ────────────────────────────────────────
   function renderIM(){
     const now = Date.now();
-    const vis = _eventFilter ? imKids.filter(k=>k.eventId===_eventFilter) : imKids;
+    const vis = _eventFilter ? imKids.filter(k=>(!k.eventId||k.eventId===_eventFilter)) : imKids;
     const inMaze = vis
       .filter(k=>k.mazeStartTime&&!k.mazeEndTime)
       .sort((a,b)=>(_kidStartMs[b.id]?.localMs??now)-(_kidStartMs[a.id]?.localMs??now));
@@ -554,7 +554,7 @@ firebase.auth().onAuthStateChanged(user=>{
       if(_kidsLoaded){
         // Kids beat config — re-render now with correct filter
         lbCommitted=[]; lbPending=[];
-        const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+        const vis=_eventFilter?_allKidsRaw.filter(k=>(!k.eventId||k.eventId===_eventFilter)):_allKidsRaw;
         initLbRender(vis);
         renderIM();
       }
@@ -606,7 +606,7 @@ firebase.auth().onAuthStateChanged(user=>{
       _firstSnap=false;
       _kidsLoaded=true;
       if(!_configLoaded) return;  // config hasn't arrived yet — it will re-render when it does
-      const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+      const vis=_eventFilter?_allKidsRaw.filter(k=>(!k.eventId||k.eventId===_eventFilter)):_allKidsRaw;
       initLbRender(vis);
       return;
     }
@@ -629,7 +629,7 @@ firebase.auth().onAuthStateChanged(user=>{
       }
 
       if(!d.mazeEndTime||d.revoked) return;
-      if(_eventFilter&&d.eventId!==_eventFilter) return;
+      if(_eventFilter&&d.eventId&&d.eventId!==_eventFilter) return;
 
       // Already on leaderboard — update in place
       const existingIdx=lbCommitted.findIndex(c=>c.id===id);
@@ -675,7 +675,7 @@ firebase.auth().onAuthStateChanged(user=>{
     });
 
     if(lbNeedsRebuild){
-      const vis=_eventFilter?_allKidsRaw.filter(k=>k.eventId===_eventFilter):_allKidsRaw;
+      const vis=_eventFilter?_allKidsRaw.filter(k=>(!k.eventId||k.eventId===_eventFilter)):_allKidsRaw;
       lbCommitted=[];lbPending=[];
       initLbRender(vis);
     }

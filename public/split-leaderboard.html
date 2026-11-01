@@ -395,13 +395,17 @@ function makeScroller(wrapEl,innerEl){
     if(anim){cancelAnimationFrame(anim);anim=null;}
     pos=0; looped=false; innerEl.style.transform='';
   }
-  function maybeStart(){
+  // resume: preserve pos across content rebuilds so it doesn't jump to top
+  function maybeStart(resumePos){
+    if(anim){cancelAnimationFrame(anim);anim=null;}
+    looped=false;
     if(innerEl.scrollHeight>wrapEl.clientHeight){
-      if(!looped){innerEl.innerHTML+=innerEl.innerHTML; looped=true;}
+      innerEl.innerHTML+=innerEl.innerHTML; looped=true;
+      if(resumePos>0){ const half=innerEl.scrollHeight/2; pos=resumePos%half; }
       start();
     } else { stop(); }
   }
-  return {stop,maybeStart};
+  return {stop, maybeStart, getPos:()=>pos};
 }
 
 // ── Shared start-time anchor ──────────────────────────────────
@@ -443,7 +447,7 @@ firebase.auth().onAuthStateChanged(user=>{
       return;
     }
 
-    imScroller.stop();
+    const imSavedPos = imScroller.getPos();
     imInner.innerHTML = inMaze.map(k=>{
       const startMs = _kidStartMs[k.id]?.localMs??now;
       const badges=[
@@ -463,7 +467,7 @@ firebase.auth().onAuthStateChanged(user=>{
         <div class="lb-time im-live-time">${fmtTime(now-startMs)}</div>
       </div>`;
     }).join('');
-    requestAnimationFrame(()=>imScroller.maybeStart());
+    requestAnimationFrame(()=>imScroller.maybeStart(imSavedPos));
   }
 
   // Tick elapsed every second
@@ -520,9 +524,9 @@ firebase.auth().onAuthStateChanged(user=>{
       lbCommitted.splice(_calcLbRank(item),0,item);
     }
     lbCount.textContent=lbCommitted.length;
-    lbScroller.stop();
+    const lbSavedPos=lbScroller.getPos();
     rebuildLbDOM();
-    requestAnimationFrame(()=>lbScroller.maybeStart());
+    requestAnimationFrame(()=>lbScroller.maybeStart(lbSavedPos));
   }
 
   function initLbRender(kids){

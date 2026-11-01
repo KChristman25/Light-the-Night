@@ -2163,17 +2163,21 @@ if(id==='allvisitors')  initAllVisitors();
         if(!panel||!list)return;
         if(snap.empty){panel.style.display='none';list.innerHTML='';return;}
 
-        // Build a map of kidId → mazeStartTime from live kids snapshot
+        // Build sets of known and started kids from live snapshot
+        const knownKids = new Set();
         const startedKids = new Set();
         if(_liveKidsSnap){
-          _liveKidsSnap.forEach(kd=>{ if(kd.data().mazeStartTime) startedKids.add(kd.id); });
+          _liveKidsSnap.forEach(kd=>{
+            knownKids.add(kd.id);
+            if(kd.data().mazeStartTime) startedKids.add(kd.id);
+          });
         }
 
         const activeDocs = [];
         snap.forEach(doc=>{
           const d=doc.data();
-          if(d.kidId && startedKids.has(d.kidId)){
-            // Kid already started — clean up stale alert silently
+          const stale = d.kidId && _liveKidsSnap && (!knownKids.has(d.kidId) || startedKids.has(d.kidId));
+          if(stale){
             db.collection('alerts').doc(doc.id).delete().catch(()=>{});
           } else {
             activeDocs.push({doc,d});
